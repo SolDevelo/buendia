@@ -21,6 +21,10 @@ PORT_OPTS="-Djetty.port=9000 -Dserver.port=9000 -Dport=9000"
 # Increase memory limits.
 MEMORY_OPTS="-Xmx2G -XX:MaxPermSize=128m"
 
+# Pin the SDK plugin to the last Java-7-compatible release; see comments
+# in tools/openmrs_ensure_sdk. Run this script under JDK 7.
+SDK_PLUGIN=org.openmrs.maven.plugins:openmrs-sdk-maven-plugin:3.13.9
+
 # Enable remote debugging.
 # DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"
 
@@ -38,4 +42,4 @@ cd $HOME/openmrs/$SERVER_ID
 
 # Start the server.
 export MAVEN_OPTS="$PORT_OPTS $MEMORY_OPTS $DEBUG_OPTS"
-mvn openmrs-sdk:run
+mvn $SDK_PLUGIN:run

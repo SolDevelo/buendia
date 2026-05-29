@@ -16,7 +16,10 @@ set -e
 SERVER_ID=server
 SERVER_DIR=$HOME/openmrs/$SERVER_ID
 MODULE_DIR=$SERVER_DIR/modules
-INSTALL="mvn openmrs-sdk:deploy -DserverId=$SERVER_ID"
+# Pin the SDK plugin to the last Java-7-compatible release; see comments
+# in tools/openmrs_ensure_sdk.
+SDK_PLUGIN=org.openmrs.maven.plugins:openmrs-sdk-maven-plugin:3.13.9
+INSTALL="mvn $SDK_PLUGIN:deploy -DserverId=$SERVER_ID"
 
 cd $(dirname $0)
 cd ..  # go to the root of the Buendia repository

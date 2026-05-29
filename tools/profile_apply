@@ -1,8 +1,20 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # encoding: utf-8
 
 import csv
 import json
+# Ubuntu 22.04 no longer ships a Python 2 MySQLdb. Use pure-Python PyMySQL
+# (installed via `pip install pymysql`) and have it impersonate MySQLdb.
+import pymysql
+import pymysql.converters
+import uuid as _uuid_module
+# Old MySQLdb implicitly str()'d uuid.UUID objects when escaping query args.
+# PyMySQL doesn't, and throws AttributeError on .translate(). Register an
+# explicit escaper so UUID instances serialise as their canonical string.
+pymysql.converters.conversions[_uuid_module.UUID] = (
+    lambda v, mapping=None: "'%s'" % str(v).replace("'", "''")
+)
+pymysql.install_as_MySQLdb()
 import MySQLdb
 import os
 import re
@@ -266,6 +278,11 @@ def apply(tabs):
         return datatype_names[datatype_id]
 
     def record_concept_datatype(concept_id, new_datatype_id):
+        # concept_datatypes is keyed by concept_id % 1000000 (see comment at
+        # the map's definition); add_type_tag does the modulo on lookup, so
+        # apply it here for consistency. Without this, IDs like 999005088
+        # get stored under 999005088 but looked up as 5088 -> KeyError.
+        concept_id = concept_id % 1000000
         datatype_id = concept_datatypes.get(concept_id)
         if datatype_id and datatype_id != new_datatype_id:
             raise ValueError("Concept %d: cannot be both %s and %s" %
