@@ -19,7 +19,7 @@ SERVER_ID=server
 PORT_OPTS="-Djetty.port=9000 -Dserver.port=9000 -Dport=9000"
 
 # Increase memory limits.
-MEMORY_OPTS="-Xmx2G -XX:MaxPermSize=128m"
+MEMORY_OPTS="-Xmx2G -XX:MaxPermSize=128m -Duser.timezone=UTC"
 
 # Pin the SDK plugin to the last Java-7-compatible release; see comments
 # in tools/openmrs_ensure_sdk. Run this script under JDK 7.

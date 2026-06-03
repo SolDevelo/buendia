@@ -172,15 +172,22 @@ Sync periods, configured per resource:
 
 When a clinician saves a form on a tablet, the client POSTs the encounter (with embedded observations) to `/openmrs/ws/rest/buendia/encounters`. The server creates the encounter and observations, returns 201. The next periodic sync pulls those observations back into the local cache for display.
 
-### Sync reliability: a real bug we found
+### Sync reliability: a deployment-environment requirement
 
-The form-save round-trip has a bug. After saving a form, the chart shows the new values for a fraction of a second, then re-renders empty. We confirmed via direct REST calls that the data is persisted on the server; the client's local cache doesn't get the new observations back via the periodic sync. We reproduced this on every patient we tested (three different patients), on two different Android versions (4.4 KitKat AVD and 16 / API 36 emulator).
+During the demo we initially observed a sync round-trip failure: after saving a form, the chart showed the new values for a fraction of a second, then re-rendered empty, with the server still holding the data and only a full app reset recovering it. We traced this through several layers and the root cause turned out to be **a timezone mismatch between the MySQL container (UTC by default in Docker) and the OpenMRS JVM (inherited the host's local timezone, in our case Europe/Warsaw)**.
 
-Workaround during the demo: clear app data and log in again. The initial post-clear sync is non-incremental and pulls everything fresh, so the missing observations show up. This is not viable for field use. Clinicians cannot be expected to clear app data after every save.
+The OpenMRS module's incremental sync compares `(date_updated, uuid) > (bookmark.minTime, bookmark.minUuid)` in MySQL. With the legacy Connector/J JDBC driver bundled with OpenMRS 1.10's classpath (and `useLegacyDatetimeCode=true` as the default), bookmark Date values are converted to MySQL DATETIME literals using the JVM's local timezone. When the JVM is in CEST (UTC+2) but MySQL is in UTC, the bookmark string sent to MySQL is shifted +2 hours relative to the column values, putting the filter conceptually "in the future" and silently excluding every freshly-inserted observation.
 
-Hypothesis: the bookmark advance or cache-write order has a race in the OBSERVATIONS sync worker, causing locally-created records to be silently skipped on the next incremental fetch. The bug appears specific to writes that originate on the same tablet performing the read.
+This is not a code bug. It's a deployment-environment requirement: **MySQL and the OpenMRS JVM must use the same timezone** (UTC is the conventional choice). One JVM flag fixes it:
 
-Fixing this is the most important code change before field deployment. Estimated effort: 3 to 5 days of investigation plus fix for a developer familiar with Android `SyncAdapter` patterns.
+```bash
+# In the JVM startup args
+-Duser.timezone=UTC
+```
+
+For the appliance build, this is a one-line addition to the JVM startup options. Standard production server practice already uses system-wide UTC, so this would not arise in a properly-configured deployment.
+
+Effort to address: ~30 minutes to add the flag and document the timezone requirement in the deployment runbook.
 
 ### What was not tested
 
@@ -199,14 +206,14 @@ No, not as-is. The design is right for the use case and the core architecture wo
 1. The original server hardware is no longer procurable.
 2. The original tablet hardware is no longer procurable.
 3. The build pipeline depends on shut-down third-party hosting.
-4. There is at least one high-severity bug in the form-save flow that would frustrate clinicians on every observation entered.
+4. The deployment runbook is missing several configuration requirements (timezone alignment between MySQL and JVM, modern Android target SDK, etc.) that are easy to add once known.
 5. The project has no active upstream. No meaningful commits since 2020.
 
 ### Bug list
 
 | # | Issue | Severity | Estimated fix |
 |---|---|---|---|
-| 1 | Form-save sync round-trip silently drops observations from the local cache. Data is on the server but invisible on the chart until app data is cleared. Reproducible on every form save we tested, across Android versions. | High. Clinicians would hit this on every save. | 3 to 5 days investigation plus fix |
+| 1 | Form-save sync round-trip fails when MySQL and the OpenMRS JVM use different timezones (e.g., MySQL in UTC, JVM in CEST). Bookmark filter excludes freshly-inserted observations because the legacy Connector/J JDBC driver converts bookmark Date values to MySQL DATETIME literals using the JVM's local timezone. **Deployment-environment requirement, not a code bug.** A properly-configured appliance with both MySQL and the JVM in the same timezone (typically UTC) does not exhibit this. | Operational — must be documented in the deployment runbook | Add `-Duser.timezone=UTC` to JVM startup; document timezone requirement. ~30 minutes |
 | 2 | Original server hardware (Intel Edison) discontinued. Original tablet (Sony Xperia Z2) not procurable. | Blocking | Hardware refresh plus appliance rebuild, 1 to 2 weeks |
 | 3 | Build pipeline depends on shut-down artifact mirrors (Bintray / JCenter) and incompatible plugin versions. Build can't be reproduced from scratch without substitutions. | Blocking for any new build | 1 to 2 days of toolchain fixes |
 | 4 | Profile-apply scripts use Python 2 (EOL 2020). MySQL driver for Python 2 is not in modern Debian repos. | Blocking for appliance install on modern Debian | Port to Python 3 (1 to 2 days), or vendor a Python 2 environment |
@@ -221,31 +228,29 @@ No, not as-is. The design is right for the use case and the core architecture wo
 
 Most of these are mechanical, well-localised fixes. Issues 6, 8, and 9 together are everything needed to run the existing Android client on a current-generation Android tablet. We confirmed this by running it on Android 16. The "Android client is incompatible with modern devices" concern is overstated.
 
-The one finding with uncertain fix scope is bug 1 (sync round-trip). Its effort estimate can't be bound with high confidence until someone digs into the `SyncAdapter` code.
+None of the findings have uncertain fix scope. The sync-related issue (issue 1) is a deployment-configuration requirement rather than a code defect.
 
 ### What "deployable to DRC" requires
 
 The minimum to ship a working Buendia at a single DRC site comes in two scope shapes, depending on how much polish vs. how-soon MSF wants to trade off.
 
-#### Minimum field-pilot (1.5 to 2.5 weeks)
+#### Minimum field-pilot (1 to 2 weeks)
 
-A faster path for a controlled pilot at one site, with on-the-ground IT support and explicit caveats to clinicians about known sharp edges:
+A faster path for a controlled pilot at one site, with on-the-ground IT support:
 
-- Server on a generic laptop or NUC via Docker Compose, skipping the bespoke SBC appliance rebuild. Power, Wi-Fi, and DNS handled by the existing hardware. 1 to 2 days.
+- Server on a generic laptop or NUC via Docker Compose, skipping the bespoke SBC appliance rebuild. Both MySQL container and OpenMRS JVM configured for the same timezone (typically UTC). 1 to 2 days.
 - Android patches we've already developed applied (targetSdkVersion bump, SQLCipher removal, telephony exception handling, chart-renderer fix, multidex, namespace patches). Already done in the demo; needs packaging. 1 day.
 - Toolchain fixes to produce reproducible builds. 1 day.
-- Workaround for the sync bug rather than a proper fix: ship the v1.0 client with a "force refresh" gesture on the patient chart, plus a documented operational expectation that clinicians refresh after each save. 2 to 3 days.
-- Deployment runbook for non-engineers (installer steps, user provisioning, profile upload, troubleshooting). 2 to 3 days.
+- Deployment runbook for non-engineers (installer steps, user provisioning, profile upload, troubleshooting, timezone requirement). 2 to 3 days.
 
-Suitable for: 1 site, 5 to 10 tablets, clinicians who can tolerate a workaround for the sync bug, an on-site IT person who can handle setup.
+Suitable for: 1 site, 5 to 10 tablets, an on-site IT person who can handle setup.
 Not suitable for: large fleets, sites without IT capacity, replacing existing systems clinicians depend on.
 
-#### Production-grade single-site deployment (3 to 5 weeks)
+#### Production-grade single-site deployment (2 to 4 weeks)
 
 The above plus:
 
-- Server appliance modernization: rebuild on a Raspberry Pi 5 or similar SBC for a self-contained appliance form factor. Wi-Fi AP, package server, backups all configured. 1 to 2 weeks.
-- Sync round-trip bug fix (bug 1) instead of the workaround: proper investigation, code fix, regression test. 3 to 5 days.
+- Server appliance modernization: rebuild on a Raspberry Pi 5 or similar SBC for a self-contained appliance form factor. Wi-Fi AP, package server, backups all configured, timezone standardised. 1 to 2 weeks.
 - Real-device QA on the procurement-candidate tablet model. 2 to 3 days.
 - Toolchain repair: full reproducible-build pipeline (bugs 3, 4, 5, 11, 12). 3 to 5 days.
 
@@ -340,6 +345,6 @@ The DRC deployment doesn't require any decisions in this section. Section 3's sc
 
 - Buendia's design is appropriate for the use case. Off-grid appliance, tablet clients, OpenMRS server, profile-based customization. Core software works end-to-end as we verified.
 - The codebase has aged in predictable ways: hardware EOL, library EOL, ecosystem rot. Most of the aging is mechanical to address.
-- One high-severity bug (sync round-trip drops local cache writes) needs investigation before field deployment.
-- Cannot be deployed in DRC as-is. Scope to make it deployable is 1.5 to 5 weeks depending on polish level.
+- No high-severity code defects identified. The sync-related issue we initially flagged turned out to be a deployment-environment requirement (MySQL and OpenMRS JVM must share a timezone).
+- Cannot be deployed in DRC as-is. Scope to make it deployable is 1 to 4 weeks depending on polish level.
 - It's already an OpenMRS module. Future direction (LIME / O3 alignment, FHIR migration, Android client modernization) is a menu of options to discuss, not a single committed path.
