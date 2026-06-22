@@ -5,7 +5,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Related documents in `docs/`
 
 - `docs/TECHNICAL-REVIEW.md` — full technical findings from a 2026 review, including the architecture summary, known bugs, two deployment scope shapes for DRC (1.5–2.5 weeks vs 3–5 weeks), and future-direction options. Start here for the "what state is this in" question.
-- `docs/MSF-EMAIL-DRAFT.md` — executive summary version of the same findings, for non-technical audiences.
 
 ## Repository layout
 
