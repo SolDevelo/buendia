@@ -72,7 +72,7 @@ import static org.springframework.web.bind.annotation.RequestMethod.POST;
     public void post(HttpServletRequest request, HttpServletResponse response, ModelMap model)
         throws IOException {
         DataHelper helper = getDataHelper(request);
-        response.setCharacterEncoding("utf-8");
+        response.setContentType("text/html; charset=utf-8");
         PatientPrinter printer = new PatientPrinter(response.getWriter(), helper.getLocale(), helper);
         printer.printPrologue();
         Enumeration<String> names = request.getParameterNames();
