@@ -144,6 +144,12 @@ bring_up() {
   log "Seed check"
   ls "$HERE"/seed/*.sql >/dev/null 2>&1 || warn "seed/ has no *.sql — DB will start empty (see seed/README.md)."
 
+  log "APK publish check"
+  # The pkgserver container will start regardless, but with an empty document root there is
+  # nothing for a tablet to install, and the client's :9001 health check would still 404.
+  ls "$HERE"/pkgserver/www/*.apk >/dev/null 2>&1 \
+    || warn "pkgserver/www/ has no .apk — tablets can't install over the LAN. Run: pkgserver/publish.sh"
+
   log "Starting the stack (docker compose up -d)"
   ( cd "$HERE/compose" && docker compose --env-file "$HERE/.env" up -d )
 }
@@ -181,15 +187,31 @@ health_check() {
   # /ws/rest/v1/session returns 200 without auth once the platform + REST framework are up.
   # (The buendia resources require auth and would 401 here — don't use them for health.)
   local url="http://localhost:9000/openmrs/ws/rest/v1/session"
+  local rc=1
   for i in $(seq 1 90); do
     if curl -fsS -o /dev/null "$url" 2>/dev/null; then
       printf '\033[1;32mGREEN: OpenMRS REST is up (%s)\033[0m\n' "$url"
-      return 0
+      rc=0
+      break
     fi
     sleep 5
   done
-  warn "REST API not reachable after ~5 min. Check: docker compose -f compose/docker-compose.yml logs"
-  return 1
+  [[ $rc -eq 0 ]] || warn "REST API not reachable after ~5 min. Check: docker compose -f compose/docker-compose.yml logs"
+
+  # Package server: the tablet's first-install path, and the path it health-checks.
+  local pkg_port="${PKGSERVER_PORT:-9001}"
+  if curl -fsS -o /dev/null "http://localhost:${pkg_port}/dists/stable/Release" 2>/dev/null; then
+    if curl -fsS -o /dev/null "http://localhost:${pkg_port}/latest.apk" 2>/dev/null; then
+      printf '\033[1;32mGREEN: APK install page is up (http://%s:%s/)\033[0m\n' \
+        "${STATIC_IP:-<server-ip>}" "$pkg_port"
+    else
+      warn "package server is up on :${pkg_port} but serves no latest.apk — run pkgserver/publish.sh"
+    fi
+  else
+    warn "package server not reachable on :${pkg_port} — tablets can't install over the LAN,"
+    warn "  and the app will show a 'check package server configuration' warning."
+  fi
+  return $rc
 }
 
 # ---------------------------------------------------------------------------

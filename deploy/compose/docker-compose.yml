@@ -56,6 +56,28 @@ services:
       retries: 20
       start_period: 300s
 
+  # Static file server for tablet APK install (QR code → http://<STATIC_IP>:9001/latest.apk)
+  # and for the two paths the Android client probes on this port: buendia-client.json (the
+  # update index) and /dists/stable/Release (its package-server health check — a 404 there
+  # shows a "check package server configuration" snackbar on the tablet).
+  # Content is produced by ../pkgserver/publish.sh; serving it is all this does.
+  pkgserver:
+    image: ${PKGSERVER_IMAGE:-nginx:alpine-slim}
+    restart: unless-stopped
+    ports:
+      # The client derives the package URL as http://<server>:9001, so this should stay 9001.
+      - "${PKGSERVER_PORT:-9001}:80"
+    volumes:
+      - ../pkgserver/www:/usr/share/nginx/html:ro
+      - ../pkgserver/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      # alpine-slim has no curl; busybox wget is present.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/dists/stable/Release"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   db_data:
   openmrs_profiles:

@@ -16,6 +16,8 @@ deploy/
   profile/              bunia.csv — default clinical profile (committed; baked into the seed)
   apk/                  build-apk.sh → release-signed Buendia APK (the .apk + signing key are
                         git-ignored; ship via Releases/USB) — see apk/README.md
+  pkgserver/            publish.sh + nginx.conf → static :9001 host so a tablet installs the
+                        APK by scanning a QR code (www/ is generated) — see pkgserver/README.md
   images/               docker-save tarballs for --offline (git-ignored)
   debs/                 Docker/Compose .debs for --offline (git-ignored)
   tools/                buendia-diagnostics.sh, buendia-export.sh

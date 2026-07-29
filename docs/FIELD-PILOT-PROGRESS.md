@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (WS-4: reproducible APK build + client `drc-pilot` branch; auto-logout fix)._
+_Last updated: 2026-07-29 (WS-4 APK build + WS-5 QR/LAN install server; auto-logout fix)._
 
 ---
 
@@ -47,6 +47,15 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   baked in, driven from `deploy/.env`. Verified: builds, signs with the pilot key, and the script
   reads the baked-in values back out of the finished APK (`http://192.168.8.10:9000/openmrs`,
   `:9001`, user `buendia`). See `deploy/apk/README.md`. **Not yet installed on a real tablet.**
+- **APK install over the LAN (WS-5 first-install path)** — `deploy/pkgserver/` adds a static
+  `nginx:alpine-slim` (~13 MB) service on **:9001**. `publish.sh` takes a built APK and generates the
+  document root: `/latest.apk` (the stable URL a **QR code** encodes), the version-named copy, the
+  `buendia-client.json` update index, the `/dists/stable/Release` stub, and a plain landing page with
+  the version + SHA-256. Verified against a throwaway container: `.apk` served as
+  `application/vnd.android.package-archive`, byte-identical to the built APK, `206 Partial Content`
+  on a range request (so an interrupted ward-wifi download resumes), and both client-probed paths
+  return 200. This also removes the tablet's spurious "check package server configuration" warning.
+  See `deploy/pkgserver/README.md`.
 - **Client `drc-pilot` branch** — `SolDevelo/buendia-client` now has a `drc-pilot` branch matching
   this superproject branch, and `.gitmodules` records `branch = drc-pilot`. Pilot client code
   changes land there. First change: the auto-logout fix below.
@@ -57,7 +66,9 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   tablet that passed the clinical smoke test on 2026-07-13 ran an ad-hoc **debug** build; the
   packaged build is a *release* build, so it installs as a different app id — see the caveat in §4.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
-- **Package/update server `:9001`** — optional; not running in compose (in-app updater inactive without it).
+- **In-app OTA updates** — **dropped, not deferred**: broken in the v1.0 client (§4). The `:9001`
+  server now runs in compose, but it is for *first install* (QR) and to satisfy the client's health
+  check; updating a tablet is a manual re-install.
 - **Site-specific data** — the pilot-start location tree + default account are now **baked in**
   (`seed/initdb/20-buendia-site.sql`). Still open: the *real* ward/bed layout and the per-clinician
   provider accounts, both pending MSF input (see `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`). Tailor that one
@@ -71,7 +82,9 @@ On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`925dae3a`** — the field-pilot deployment package (containerized server + baked Ebola profile).
 - **`bd52103f`** — zero-config first boot (site seed: login + location tree).
 - **`73dbbcce`** — the canonical MSF config-request list.
-- plus the WS-4 commit (APK build script + `.gitmodules` submodule branch + this status update).
+- **`4838b326`** — the reproducible APK build (WS-4) + `.gitmodules` submodule branch.
+- **`532f78bd`** — correction: the client's encryption password is inert (see §4).
+- plus the WS-5 commit (`deploy/pkgserver/` QR-install server + this status update).
 
 In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
 `soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
@@ -121,6 +134,16 @@ adb install -r buendia-client-<version>.apk
 `APK_SERVER` defaults to `STATIC_IP` from the same `.env`, so tablet and server can't drift apart.
 The script prints the baked-in server/user read back out of the finished APK — check that line.
 Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
+
+### Publishing the APK for tablet install (QR code)
+
+```bash
+cd deploy/pkgserver && ./publish.sh          # generates www/ from the newest built APK + prints the QR
+cd ../compose && docker compose --env-file ../.env up -d pkgserver
+# tablet: scan the QR, or open  http://<STATIC_IP>:9001/latest.apk
+```
+`qrencode` isn't installed on this box — `publish.sh` prints the URL and how to get a generator
+(`sudo apt install qrencode`, then `./publish.sh --qr-only`). The URL is what matters, not the image.
 
 ---
 
@@ -194,8 +217,16 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
   which throws `FileUriExposedException` at `targetSdkVersion 24`. There is no `FileProvider` and no
   `REQUEST_INSTALL_PACKAGES`. **Pilot APK updates are manual** (adb, or copy the file and tap).
 - **The app health-checks `:9001/dists/stable/Release`** and shows a "check package server
-  configuration" snackbar when it 404s. Nothing runs on `:9001` in compose, so expect that warning
-  on the tablet; a minimal static server on `:9001` is the cheap fix (WS-5).
+  configuration" snackbar when it 404s. **Fixed** — the `pkgserver` service serves a stub there.
+- **`.apk` is NOT in nginx's default `mime.types`** — without help it is served as
+  `application/octet-stream`. `pkgserver/nginx.conf` sets the type in a `location ~* \.apk$` block
+  rather than a `types { }` block, because a `types` block in `server` context **replaces** the
+  inherited MIME map instead of extending it.
+- **Never publish an APK newer than what the tablets run.** `publish.sh` advertises only the version
+  it publishes, so `shouldUpdate()` is false and clinicians get no prompt. Publish something newer
+  and every tablet starts nagging about an update the broken in-app updater cannot install.
+- **`pkgserver` starts even with an empty `www/`** — nginx comes up fine and the tablet gets 404s.
+  `setup.sh` now warns when `pkgserver/www/` holds no `.apk`; the fix is to run `publish.sh`.
 - **Upstream polls for updates every 10 seconds** (`apkCheckIntervalDefault = 10`). `build-apk.sh`
   ships **3600**.
 - **Release vs debug are different app ids** — `org.projectbuendia.client` ("Buendia") vs
@@ -233,7 +264,7 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations) |
 | WS-3 | Reproducible image build | ✅ done (`build-image.sh`) |
 | WS-4 | Android APK build + real-tablet validation | 🟡 **build done** (`deploy/apk/build-apk.sh`, release-signed, self-verifying); **on-tablet validation outstanding** |
-| WS-5 | APK delivery (QR install + OTA `:9001`) | ⬜ not started — **in-app OTA is broken on v1.0** (see §4); scope is manual install + optional `:9001` static server to silence the health-check warning |
+| WS-5 | APK delivery (QR install + OTA `:9001`) | 🟡 **QR/LAN install done** (`deploy/pkgserver/`, served + verified); **in-app OTA dropped** — broken on v1.0 (see §4), updates are manual. Untested from a real tablet browser |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started (gated on data-protection) |
 
@@ -295,14 +326,16 @@ smoke test.** Everything needed is built; no device was attached this session.
    - the release app id installs and runs (the smoke test used a **debug** build);
    - the auto-logout change behaves — leave it **plugged in and idle for >30 s**, which previously
      bounced to the login screen, and confirm it now holds for 5 min;
-   - whether the `:9001` package-server snackbar is intrusive enough to justify WS-5's static server;
+   - **the QR install path end-to-end from the tablet's own browser** — scan
+     `http://<STATIC_IP>:9001/latest.apk`, confirm Android accepts the download and the installer
+     runs. This is verified server-side only (headers, bytes, ranges); the Android side — the
+     "install unknown apps" prompt for the browser on CrossCall's Android 9–12 ROM — is untested;
+   - that the `:9001` snackbar is now gone (the stub `Release` file should have fixed it);
    - that device encryption + screen-lock PIN are on (**A11**) — the app-level encryption flag is
      inert, so this is the only data-at-rest protection the tablet has.
-2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start).
-3. **WS-5 — APK delivery**, rescoped: in-app OTA is broken on v1.0 (see §4), so this is manual install
-   (USB/adb, or a file + tap) plus optionally a minimal static `:9001` server to serve the APK, its
-   `buendia-client.json` index, and the `/dists/stable/Release` file the health check probes.
-4. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off.
+2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start). The QR card
+   for the ward belongs here: `publish.sh` emits `install-qr.png` when `qrencode` is available.
+3. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off.
 5. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`) and apply answers as they
    arrive. The location tree / display order (A2, A3) and the UI language (A6) are the ones that are
    cheapest now and most expensive after tablets have synced. **A10** (auto-logout timeout) and
