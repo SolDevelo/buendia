@@ -160,14 +160,16 @@
 - **Need:** the static IP the server should take on the site network, and a short site identifier.
   If we are using the site's existing Wi-Fi (**B2**), this must be an address on **their** subnet that
   is free or reserved for us.
-- **Why:** the server address is **baked into the tablet APK** at build time. Changing it later means
-  rebuilding the APK and re-installing every tablet. Together with **A5** (the password, also baked
-  in) this is the sequencing constraint for the whole kit: **decide B1 + A5 first, then build the APK
-  that ships.**
-- **⚠️ Risk if it can only be known on arrival:** we cannot pre-build the shipping APK, and the
-  Android toolchain (JDK 8 + SDK) is not on the site server, so it cannot be rebuilt there. Fallbacks
-  are (a) set the address by hand in the app's Settings on each tablet — loses zero-touch, or (b) ship
-  our own router so we control the subnet. Worth flagging to MSF as a reason to answer early.
+- **Why:** the server address is **baked into the tablet APK** at build time, as the default for a
+  runtime preference. Changing it later does **not** require a reinstall — the address, username and
+  password are all editable on the tablet (cog → Settings → *Buendia server* / *OpenMRS username* /
+  *OpenMRS password* → save), a guided step a non-technical person can perform. But it must be done
+  on **every** tablet, and until it is, that tablet cannot sync. So B1 and **A5** are **cheap-but-manual
+  ×N**, not blocking: still worth deciding before the shipping APK build, just not a crisis if they slip.
+- **If the address can only be known on arrival:** we cannot pre-build a zero-touch APK (the Android
+  toolchain is not on the site server), so the fallbacks are (a) walk each tablet through the Settings
+  change on site, or (b) ship our own router so we control the subnet. Neither is expensive; both cost
+  per-tablet time in the field, which is the thing worth avoiding.
 - **Default shipped:** `STATIC_IP=192.168.8.10`, `SITE_ID=pilot`.
 - **Lands in:** `deploy/.env` (`STATIC_IP`, `SITE_ID`) → netplan + the APK's `APK_SERVER`.
 - **Answer:** _(pending)_

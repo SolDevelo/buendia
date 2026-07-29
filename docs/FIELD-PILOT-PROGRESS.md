@@ -178,10 +178,18 @@ tablet**, and is now in the seed.
 - **The tablet password is NOT a setup-time parameter — deliberately rejected.** It is compiled into
   the APK as a plain string resource, and the Android toolchain isn't on the site server, so setup
   could only change the *server* half. A `SERVER_PASSWORD=…` option would therefore rely on the
-  operator supplying a value that happens to match the APK — and a mismatch locks every tablet out.
-  Accepted instead: **the password is fixed when the APK is built**, and **A5 must be answered before
-  the shipping build**. In practice the baked default *is* the password (the app can change it, but
-  nobody will).
+  operator supplying a value that happens to match the APK — and a mismatch stops every tablet
+  syncing. Accepted instead: **the APK's value is the default**, and the shipping build should carry
+  the real one.
+  **Correction (PW):** the baked values are only *defaults for runtime preferences* — the tablet's
+  **server address, username and password are all editable in the app** (`res/xml/pref_general.xml`
+  keys `openmrs_user`, `openmrs_password`, plus the "Buendia server" setting): cog → Settings →
+  change → save, which a non-technical person can do from a guide. So changing them later costs **a
+  guided manual step per tablet, not a reinstall** — this downgrades **A5** and **B1** from
+  "blocking" to "cheap but manual, ×N tablets". Two caveats keep them worth settling early: the step
+  must be done on *every* tablet (including any inside a contamination zone), and until it is done
+  that tablet cannot sync. In practice the baked default is what will be used, because nobody
+  changes a working setting.
 - **The APK is a credential, so it ships privately: a private GitHub release asset.** The password
   is readable out of the APK with one `aapt dump --values resources`, so publishing the APK publicly
   publishes the site's server password. Chosen over a private Docker Hub repo because a **fine-grained
@@ -228,9 +236,11 @@ tablet**, and is now in the seed.
   mid-write is the most plausible way this pilot loses data. Gated on the power kit / hardware choice.
 - **The shipping APK must be rebuilt at staging** — the tested build bakes in `APK_SERVER=192.168.0.150`
   (this dev box). At staging, set `APK_SERVER` to the site `STATIC_IP` and rebuild.
-  **⚠️ The server password is baked in too** (`APK_OPENMRS_PASSWORD`), so rotating it for the real
-  deployment (**A5**) *requires* rebuilding the APK and reinstalling every tablet. Sequence it the other
-  way round: decide the final password and site IP **first**, then build the APK that ships.
+  The server password is baked in too (`APK_OPENMRS_PASSWORD`). Rotating it later does **not** need a
+  reinstall — address/user/password are runtime-editable preferences on the tablet (see the
+  correction under *Decisions taken internally*) — but it does need a guided manual step on **every**
+  tablet, and that tablet can't sync until it's done. So still cheaper to decide the final password
+  and site IP **first**, then build the APK that ships.
 - **Multi-tablet not re-tested with the packaged build** — two devices syncing bidirectionally was
   confirmed in an earlier ad-hoc demo, not with this APK.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.

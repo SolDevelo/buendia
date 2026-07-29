@@ -65,10 +65,13 @@ resource (`openmrs_password_default`), recoverable with a single
 - `pkgserver/build-pkgserver-image.sh` (baking `www/` into an image) still exists for a
   private-registry or USB workflow, but it is **not** the default ship path.
 
-**Note on the password itself:** it is set once, when the APK is built, and cannot be changed at
-setup time — the tablet's copy is compiled in, and the Android toolchain is not on the site server.
-So it is *not* a `setup.sh` parameter; deciding it late means rebuilding the APK and reinstalling
-every tablet. Settle MSF config request **A5** before the shipping build.
+**Note on the password itself:** what the APK bakes in is only the *default* for a runtime
+preference. The server address, username and password are all editable on the tablet
+(`res/xml/pref_general.xml`: `openmrs_user`, `openmrs_password`, and the "Buendia server" setting)
+— cog → Settings → change → save, a guided step a non-technical person can do. So changing any of
+them later costs **a manual step on every tablet, not a reinstall**. It is still not a `setup.sh`
+parameter (setup can only change the server half, and a silent mismatch stops tablets syncing), so
+settling MSF config requests **A5**/**B1** before the shipping build remains the cheap path.
 
 `--offline` remains as the **fallback** for rebuilding on site with no connectivity at all: run
 `tools/bundle-images.sh` beforehand to produce `images/*.tar` (~771 MB).
