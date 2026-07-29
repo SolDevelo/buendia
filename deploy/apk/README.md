@@ -10,8 +10,8 @@ cp ../.env.example ../.env     # then fill in the APK_* block (at minimum APK_KE
 ./build-apk.sh --debug         # lab build: app id ...client.dev, debug-signed, coexists with release
 ```
 
-Everything the tablet needs is baked in at build time (server address, login, DB encryption
-password), so a clinician installs one file and does not touch Settings.
+Everything the tablet needs is baked in at build time (server address, login, sync and
+auto-logout tunables), so a clinician installs one file and does not touch Settings.
 
 ## Toolchain
 
@@ -34,7 +34,7 @@ All from `deploy/.env` (git-ignored); see `.env.example` for the annotated block
 | `APK_SERVER` | `STATIC_IP` from `.env` | baked in as the default server preference; app derives `:9000` (OpenMRS) and `:9001` (packages) |
 | `APK_VERSION` | `1.0.0` | **must be 1–3 dot-separated integers** (see *Versioning*) |
 | `APK_OPENMRS_PASSWORD` | `buendia` | baked-in default credential; rotate together with the server (config request A5) |
-| `APK_ENCRYPTION_PASSWORD` | *empty* | empty ⇒ the tablet's patient database is **unencrypted** |
+| `APK_ENCRYPTION_PASSWORD` | *empty* | **inert on v1.0** — see below; leave empty |
 | `APK_CHECK_INTERVAL` | `3600` | upstream polls the package server every **10 s**; pointless here |
 | `APK_IDLE_LOGOUT_SECONDS` | `600` | auto-logout while on battery |
 | `APK_DOCKED_IDLE_LOGOUT_SECONDS` | `300` | ...and while AC-charging; upstream hardcoded **30 s** |
@@ -52,12 +52,17 @@ Android only installs an update whose signature matches the installed app. There
   (`ANDROID_KEYSTORE_FILE` / `ANDROID_KEYSTORE_PASSWORD`); the non-CI branch prompts on a
   console for the passphrase and so cannot be scripted.
 
-### The DB encryption password is equally one-way
+### `APK_ENCRYPTION_PASSWORD` does nothing — don't rely on it
 
-`APK_ENCRYPTION_PASSWORD` becomes `BuildConfig.ENCRYPTION_PASSWORD` and encrypts the
-tablet's SQLite database. **Changing it after tablets are provisioned makes them unable to
-open their existing database.** Decide it once, before provisioning, and store it with the
-signing-key backup.
+The gradle property exists and feeds `BuildConfig.ENCRYPTION_PASSWORD`, but **nothing in the
+v1.0 client ever reads that constant**, and `sync/Database.java` extends the plain
+`android.database.sqlite.SQLiteOpenHelper` — SQLCipher was removed from this codebase. So the
+tablet's local database is **not** encrypted by the app whatever you set here.
+
+Tablet data-at-rest is covered instead by **device-level Android encryption plus a mandatory
+screen-lock PIN**, which is the deployment plan's locked decision. The local DB is only a sync
+cache; the server holds the record. Re-adding app-level SQLCipher is a possible future change
+if MSF data-protection requires it, and only then would this knob become live.
 
 ## Versioning
 

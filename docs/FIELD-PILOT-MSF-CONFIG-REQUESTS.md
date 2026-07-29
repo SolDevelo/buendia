@@ -12,7 +12,7 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29 (added A10 auto-logout timeout, A11 tablet DB encryption)._
+> _Last updated: 2026-07-29 (added A10 auto-logout timeout, A11 tablet data-at-rest)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -179,17 +179,21 @@
   into the APK by `deploy/apk/build-apk.sh`. Requires a rebuild + reinstall to change.
 - **Answer:** _(pending)_
 
-### A11. Tablet SQLite encryption password — ⬜ **decide before provisioning tablets**
+### A11. Tablet data-at-rest protection & screen-lock PIN — ⬜ **staging-blocking, cheap**
 
-- **Need:** confirmation that the tablet-side database must be encrypted (it should be, for patient
-  data on a device that can leave a ward), and who holds the password.
-- **Why:** the client encrypts its local SQLite DB with a **build-time** password. We currently ship
-  it **empty = unencrypted**, which is the upstream dev default. Critically, this is a one-way
-  decision: **changing the password after tablets are provisioned leaves them unable to open their
-  existing database**, so it must be set before go-live, not after.
-- **Default shipped:** empty (**unencrypted**).
-- **Lands in:** `deploy/.env` (`APK_ENCRYPTION_PASSWORD`) → baked into the APK. Store it with the
-  APK signing-key backup (`deploy/apk/README.md`).
+- **Need:** confirmation that every pilot tablet will have **device encryption on** and a
+  **mandatory screen-lock PIN**, and whether the PIN is shared across tablets or per device (see
+  also B3). If MSF data protection instead requires *app-level* encryption, say so now — that is a
+  code change, not a setting.
+- **Why:** the app does **not** encrypt its local database. `-PencryptionPassword` /
+  `BuildConfig.ENCRYPTION_PASSWORD` still exists in the build, but **nothing reads it** and
+  `sync/Database.java` uses plain `SQLiteOpenHelper` (SQLCipher was removed from this codebase), so
+  that knob is inert — verified in the v1.0 source. Data-at-rest on the tablet therefore rests
+  entirely on Android device encryption + the lock screen. Mitigating factor: the tablet DB is only
+  a sync cache, and the server holds the record.
+- **Default shipped:** no app-level encryption (inert flag left empty); device encryption + PIN are a
+  **staging checklist step**, not something the APK can enforce.
+- **Lands in:** the staging/provisioning checklist (WS-6), not a config file.
 - **Answer:** _(pending)_
 
 ### B3. Tablet count & device policy — ⬜

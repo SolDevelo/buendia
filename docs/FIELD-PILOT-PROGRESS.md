@@ -210,9 +210,12 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
   Upstream `fb1b6099` had already relaxed it from log-out-immediately. Now build-configurable
   (`-PidleLogoutSeconds` / `-PdockedIdleLogoutSeconds`), shipping **600 s / 300 s**; see MSF config
   request **A10**. Client commit `85ce064c` on `drc-pilot`.
-- **Tablet DB encryption is a one-way, pre-provisioning decision** — `APK_ENCRYPTION_PASSWORD` is
-  baked in at build time; changing it later leaves tablets unable to open their existing SQLite DB.
-  Ships **empty (unencrypted)** today; MSF config request **A11**.
+- **`-PencryptionPassword` is INERT — the app does not encrypt its local DB.** The property still
+  feeds `BuildConfig.ENCRYPTION_PASSWORD`, but **nothing reads that constant** and
+  `sync/Database.java` extends plain `android.database.sqlite.SQLiteOpenHelper` (SQLCipher was
+  removed). Re-verified in v1.0 source on 2026-07-29. Don't claim the tablet DB is encrypted because
+  the flag was set — data-at-rest is **device-level Android encryption + a screen-lock PIN**, which
+  is a *staging checklist* step, not an APK setting. MSF config request **A11**.
 
 ### Server / seed / profile
 
@@ -293,8 +296,8 @@ smoke test.** Everything needed is built; no device was attached this session.
    - the auto-logout change behaves — leave it **plugged in and idle for >30 s**, which previously
      bounced to the login screen, and confirm it now holds for 5 min;
    - whether the `:9001` package-server snackbar is intrusive enough to justify WS-5's static server;
-   - then decide `APK_ENCRYPTION_PASSWORD` (**A11**) *before* provisioning real tablets — it cannot be
-     changed afterwards without wiping each tablet's local DB.
+   - that device encryption + screen-lock PIN are on (**A11**) — the app-level encryption flag is
+     inert, so this is the only data-at-rest protection the tablet has.
 2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start).
 3. **WS-5 — APK delivery**, rescoped: in-app OTA is broken on v1.0 (see §4), so this is manual install
    (USB/adb, or a file + tap) plus optionally a minimal static `:9001` server to serve the APK, its

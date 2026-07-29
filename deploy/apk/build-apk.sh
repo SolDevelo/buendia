@@ -141,9 +141,11 @@ fi
   echo "ERROR: APK_VERSION='$APK_VERSION' must be 1-3 dot-separated integers (e.g. 1.0.0)." >&2
   exit 1; }
 
-if [[ -z "$APK_ENCRYPTION_PASSWORD" ]]; then
-  echo "WARNING: APK_ENCRYPTION_PASSWORD is empty — the tablet's SQLite database of patient"
-  echo "         data will be UNENCRYPTED. Acceptable in the lab; set it before real patients."
+if [[ -n "$APK_ENCRYPTION_PASSWORD" ]]; then
+  echo "NOTE: APK_ENCRYPTION_PASSWORD is set, but it has NO EFFECT on the v1.0 client — nothing"
+  echo "      reads BuildConfig.ENCRYPTION_PASSWORD and sync/Database.java extends the plain"
+  echo "      android.database.sqlite.SQLiteOpenHelper (SQLCipher was removed). The tablet's local"
+  echo "      database is protected by DEVICE-level encryption + a screen-lock PIN instead."
 fi
 
 GIT_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo nogit)"
@@ -154,7 +156,7 @@ echo "    client:            $CLIENT_DESC"
 echo "    server (baked in): $APK_SERVER  (OpenMRS :9000, package server :9001)"
 echo "    version:           $APK_VERSION"
 echo "    OpenMRS user:      $APK_OPENMRS_USER"
-echo "    DB encryption:     $([[ -n "$APK_ENCRYPTION_PASSWORD" ]] && echo enabled || echo 'DISABLED')"
+echo "    DB encryption:     app-level none (inert flag; device-level encryption applies)"
 echo "    non-wifi allowed:  $APK_NON_WIFI_ALLOWED"
 echo "    idle logout:       ${APK_IDLE_LOGOUT_SECONDS}s on battery, ${APK_DOCKED_IDLE_LOGOUT_SECONDS}s while charging"
 
@@ -232,7 +234,7 @@ Buendia field-pilot APK
   server baked in:        $APK_SERVER
   OpenMRS user:           $APK_OPENMRS_USER
   OpenMRS password set:   $([[ -n "$APK_OPENMRS_PASSWORD" ]] && echo yes || echo no)
-  DB encryption:          $([[ -n "$APK_ENCRYPTION_PASSWORD" ]] && echo enabled || echo DISABLED)
+  app-level DB encryption: none — flag is inert in v1.0 (device-level encryption applies)
   non-wifi allowed:       $APK_NON_WIFI_ALLOWED
   update-check interval:  ${APK_CHECK_INTERVAL}s
   idle logout:            ${APK_IDLE_LOGOUT_SECONDS}s on battery / ${APK_DOCKED_IDLE_LOGOUT_SECONDS}s charging
