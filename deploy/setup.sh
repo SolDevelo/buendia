@@ -10,6 +10,10 @@
 #   sudo ./setup.sh --dry-run    # print every change without making one (test the run first)
 #   sudo ./setup.sh --skip-verify        # stop after starting the stack, don't run the go/no-go
 #
+#   # ...and to also fetch the tablet APK payload from its PRIVATE release:
+#   GITHUB_TOKEN=<fine-grained, read-only> sudo -E ./setup.sh
+#   (`-E` keeps the token in the environment across sudo. It is never written to .env or the log.)
+#
 # INTERNET AT SETUP, NONE AT RUNTIME. --online pulls three images (db, openmrs, pkgserver)
 # from Docker Hub; after that the site needs no internet ever again. The DB image carries the
 # baseline seed and the pkgserver image can carry the tablet APK, so there are no heavy files
@@ -223,6 +227,20 @@ config_network() {
   fi
   [[ -n "$dns" ]] && nameservers=$'\n      nameservers:\n        addresses: ['"$dns"']'
 
+  # Renderer must match what actually manages networking on this box. Ubuntu SERVER uses
+  # systemd-networkd; Ubuntu DESKTOP uses NetworkManager, and handing it a `renderer: networkd`
+  # file means the config either fails to apply or fights NM for the interface. Autodetect, with
+  # NET_RENDERER as an override.
+  local renderer="${NET_RENDERER:-}"
+  if [[ -z "$renderer" ]]; then
+    if systemctl is-active --quiet NetworkManager 2>/dev/null; then
+      renderer="NetworkManager"
+    else
+      renderer="networkd"
+    fi
+  fi
+  echo "  netplan renderer: $renderer"
+
   local block="ethernets" wifi_ap=""
   if [[ $is_wifi -eq 1 ]]; then
     block="wifis"
@@ -244,7 +262,7 @@ config_network() {
 # Keep STATIC_IP identical to the address baked into the tablet APK (-Pserver=...).
 network:
   version: 2
-  renderer: networkd
+  renderer: ${renderer}
   ${block}:
     ${iface}:
       dhcp4: false
@@ -348,6 +366,114 @@ load_images() {
 }
 
 # ---------------------------------------------------------------------------
+# 4b. Fetch the tablet package-server payload from a PRIVATE release
+# ---------------------------------------------------------------------------
+# WHY THIS IS PRIVATE, unlike the container images: the payload contains the APK, and the APK
+# carries the server password as a plain Android string resource (`openmrs_password_default` —
+# extractable with one `aapt dump --values resources`). So the APK *is* a credential and must not
+# sit in a public namespace. The db/openmrs images hold no secrets and stay public, which is why
+# there is no registry login for them.
+#
+# The unit is the whole generated `www/` (APK + update index + Release stub + QR + landing page),
+# because all of it is SITE-SPECIFIC: the index, landing page and QR embed the server address. That
+# also means the target needs no python/QR tooling — it just unpacks what we generated at release.
+#
+# The token is read from the ENVIRONMENT ONLY and never written to .env or the log:
+#   curl -fsSLO <url>/setup.sh && GITHUB_TOKEN=ghp_xxx sudo -E bash setup.sh
+# It is needed only during setup; afterwards it has no use on this box.
+fetch_apk() {
+  local src="${APK_SOURCE:-auto}"
+  local token="${GITHUB_TOKEN:-${TOKEN:-}}"
+
+  shopt -s nullglob
+  local have=("$HERE"/pkgserver/www/*.apk)
+  shopt -u nullglob
+
+  case "$src" in
+    none)  log "APK fetch: skipped (APK_SOURCE=none)"; return 0 ;;
+    local) log "APK fetch: using pkgserver/www as-is (APK_SOURCE=local)"; return 0 ;;
+    auto)
+      # Already populated (a re-run, or an offline USB install) — never re-download.
+      if [[ ${#have[@]} -gt 0 ]]; then
+        log "APK fetch: pkgserver/www already holds $(basename "${have[0]}") — nothing to download"
+        return 0
+      fi
+      if [[ -z "${APK_RELEASE_REPO:-}" || -z "$token" ]]; then
+        log "APK fetch: nothing to do (no APK present, and no APK_RELEASE_REPO + token given)"
+        return 0
+      fi
+      ;;
+    github) : ;;
+    *) die "unknown APK_SOURCE: $src (expected auto|github|local|none)" ;;
+  esac
+
+  : "${APK_RELEASE_REPO:?set APK_RELEASE_REPO (owner/repo) to fetch the APK payload}"
+  : "${APK_RELEASE_TAG:?set APK_RELEASE_TAG (the release tag holding the asset)}"
+  local asset="${APK_RELEASE_ASSET:-pkgserver-www.tar.gz}"
+  [[ -n "$token" ]] || die "no token: pass GITHUB_TOKEN=... in the environment (it is never stored in .env)."
+
+  log "APK fetch: $asset from $APK_RELEASE_REPO @ $APK_RELEASE_TAG (private release)"
+  if [[ $DRY_RUN -eq 1 ]]; then
+    printf '  \033[0;36m[dry-run]\033[0m would download %s with the supplied token (redacted)\n' "$asset"
+    return 0
+  fi
+  command -v python3 >/dev/null || die "python3 is required to parse the GitHub release metadata."
+
+  local api="https://api.github.com/repos/$APK_RELEASE_REPO/releases/tags/$APK_RELEASE_TAG"
+  local meta id
+  meta="$(curl -fsSL -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.github+json" "$api")" \
+    || die "could not read release $APK_RELEASE_TAG from $APK_RELEASE_REPO (token wrong, or no access?)"
+  id="$(printf '%s' "$meta" | python3 -c '
+import json,sys
+rel = json.load(sys.stdin)
+name = sys.argv[1]
+for a in rel.get("assets", []):
+    if a["name"] == name:
+        print(a["id"]); break
+' "$asset")"
+  [[ -n "$id" ]] || die "release $APK_RELEASE_TAG has no asset named '$asset'."
+
+  local tmp; tmp="$(mktemp -d)"
+  # Asset download needs the octet-stream Accept header, otherwise the API returns JSON metadata.
+  curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/octet-stream" \
+    -o "$tmp/$asset" "https://api.github.com/repos/$APK_RELEASE_REPO/releases/assets/$id" \
+    || { rm -rf "$tmp"; die "download of $asset failed."; }
+
+  # Verify against a sibling .sha256 asset when the release provides one.
+  local sid
+  sid="$(printf '%s' "$meta" | python3 -c '
+import json,sys
+rel = json.load(sys.stdin)
+name = sys.argv[1] + ".sha256"
+for a in rel.get("assets", []):
+    if a["name"] == name:
+        print(a["id"]); break
+' "$asset")"
+  if [[ -n "$sid" ]]; then
+    curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/octet-stream" \
+      -o "$tmp/$asset.sha256" "https://api.github.com/repos/$APK_RELEASE_REPO/releases/assets/$sid" || true
+    if [[ -s "$tmp/$asset.sha256" ]]; then
+      local want got
+      want="$(awk '{print $1}' "$tmp/$asset.sha256")"
+      got="$(sha256sum "$tmp/$asset" | cut -d' ' -f1)"
+      [[ "$want" == "$got" ]] || { rm -rf "$tmp"; die "checksum mismatch on $asset (want $want, got $got)."; }
+      echo "  checksum OK (${got:0:12})"
+    fi
+  else
+    warn "release provides no $asset.sha256 — payload not checksum-verified."
+  fi
+
+  install -d "$HERE/pkgserver/www"
+  tar xzf "$tmp/$asset" -C "$HERE/pkgserver/www" --strip-components=0 \
+    || { rm -rf "$tmp"; die "could not unpack $asset."; }
+  rm -rf "$tmp"
+  shopt -s nullglob; local got=("$HERE"/pkgserver/www/*.apk); shopt -u nullglob
+  [[ ${#got[@]} -gt 0 ]] || die "$asset unpacked but contains no .apk — was it built by pkgserver/publish.sh?"
+  ok "  installed $(basename "${got[0]}") into pkgserver/www"
+}
+
+# ---------------------------------------------------------------------------
 # 5. Bring up the stack
 # ---------------------------------------------------------------------------
 bring_up() {
@@ -383,6 +509,8 @@ bring_up() {
     fi
   fi
   echo "  site seed: seed/initdb/20-buendia-site.sql ($(wc -c < "$HERE/seed/initdb/20-buendia-site.sql" | tr -d ' ') bytes)"
+
+  fetch_apk
 
   log "APK publish check"
   # The pkgserver container starts regardless, but with an empty document root there is nothing

@@ -16,6 +16,11 @@ pkgserver/www/*
 !pkgserver/www/.gitkeep
 # Printable install cards: generated, and they carry the site Wi-Fi passphrase.
 pkgserver/cards/
+# Release payload built by pkgserver/pack-www.sh. It contains the APK, and the APK carries the
+# server password as a plain Android string resource — so it is a CREDENTIAL. It belongs in a
+# PRIVATE GitHub release, never in git.
+pkgserver/pkgserver-www-*.tar.gz
+pkgserver/pkgserver-www-*.tar.gz.sha256
 # NB: the default profile (profile/bunia.csv) IS committed — it's a package artifact, baked
 # into the seed by seed/build-seed.sh. Ignore only site-tailored variants if they hold PII.
 profile/site-*.csv

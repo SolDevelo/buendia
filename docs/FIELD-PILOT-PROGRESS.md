@@ -173,6 +173,39 @@ tablet**, and is now in the seed.
 - **Site architecture** (tents in a field vs a building with a triage yard/hall) — asked, **no answer
   yet**. It drives Wi-Fi coverage, power and the zone tree.
 
+### Decisions taken internally (2026-07-29, PW)
+
+- **The tablet password is NOT a setup-time parameter — deliberately rejected.** It is compiled into
+  the APK as a plain string resource, and the Android toolchain isn't on the site server, so setup
+  could only change the *server* half. A `SERVER_PASSWORD=…` option would therefore rely on the
+  operator supplying a value that happens to match the APK — and a mismatch locks every tablet out.
+  Accepted instead: **the password is fixed when the APK is built**, and **A5 must be answered before
+  the shipping build**. In practice the baked default *is* the password (the app can change it, but
+  nobody will).
+- **The APK is a credential, so it ships privately: a private GitHub release asset.** The password
+  is readable out of the APK with one `aapt dump --values resources`, so publishing the APK publicly
+  publishes the site's server password. Chosen over a private Docker Hub repo because a **fine-grained
+  GitHub PAT can be scoped to one repo, read-only**, whereas a Docker Hub read token can pull every
+  private repo in the account — and this token ends up in a shell history on a laptop in the field.
+  - The unit is the whole generated `www/` (`pkgserver/pack-www.sh` → `pkgserver-www-<site>-<ver>.tar.gz`,
+    8.1 MB, git-ignored), because the update index, landing page and QR **all embed the server
+    address** — and shipping it whole means the target needs no python/segno/qrencode.
+  - `setup.sh` fetches and unpacks it (`APK_SOURCE=auto|github|local|none`), verifies a sibling
+    `.sha256` asset when present, and **skips the download when `www/` is already populated** (a
+    re-run, or an offline USB install).
+  - The token comes **from the environment only** — never `.env` (which travels to the site server)
+    and never the staging log: `GITHUB_TOKEN=… sudo -E ./setup.sh`.
+  - `buendia-db` and `buendia-openmrs` stay **public** (no secrets, no registry login on site).
+    `build-pkgserver-image.sh` remains for a private-registry/USB workflow but is not the ship path.
+- **`curl … | bash` rejected** for the installer: a tagged release + sha256 check gives the same
+  ergonomics while staying reproducible and auditable, and the ~800 MB of images comes from Docker
+  Hub either way. (Also note `PASS=x curl … | sh` passes the variable to *curl*, not to the shell.)
+- **`setup.sh` will be tested on real hardware soon** — an old notebook with **Ubuntu 24**. That
+  test found its first bug before it even ran: the generated netplan hardcoded `renderer: networkd`,
+  which is wrong on Ubuntu **Desktop** (NetworkManager) and would have silently failed to apply the
+  static IP. Now autodetected (`NET_RENDERER` overrides). Verified: this box runs NetworkManager and
+  the generated file now says so.
+
 ### Not started / deferred (the remaining pilot work)
 - **`setup.sh` has never been run on real server hardware.** Its logic is now rehearsable
   (`--dry-run`, exercised repeatedly) and the stack it starts is verified, but the host-mutating

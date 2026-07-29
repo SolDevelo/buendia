@@ -33,11 +33,42 @@ The site server needs connectivity **only while `setup.sh` runs**, and never aga
 because the awkward, heavy parts of the deployment live inside the three images, not in files
 someone has to copy onto the machine:
 
-| Artefact | Travels as | Why |
-|---|---|---|
-| 83 MB baseline seed | baked into `DB_IMAGE` | was a bind-mounted file, so `docker pull` alone couldn't stand up a server |
-| tablet APK + index | baked into `PKGSERVER_IMAGE` (optional) | can't be built on the server — that needs JDK 8 + the Android SDK |
-| 12 KB site seed | committed, bind-mounted | must stay hand-editable per site, with no image rebuild |
+| Artefact | Travels as | Visibility | Why |
+|---|---|---|---|
+| 83 MB baseline seed | baked into `DB_IMAGE` | **public** Docker Hub | was a bind-mounted file, so `docker pull` alone couldn't stand up a server |
+| the server | `OPENMRS_IMAGE` | **public** Docker Hub | no secrets in it |
+| tablet APK + index + QR (`www/`) | `pkgserver-www-*.tar.gz` asset on a **private** GitHub release | **private** | can't be built on the server (needs JDK 8 + the Android SDK) — **and it is a credential**, see below |
+| 12 KB site seed | committed, bind-mounted | public | must stay hand-editable per site, with no image rebuild |
+
+### ⚠️ The APK is a credential — it does not go anywhere public
+
+`client/app/build.gradle` bakes the server password into the APK as a plain Android string
+resource (`openmrs_password_default`), recoverable with a single
+`aapt dump --values resources`. Publishing that APK publicly publishes the site's server password.
+
+- The **db and openmrs images stay public** — they contain no secrets, and the site server needs no
+  registry credential for them.
+- The **`www/` payload goes to a private GitHub release**. Build it with `pkgserver/publish.sh &&
+  pkgserver/pack-www.sh`, upload with `gh release upload`, and `setup.sh` fetches it:
+
+  ```bash
+  GITHUB_TOKEN=<fine-grained, read-only, that repo only> sudo -E ./setup.sh
+  ```
+
+  The token is read **from the environment only** — never `.env` (which travels to the site server)
+  and never the staging log. It is needed only during setup and has no further use on the box.
+  Prefer a fine-grained GitHub PAT scoped to the single repo: a Docker Hub read token, by contrast,
+  can pull *every* private repo in the account.
+- The whole `www/` is the unit, not just the `.apk`, because the update index, landing page and QR
+  code all embed the server address — and shipping it whole means the target needs no
+  python/segno/qrencode.
+- `pkgserver/build-pkgserver-image.sh` (baking `www/` into an image) still exists for a
+  private-registry or USB workflow, but it is **not** the default ship path.
+
+**Note on the password itself:** it is set once, when the APK is built, and cannot be changed at
+setup time — the tablet's copy is compiled in, and the Android toolchain is not on the site server.
+So it is *not* a `setup.sh` parameter; deciding it late means rebuilding the APK and reinstalling
+every tablet. Settle MSF config request **A5** before the shipping build.
 
 `--offline` remains as the **fallback** for rebuilding on site with no connectivity at all: run
 `tools/bundle-images.sh` beforehand to produce `images/*.tar` (~771 MB).
@@ -49,9 +80,11 @@ someone has to copy onto the machine:
 2. **Seed → DB image** — `cd seed && ./build-seed.sh && ./build-db-image.sh` (see `seed/README.md`).
 3. **APK** — `cd apk && ./build-apk.sh` (see `apk/README.md`). ⚠️ It bakes in the server address
    **and password**, so settle those (MSF config requests **B1** and **A5**) *before* this step.
-4. **Package server** — `cd pkgserver && ./publish.sh && ./build-pkgserver-image.sh`.
-5. **Publish** — `tools/publish-images.sh` (prints a plan; `--push` to publish), then paste the
-   printed digests into `.env`.
+4. **Package server payload** — `cd pkgserver && ./publish.sh && ./pack-www.sh`, then
+   `gh release upload <tag> pkgserver-www-*.tar.gz* --repo <owner>/<PRIVATE-repo>`.
+5. **Publish the public images** — `tools/publish-images.sh` (prints a plan; `--push` to publish),
+   then paste the printed digests into `.env`. Publish **`buendia-db` and `buendia-openmrs` only**;
+   see the credential warning above before pushing anything containing the APK.
 
 ## Run (at the SolDevelo Staging Area, or on the site server)
 
@@ -111,16 +144,19 @@ build (WS-3), not here.
 
 ## Hosting
 
-- **Images: Docker Hub, `soldevelo` namespace** (public). They contain no patient data and the
-  software is open source; public means the site server needs no registry credential. A private
-  repo works too — set `REGISTRY_USER`/`REGISTRY_TOKEN` and `setup.sh` logs in before pulling.
-- **Public repo is fine** for this scaffold (scripts + config) — it's auditable.
+- **Images: Docker Hub, `soldevelo` namespace** (public) — `buendia-db` and `buendia-openmrs` only.
+  They contain no patient data and no credentials, and public means the site server needs no
+  registry login. A private repo works too — set `REGISTRY_USER`/`REGISTRY_TOKEN` and `setup.sh`
+  logs in before pulling.
+- **The APK payload: a private GitHub release** (see the credential warning above). Never public,
+  and never in git — `.gitignore` covers `pkgserver/pkgserver-www-*.tar.gz`.
+- **Public repo is fine** for this scaffold (scripts + config) — it's auditable, and `setup.sh`
+  itself carries no secrets, so it can be fetched without a token.
 - **Never commit secrets or site data:** `.env`, `TAILSCALE_AUTHKEY`, DB passwords, the APK signing
-  key, real clinician names. `.gitignore` covers these — keep it that way.
-- ⚠️ **The `buendia-pkgserver` image is site-specific**: the APK inside bakes in the server address
-  and the OpenMRS password. Tag it per site, and think before pushing it to a public namespace.
-- **Pin to a tagged release**; don't `curl … main | bash`. Cloning a tag at staging
-  (where you have internet) is reproducible; piping a moving branch is not.
+  key, the `www/` payload, real clinician names. `.gitignore` covers these — keep it that way.
+- **Pin to a tagged release**; don't `curl … main | bash`. Fetching a tagged release and checking
+  its sha256 is reproducible and auditable; piping a moving branch is neither — and the ~800 MB of
+  images comes from Docker Hub either way, so the one-liner buys little.
 
 ## Status
 
