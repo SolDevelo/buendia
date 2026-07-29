@@ -23,9 +23,44 @@ deploy/
                         APK ships by `docker pull` too — see pkgserver/README.md
   images/               docker-save tarballs for --offline (git-ignored; tools/bundle-images.sh)
   debs/                 Docker/Compose .debs for --offline (git-ignored)
-  tools/                buendia-verify.sh (go/no-go), publish-images.sh, bundle-images.sh,
-                        buendia-diagnostics.sh, buendia-export.sh, create-openmrs-user.sh
+  tools/                buendia-verify.sh (go/no-go), make-bundle.sh + bootstrap.sh (what ships to
+                        a server), publish-images.sh, bundle-images.sh, buendia-diagnostics.sh,
+                        buendia-export.sh, create-openmrs-user.sh
 ```
+
+## What actually goes on a site server
+
+**Not a git clone.** A clone would put `CLAUDE.md`, the whole `docs/` set (deployment plan, MSF
+config requests, the technical review), `.claude/skills/`, the entire source tree and ~76 MB of
+history onto a machine that ships to a site and is handled outside SolDevelo. None of it is needed
+to run the server.
+
+`tools/make-bundle.sh` produces **`buendia-deploy-<version>.tar.gz` (~36 KB)** containing only the
+nine files the deployment touches — `setup.sh`, `compose/docker-compose.yml`, the three `config/`
+files, `seed/initdb/20-buendia-site.sql`, `pkgserver/nginx.conf`, `tools/buendia-verify.sh` — plus a
+few genuinely useful on-site tools and a **purpose-written operator README** (not this one). It is an
+**allowlist**, so anything added to the repo later cannot leak by default, and it self-checks: the
+build fails if `CLAUDE.md`, anything from `docs/`, a stray `*.md`, `.env` or `.git` appears inside.
+
+`tools/bootstrap.sh` is the one command run on the target, from a USB stick holding:
+
+| File | |
+|---|---|
+| `bootstrap.sh` | the command you run |
+| `buendia.env` | this site's `.env` — **required**, holds the DB passwords, never committed |
+| `buendia-deploy-*.tar.gz` | the bundle (or set `BUNDLE_URL` to a release asset and let it download) |
+| `pkgserver-www-*.tar.gz` | optional — the tablet APK payload; if present, **no GitHub token needed** |
+| `token.txt` | optional — used to fetch that payload from the private release instead |
+
+```bash
+sudo ./bootstrap.sh --dry-run    # prints every change, makes none
+sudo ./bootstrap.sh
+```
+
+It verifies every tarball against its `.sha256`, unpacks the bundle to `/opt/buendia`, installs the
+`.env` at mode 0600, places the tablet payload, then hands off to `setup.sh`. The bundle holds no
+secrets, so it can be published as a release asset on the **public** repo and fetched without a
+credential — only the APK payload is private.
 
 ## Internet at setup, none at runtime
 

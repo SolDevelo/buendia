@@ -2,35 +2,38 @@
 #
 # Buendia field-pilot — one-command bootstrap for a fresh Ubuntu box, from a USB stick.
 #
-# VALIDATED on real hardware 2026-07-29: an Ubuntu 24 notebook went from bare install to a
-# GO stack, with a tablet installing the APK by QR, using only this script + buendia.env
-# + the payload tarball on a USB stick.
+#   sudo ./bootstrap.sh --dry-run    # rehearse: prints every change, makes none
+#   sudo ./bootstrap.sh              # do it
 #
-#   sudo ./buendia-notebook-setup.sh --dry-run    # rehearse: prints every change, makes none
-#   sudo ./buendia-notebook-setup.sh              # do it
+# VALIDATED on real hardware 2026-07-29: an Ubuntu 24 notebook went from a bare install to a GO
+# stack, with a tablet installing the APK by QR, using only this script plus the files below on a
+# USB stick.
 #
 # Copy this whole directory to a USB stick. It expects, alongside itself:
 #
-#   buendia.env                          REQUIRED — becomes <clone>/deploy/.env. Build it from
-#                                                   deploy/.env.example; it holds DB passwords, so
-#                                                   it is NEVER committed.
-#   token.txt                            optional — a GitHub fine-grained PAT, read-only, scoped to
-#                                                   SolDevelo/buendia-pilot-artifacts. One line.
-#   pkgserver-www-*.tar.gz               optional — the tablet payload. If present, it is used
-#                                                   directly and NO token is needed at all.
+#   buendia.env                  REQUIRED — becomes <target>/.env. Build it from deploy/.env.example;
+#                                           it holds DB passwords, so it is NEVER committed.
+#   buendia-deploy-*.tar.gz      the deployment bundle (deploy/tools/make-bundle.sh). If absent, it
+#                                           is downloaded from BUNDLE_URL.
+#   pkgserver-www-*.tar.gz       optional — the tablet APK payload. If present it is used directly
+#                                           and NO GitHub token is needed.
+#   token.txt                    optional — a GitHub fine-grained PAT (read-only, scoped to the
+#                                           artifacts repo) to fetch that payload if it is not on
+#                                           the USB. One line.
 #
-# Precedence for the tablet APK payload: local tarball on the USB > token.txt > interactive prompt.
+# NOTE this deliberately does NOT clone the git repository. A clone would put CLAUDE.md, the whole
+# docs/ set, .claude/skills/, the entire source tree and ~76 MB of history onto a machine that ships
+# to a site and is handled outside SolDevelo. The bundle is ~36 KB and holds only what runs.
 #
-# Everything else (Docker, the images, the seed) comes from the network: this box needs internet
+# Everything else (Docker, the container images) comes from the network: the box needs internet
 # during setup and never again afterwards.
 #
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_URL="${REPO_URL:-https://github.com/SolDevelo/buendia.git}"
-REPO_REF="${REPO_REF:-drc-pilot}"          # branch or tag to deploy from
 TARGET="${TARGET:-/opt/buendia}"
-PASSTHRU=("$@")                            # forwarded verbatim to deploy/setup.sh
+BUNDLE_URL="${BUNDLE_URL:-}"   # e.g. https://github.com/SolDevelo/buendia/releases/download/<tag>/buendia-deploy-<ver>.tar.gz
+PASSTHRU=("$@")                # forwarded verbatim to setup.sh
 
 log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33mWARN: %s\033[0m\n' "$*" >&2; }
@@ -46,45 +49,83 @@ fi
 [[ $EUID -eq 0 || $DRY -eq 1 ]] || die "run with sudo."
 [[ -f "$HERE/buendia.env" ]] || die "buendia.env not found next to this script (expected on the USB)."
 
-log "Bootstrap: $REPO_URL @ $REPO_REF  ->  $TARGET"
+log "Bootstrap  ->  $TARGET"
 echo "  usb dir : $HERE"
 [[ $DRY -eq 1 ]] && echo "  MODE    : DRY RUN (nothing will be changed)"
 
+# Verify a copied/downloaded file against a sibling .sha256, when there is one.
+check_sha() {
+  local f="$1"
+  [[ -f "$f.sha256" ]] || { warn "no $(basename "$f").sha256 beside it — not verified"; return 0; }
+  local want; want="$(awk '{print $1}' "$f.sha256")"
+  local got;  got="$(sha256sum "$f" | cut -d' ' -f1)"
+  [[ "$want" == "$got" ]] || die "checksum mismatch on $(basename "$f") — bad copy or truncated download."
+  echo "  checksum OK (${got:0:12})"
+}
+
+# Pick the tarball, not its .sha256 sibling, from a glob.
+pick_tar() {
+  local out=""
+  local f
+  for f in "$@"; do [[ "$f" == *.sha256 ]] || out="$f"; done
+  printf '%s' "$out"
+}
+
 # ---------------------------------------------------------------------------
-# 1. Prerequisites for the bootstrap itself (Docker is installed by deploy/setup.sh)
+# 1. Prerequisites for the bootstrap itself (Docker is installed by setup.sh)
 # ---------------------------------------------------------------------------
-log "Installing git + curl if needed"
-if command -v git >/dev/null && command -v curl >/dev/null; then
+log "Prerequisites (curl; tar is in the base system)"
+if command -v curl >/dev/null; then
   echo "  already present"
 elif [[ $DRY -eq 1 ]]; then
-  echo "  [dry-run] apt-get update && apt-get install -y git curl ca-certificates"
+  echo "  [dry-run] apt-get update && apt-get install -y curl ca-certificates"
 else
   apt-get update
-  apt-get install -y git curl ca-certificates
+  apt-get install -y curl ca-certificates
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Get the deployment package
+# 2. Get the deployment bundle (USB first, else download). No git clone: see the note above.
 # ---------------------------------------------------------------------------
-# --no-recurse-submodules matters: this repo has a db-snapshot submodule of ~hundreds of MB that a
-# deployment does not need (the seed lives inside the DB image) and a client submodule for the
-# Android build, which does not happen here.
-log "Fetching the deployment package"
-if [[ -d "$TARGET/.git" ]]; then
-  echo "  $TARGET already exists — reusing it (idempotent)"
-  if [[ $DRY -eq 0 ]]; then
-    git -C "$TARGET" fetch --depth 1 origin "$REPO_REF"
-    git -C "$TARGET" checkout -q FETCH_HEAD
+log "Deployment bundle"
+shopt -s nullglob
+bundle="$(pick_tar "$HERE"/buendia-deploy-*.tar.gz)"
+shopt -u nullglob
+
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+src=""
+if [[ -n "$bundle" ]]; then
+  echo "  found on the USB: $(basename "$bundle")"
+  check_sha "$bundle"
+  src="$bundle"
+elif [[ -n "$BUNDLE_URL" ]]; then
+  echo "  downloading: $BUNDLE_URL"
+  if [[ $DRY -eq 1 ]]; then
+    echo "  [dry-run] curl -fsSLo <tmp>/bundle.tar.gz '$BUNDLE_URL'"
+  else
+    curl -fsSLo "$tmp/bundle.tar.gz" "$BUNDLE_URL" || die "download failed: $BUNDLE_URL"
+    curl -fsSLo "$tmp/bundle.tar.gz.sha256" "$BUNDLE_URL.sha256" 2>/dev/null || true
+    check_sha "$tmp/bundle.tar.gz"
+    src="$tmp/bundle.tar.gz"
   fi
-elif [[ $DRY -eq 1 ]]; then
-  echo "  [dry-run] git clone --depth 1 --no-recurse-submodules -b $REPO_REF $REPO_URL $TARGET"
 else
-  git clone --depth 1 --no-recurse-submodules -b "$REPO_REF" "$REPO_URL" "$TARGET"
+  die "no buendia-deploy-*.tar.gz on the USB, and BUNDLE_URL is not set.
+       Build one with deploy/tools/make-bundle.sh and copy it next to this script, or set
+       BUNDLE_URL to a release-asset URL."
 fi
-echo "  at: $(git -C "$TARGET" log --oneline -1 2>/dev/null || echo '(not cloned yet — dry run)')"
 
-DEPLOY="$TARGET/deploy"
-[[ -d "$DEPLOY" || $DRY -eq 1 ]] || die "$DEPLOY missing — is $REPO_REF the right ref?"
+if [[ $DRY -eq 1 ]]; then
+  echo "  [dry-run] unpack into $TARGET"
+elif [[ -n "$src" ]]; then
+  install -d "$TARGET"
+  # --strip-components=1: the tarball holds a top-level buendia-deploy/ directory.
+  tar xzf "$src" -C "$TARGET" --strip-components=1
+  echo "  unpacked into $TARGET"
+  [[ -x "$TARGET/setup.sh" ]] || die "$TARGET/setup.sh missing after unpack — wrong bundle?"
+  grep -m1 '^version:' "$TARGET/MANIFEST.txt" 2>/dev/null | sed 's/^/  bundle /' || true
+fi
+
+DEPLOY="$TARGET"
 
 # ---------------------------------------------------------------------------
 # 3. Install the .env from the USB
@@ -102,29 +143,21 @@ fi
 # ---------------------------------------------------------------------------
 log "Tablet APK payload"
 shopt -s nullglob
-local_tars=("$HERE"/pkgserver-www-*.tar.gz)
+payload="$(pick_tar "$HERE"/pkgserver-www-*.tar.gz)"
 shopt -u nullglob
 
 TOKEN=""
-if [[ ${#local_tars[@]} -gt 0 ]]; then
-  tar_src="${local_tars[0]}"
-  echo "  found on the USB: $(basename "$tar_src") — using it, no token needed"
-  if [[ -f "$tar_src.sha256" ]]; then
-    want="$(awk '{print $1}' "$tar_src.sha256")"
-    got="$(sha256sum "$tar_src" | cut -d' ' -f1)"
-    [[ "$want" == "$got" ]] || die "checksum mismatch on $(basename "$tar_src") — bad copy to USB?"
-    echo "  checksum OK (${got:0:12})"
-  else
-    warn "no .sha256 beside it — payload not verified"
-  fi
+if [[ -n "$payload" ]]; then
+  echo "  found on the USB: $(basename "$payload") — using it, no token needed"
+  check_sha "$payload"
   if [[ $DRY -eq 1 ]]; then
     echo "  [dry-run] unpack into $DEPLOY/pkgserver/www and set APK_SOURCE=local"
   else
     install -d "$DEPLOY/pkgserver/www"
-    tar xzf "$tar_src" -C "$DEPLOY/pkgserver/www"
-    # www/ is already populated, so setup.sh will not try to download. Make that explicit.
+    tar xzf "$payload" -C "$DEPLOY/pkgserver/www"
+    # www/ is populated, so setup.sh will not try to download. Make that explicit.
     sed -i 's|^APK_SOURCE=.*|APK_SOURCE=local|' "$DEPLOY/.env"
-    echo "  unpacked $(ls "$DEPLOY/pkgserver/www"/*.apk | xargs -n1 basename | tr '\n' ' ')"
+    echo "  unpacked $(ls "$DEPLOY/pkgserver/www"/*.apk 2>/dev/null | xargs -n1 basename | tr '\n' ' ')"
   fi
 elif [[ -s "$HERE/token.txt" ]]; then
   TOKEN="$(tr -d ' \t\r\n' < "$HERE/token.txt")"
@@ -133,8 +166,8 @@ elif [[ $DRY -eq 1 ]]; then
   echo "  [dry-run] would prompt for a GitHub token"
 else
   echo "  No payload tarball and no token.txt on the USB."
-  echo "  Paste a GitHub fine-grained PAT (read-only, buendia-pilot-artifacts only), or press"
-  echo "  Enter to skip the tablet APK entirely and set it up later:"
+  echo "  Paste a GitHub fine-grained PAT (read-only, artifacts repo only), or press Enter to"
+  echo "  skip the tablet APK and set it up later:"
   read -rsp "  token: " TOKEN; echo
   [[ -n "$TOKEN" ]] || warn "no token — the server will come up but tablets will have nothing to install."
 fi
@@ -142,8 +175,14 @@ fi
 # ---------------------------------------------------------------------------
 # 5. Hand over to the real installer
 # ---------------------------------------------------------------------------
-log "Running deploy/setup.sh"
-cd "$DEPLOY"
+log "Running setup.sh"
+if ! cd "$DEPLOY" 2>/dev/null; then
+  if [[ $DRY -eq 1 ]]; then
+    log "Dry run: $DEPLOY does not exist yet (nothing was unpacked), so stopping here."
+    exit 0
+  fi
+  die "$DEPLOY is missing."
+fi
 rc=0
 if [[ ${#PASSTHRU[@]} -gt 0 ]]; then
   if [[ -n "$TOKEN" ]]; then GITHUB_TOKEN="$TOKEN" ./setup.sh "${PASSTHRU[@]}" || rc=$?
@@ -154,12 +193,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-log "Bootstrap finished (deploy/setup.sh exit: $rc)"
+log "Bootstrap finished (setup.sh exit: $rc)"
 if [[ $rc -eq 0 && $DRY -eq 0 ]]; then
   ip="$(grep -E "^STATIC_IP=" "$DEPLOY/.env" | cut -d= -f2 | sed "s/#.*//" | tr -d "[:space:]")"
   cat <<TXT
 
-  Next, from ANOTHER machine on the same WiFi (this is the check that matters — tablets are
+  Next, from ANOTHER machine on the same network (this is the check that matters — tablets are
   remote clients, so localhost proving out is not enough):
 
       curl -s -o /dev/null -w '%{http_code}\n' -u buendia:buendia \\

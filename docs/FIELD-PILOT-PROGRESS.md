@@ -246,6 +246,19 @@ Notes from that run:
   and the **tablet displayed it as ~16:59**, confirming the client converts to device-local. **Keep
   `TZ=UTC`.** Only server-rendered/exported output stays UTC — see §4 and **A9**.
 - The bootstrap script is now committed as **`deploy/tools/bootstrap.sh`**.
+- **The server no longer gets a git clone (changed 2026-07-29, after the test).** The validated run
+  cloned the repo, which put `CLAUDE.md`, all of `docs/` (deployment plan, MSF config requests,
+  technical review), `.claude/skills/`, the whole source tree and ~76 MB of history onto a box that
+  ships to a site and is handled outside SolDevelo. Replaced by **`deploy/tools/make-bundle.sh`** →
+  `buendia-deploy-<version>.tar.gz`, **~36 KB**, containing only the nine files the deployment
+  actually touches (derived from what `setup.sh` reads, what compose bind-mounts and what
+  `buendia-verify.sh` needs) plus a purpose-written operator README. It is an **allowlist**, so a
+  file added to the repo later cannot leak by default, and it **fails the build** if `CLAUDE.md`,
+  anything under `docs/`, a stray `*.md`, `.env` or `.git` ends up inside. `bootstrap.sh` now
+  unpacks that bundle (USB, or `BUNDLE_URL` release asset) instead of cloning, and needs no `git`.
+  Verified: the bundle unpacks standalone and `setup.sh --dry-run` completes from it with exit 0,
+  and the unpacked target contains no internal files. The bundle carries **no secrets**, so it can be
+  a public release asset — only the APK payload stays private.
 
 ### Not started / deferred (the remaining pilot work)
 - **Server hardware not chosen** — SolDevelo's decision (spec + suggested models is a deliverable we

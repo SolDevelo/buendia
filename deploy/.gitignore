@@ -48,3 +48,8 @@ buendia-export-*.csv
 image/artifacts/*
 !image/artifacts/.gitkeep
 image/settings.xml
+
+# Deployment bundle built by tools/make-bundle.sh — a build artifact, regenerable. Holds no
+# secrets (.env is supplied separately), so it is safe to publish as a release asset.
+buendia-deploy-*.tar.gz
+buendia-deploy-*.tar.gz.sha256
