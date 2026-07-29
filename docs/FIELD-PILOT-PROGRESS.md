@@ -101,6 +101,9 @@ On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`7d0f5e8e`** — the `:9001` QR-install package server (WS-5).
 - **`0ab7ac28`** — pkgserver healthcheck fix (IPv6 `localhost`) + rootless QR fallback (segno).
 - **`51c3825e`** — admit new patients to Triage (the default-zone bug found on the tablet).
+- **`029c650d`** — config request B4: tablet provisioning (Play Store is not the answer).
+- **`8856fa16`** — make the site seed's login account genuinely idempotent (see §4; this bug
+  locked the test tablet out mid-session).
 
 In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
 `soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
@@ -214,6 +217,17 @@ cd ../compose && docker compose --env-file ../.env up -d pkgserver
   Triage / Suspect Zone / Probable Zone / Confirmed Zone / Discharged and new patients land in Triage.
   **Verified live on a real tablet.** An earlier version of MSF config request A3 wrongly claimed the
   numeric prefixes would be visible; they are not, so ordering is free.
+- **`users` has NO unique index on `uuid` — `ON DUPLICATE KEY UPDATE` does not de-duplicate it.**
+  `location`, `person`, `person_name` and `provider` all have a unique uuid index; `users` does not.
+  Re-applying `20-buendia-site.sql` to a running server therefore inserted a **second `users` row
+  with the same uuid and username**, and OpenMRS then rejected **every** login with *"OpenMRS username
+  or password incorrect"* — even though both rows held a correct password hash, which makes it a
+  confusing failure to diagnose. Hit on 2026-07-29 and it locked the test tablet out.
+  **Recovery:** `DELETE FROM user_role WHERE user_id=<higher>; DELETE FROM users WHERE
+  user_id=<higher>;` — keep the **lower** id, that's the row tablets authenticate against — then any
+  endpoint with `?clear-cache`. **Fixed** in the seed with an explicit `NOT EXISTS` guard + a
+  following `UPDATE`, plus a self-check that prints `FATAL` when more than one row holds the login
+  username. Verified idempotent over three consecutive applies.
 - **Renaming a location is safe and can be done on a live server** — `UPDATE location SET name=...`
   keyed on `uuid`, then hit any endpoint with `?clear-cache` to flush the module cache; the change
   syncs to tablets and existing patients keep their placement because the UUID is untouched. This is
