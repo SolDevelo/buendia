@@ -170,14 +170,27 @@ if command -v qrencode >/dev/null; then
   echo "    wrote $WWW/install-qr.png  (also at $BASE_URL/install-qr.png — print it for the ward)"
   echo
   qrencode -t ANSIUTF8 "$QR_URL"
+elif python3 -c 'import segno' 2>/dev/null; then
+  # segno is pure Python (no Pillow, no system package), so it installs without root:
+  #   python3 -m pip install --user segno
+  python3 - "$QR_URL" "$WWW/install-qr.png" <<'PY'
+import sys, segno
+url, png = sys.argv[1], sys.argv[2]
+qr = segno.make(url, micro=False, error='m')
+qr.save(png, scale=8, border=2)
+qr.terminal(compact=True)
+PY
+  echo "    wrote $WWW/install-qr.png (via python3 segno)"
 elif python3 -c 'import qrcode' 2>/dev/null; then
   python3 -c "import qrcode,sys; qrcode.make(sys.argv[1]).save(sys.argv[2])" \
     "$QR_URL" "$WWW/install-qr.png"
   echo "    wrote $WWW/install-qr.png (via python3 qrcode)"
 else
-  echo "    No QR generator found, so no image was written. Either install one at staging:"
-  echo "        sudo apt install qrencode     # then re-run: $0 --qr-only"
-  echo "    or encode the URL above with any QR tool. The URL is what matters, not the image."
+  echo "    No QR generator found, so no image was written. Install either:"
+  echo "        python3 -m pip install --user segno    # pure Python, no root needed"
+  echo "        sudo apt install qrencode"
+  echo "    then re-run: $0 --qr-only"
+  echo "    Or encode the URL above with any QR tool — the URL is what matters, not the image."
 fi
 
 cat <<EOF
