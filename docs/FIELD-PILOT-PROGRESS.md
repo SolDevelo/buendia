@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (WS-4 APK build + WS-5 QR/LAN install server; auto-logout fix)._
+_Last updated: 2026-07-29 (full cold rebuild + QR-install smoke test PASSED on a real tablet; default-zone bug fixed)._
 
 ---
 
@@ -24,8 +24,18 @@ OpenMRS 3 infrastructure (MSF confirmed this approach).
 
 ## 2. Current state (2026-07-29)
 
-**Milestone reached: the containerized server is built, boots, and PASSED a full clinical smoke test on a
-real tablet** — add patient → fill forms (from `bunia.csv`) → record observations → record treatment.
+**MILESTONE: the complete kit was rebuilt from scratch and passed an end-to-end smoke test on a real
+tablet — including first install by QR code.** This is the first run where *nothing* was done by hand:
+Docker was cleaned of all Buendia artefacts, the image, seed and APK were rebuilt cold, and the tablet
+was provisioned only by scanning a QR code.
+
+The path that was exercised: **scan QR → download + install APK → app opens already pointed at the
+server with credentials baked in → provider picker shows Guest + Buendia User → locations/concepts
+sync → select zone → add patient → fill two `bunia.csv` forms → save.** Verified working.
+
+One real bug was found and fixed during that test — new patients were admitted to the wrong zone
+(see *location name markup* in §4); the fix was applied to the live server and **re-tested on the
+tablet**, and is now in the seed.
 
 ### Done & verified
 - **Deployable server package** under `deploy/` — `docker compose` stack: MySQL 5.6 + OpenMRS 1.10.6
@@ -36,7 +46,8 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   `initdb/10-buendia-base.sql` (~80 MB) **with the Ebola profile baked in** (active out-of-the-box).
 - **Zero-config first boot** — `deploy/seed/initdb/20-buendia-site.sql` (committed, hand-editable)
   ships the **default login `buendia`/`buendia`** and the **location tree** `Facility` → Triage,
-  Confirmed Zone, Suspect Zone, Probable Zone, Discharged, plus a provider row. Previously both had
+  Suspect Zone, Probable Zone, Confirmed Zone, Discharged (in that display order, with Triage as the
+  zone new patients are admitted to — see *location name markup* in §4), plus a provider row. Previously both had
   to be added by hand after every fresh boot. Verified on a throwaway stack built only from the two
   seed files: auth 200 (401 on a wrong password), `/locations` returns the 6-node tree, `/charts`
   returns `buendia_form_chart`, and a `POST /patients` succeeds.
@@ -45,8 +56,11 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
 - **Reproducible APK build (WS-4, build side)** — `deploy/apk/build-apk.sh` produces a
   **release-signed** `buendia-client-<version>.apk` with the server address, login, and all tunables
   baked in, driven from `deploy/.env`. Verified: builds, signs with the pilot key, and the script
-  reads the baked-in values back out of the finished APK (`http://192.168.8.10:9000/openmrs`,
-  `:9001`, user `buendia`). See `deploy/apk/README.md`. **Not yet installed on a real tablet.**
+  reads the baked-in values back out of the finished APK. **Installed and used on a real tablet on
+  2026-07-29** — the app opened already pointed at the server with credentials working, so a clinician
+  touches no settings. See `deploy/apk/README.md`.
+  NB `APK_SERVER` must be the address the tablet can actually reach: for the local test that is the
+  host's LAN IP (`192.168.0.150`), **not** the site `STATIC_IP` (`192.168.8.10`).
 - **APK install over the LAN (WS-5 first-install path)** — `deploy/pkgserver/` adds a static
   `nginx:alpine-slim` (~13 MB) service on **:9001**. `publish.sh` takes a built APK and generates the
   document root: `/latest.apk` (the stable URL a **QR code** encodes), the version-named copy, the
@@ -61,10 +75,10 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   changes land there. First change: the auto-logout fix below.
 
 ### Not started / deferred (the remaining pilot work)
-- **On-tablet validation of the packaged APK (rest of WS-4)** — the APK now builds reproducibly, but
-  the build has **not been installed on a T4/T5 yet** (no device attached during this session). The
-  tablet that passed the clinical smoke test on 2026-07-13 ran an ad-hoc **debug** build; the
-  packaged build is a *release* build, so it installs as a different app id — see the caveat in §4.
+- **Auto-logout fix not yet confirmed on a tablet** — the 30 s-while-charging fix is compiled into the
+  installed APK (`IDLE_LOGOUT_SECONDS=600` / `DOCKED_IDLE_LOGOUT_SECONDS=300`) but was not explicitly
+  exercised in the 2026-07-29 test. Leave a tablet **plugged in and idle for >30 s** to confirm it no
+  longer bounces to the provider picker.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
 - **In-app OTA updates** — **dropped, not deferred**: broken in the v1.0 client (§4). The `:9001`
   server now runs in compose, but it is for *first install* (QR) and to satisfy the client's health
@@ -84,7 +98,9 @@ On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`73dbbcce`** — the canonical MSF config-request list.
 - **`4838b326`** — the reproducible APK build (WS-4) + `.gitmodules` submodule branch.
 - **`532f78bd`** — correction: the client's encryption password is inert (see §4).
-- plus the WS-5 commit (`deploy/pkgserver/` QR-install server + this status update).
+- **`7d0f5e8e`** — the `:9001` QR-install package server (WS-5).
+- **`0ab7ac28`** — pkgserver healthcheck fix (IPv6 `localhost`) + rootless QR fallback (segno).
+- **`7075d1da`** — admit new patients to Triage (the default-zone bug found on the tablet).
 
 In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
 `soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
@@ -179,11 +195,31 @@ cd ../compose && docker compose --env-file ../.env up -d pkgserver
   use, the `Guest` provider (`uuid = buendia_provider_guest` — the client special-cases this exact
   string in `JsonUser`, sorting it first), the Buendia identifier types, and the order/placement
   concepts. Confirmed: `Guest` appears in `/providers` on a fresh DB that never seeded it.
-- **The client sorts locations ALPHANUMERICALLY BY NAME** (`LocationForest` /
-  `Utils.ALPHANUMERIC_COMPARATOR`) — insertion order and `location_id` are ignored. So the zones
-  display as Confirmed / Discharged / Probable / Suspect / Triage, *not* in clinical-flow order. To
-  control order, prefix the names (`1 Triage`, `2 Suspect Zone`, …); the comparator handles numeric
-  prefixes numerically. **Open question for MSF** (see §6).
+- **Location names carry hidden markup — this is the lever for both ordering and the default zone.**
+  The client strips every `[...]` segment from a location's displayed name (`Intl.java`:
+  `BRACKETED_PATTERN.replaceAll("")` then trim), so brackets hold metadata clinicians never see:
+  - `[<n>]` — **display order.** The client sorts locations **alphanumerically by name**
+    (`LocationForest` / `Utils.ALPHANUMERIC_COMPARATOR`); insertion order and `location_id` are
+    ignored and there is **no sort-order column**. Bracketed numbers sort numerically and stay hidden.
+  - `[*]` — **the default location for new patients.** The add-patient dialog has **no location
+    picker**: `PatientDialogFragment.java:202` always uses `LocationForest.getDefaultLocation()`,
+    which is the location whose name contains `*`, or else **the first leaf in alphanumeric order**
+    (`LocationForest.java:118-126`). Non-leaf nodes (the root) are skipped.
+  - `[fr:…]` — a localized name; the profile CSV already uses this same convention for form names.
+
+  **Bug this caused, found on the tablet 2026-07-29:** with plain names, a patient added while
+  viewing Triage was admitted to **Confirmed Zone** — alphabetically the first leaf. Clinically wrong,
+  not cosmetic. **Fixed** in `20-buendia-site.sql`: the zones are now `[1] Triage [*]`,
+  `[2] Suspect Zone`, `[3] Probable Zone`, `[4] Confirmed Zone`, `[5] Discharged` → they display as
+  Triage / Suspect Zone / Probable Zone / Confirmed Zone / Discharged and new patients land in Triage.
+  **Verified live on a real tablet.** An earlier version of MSF config request A3 wrongly claimed the
+  numeric prefixes would be visible; they are not, so ordering is free.
+- **Renaming a location is safe and can be done on a live server** — `UPDATE location SET name=...`
+  keyed on `uuid`, then hit any endpoint with `?clear-cache` to flush the module cache; the change
+  syncs to tablets and existing patients keep their placement because the UUID is untouched. This is
+  how the fix above was applied mid-test without re-seeding. `20-buendia-site.sql` is idempotent
+  (`ON DUPLICATE KEY UPDATE`, keyed on uuid), so it can be re-applied to a running DB:
+  `docker exec -i compose-db-1 mysql -uroot -p<pw> openmrs < seed/initdb/20-buendia-site.sql`.
 - **No location UUID is hardcoded** anywhere (client or server) — the root is simply the one location
   with `parent_location = NULL`, and `LocationResource` serves `getAllLocations(false)`. So the tree is
   free to change; keep UUIDs stable once tablets have synced, or admitted patients point at dead nodes.

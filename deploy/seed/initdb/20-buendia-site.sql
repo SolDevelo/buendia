@@ -20,11 +20,26 @@
  *   Every statement is idempotent (keyed on uuid), so it can also be applied by hand to a
  *   running DB:  docker compose exec -T db mysql -uroot -p<pw> openmrs < 20-buendia-site.sql
  *
- * NB on DISPLAY ORDER: the Android client sorts locations ALPHANUMERICALLY BY NAME
- * (LocationForest / Utils.ALPHANUMERIC_COMPARATOR) — insertion order and location_id are
- * ignored. The zones below therefore appear as: Confirmed Zone, Discharged, Probable Zone,
- * Suspect Zone, Triage. To force clinical-flow order, prefix the names ("1 Triage",
- * "2 Suspect Zone", ...) — the comparator sorts numeric prefixes numerically.
+ * NB on LOCATION NAMES — the client reads markup out of the name. Anything in SQUARE
+ * BRACKETS is stripped before display (client Intl.java), so brackets carry metadata that
+ * clinicians never see:
+ *
+ *   [<number>]  controls DISPLAY ORDER. The client sorts locations ALPHANUMERICALLY BY NAME
+ *               (LocationForest / Utils.ALPHANUMERIC_COMPARATOR); insertion order and
+ *               location_id are ignored, and there is no sort-order column. A bracketed
+ *               numeric prefix sorts numerically ("[2]" before "[11]") and stays invisible.
+ *               Without it the zones would appear alphabetically: Confirmed, Discharged,
+ *               Probable, Suspect, Triage — i.e. not in clinical-flow order.
+ *   [*]         marks the DEFAULT LOCATION for newly-added patients. The add-patient dialog
+ *               offers no location picker: it always uses LocationForest.getDefaultLocation()
+ *               (client PatientDialogFragment.java), which is the location whose name contains
+ *               an asterisk, or — if none does — THE FIRST LEAF IN ALPHANUMERIC ORDER. Without
+ *               the marker, every new patient silently landed in "Confirmed Zone", which is
+ *               clinically wrong and was found during the 2026-07-29 tablet smoke test.
+ *   [fr:...]    a localized name, e.g. 'Triage [fr:Triage]' (same convention as the profile CSV).
+ *
+ * So '[1] Triage [*]' displays as "Triage", sorts first, and receives new patients.
+ * Renaming a location is safe and syncs to tablets; changing a UUID is not (see below).
  */
 
 /* All rows are attributed to the built-in admin account (user_id 1 in the base seed). */
@@ -52,11 +67,14 @@ SELECT @facility_id := location_id FROM location
 
 /* Zones (children of the root). */
 INSERT INTO location (name, creator, date_created, uuid, parent_location, retired) VALUES
-    ('Triage',         @admin_id, NOW(), '255800b2-2c20-4687-89d5-eb7ac7b19b46', @facility_id, 0),
-    ('Confirmed Zone', @admin_id, NOW(), '66c6dc36-6d80-4bf3-a391-a20e50d19d78', @facility_id, 0),
-    ('Suspect Zone',   @admin_id, NOW(), '930f5328-9d23-4a65-b364-d7dea1020217', @facility_id, 0),
-    ('Probable Zone',  @admin_id, NOW(), 'c9e04bed-7abb-4b9f-8178-c74627c4970a', @facility_id, 0),
-    ('Discharged',     @admin_id, NOW(), 'b990663d-b80b-41ba-9b55-de172a5db780', @facility_id, 0)
+/* Displayed names are Triage / Suspect Zone / Probable Zone / Confirmed Zone / Discharged,
+   in that (clinical-flow) order; the bracketed prefixes are invisible. Triage carries [*] so
+   new patients are admitted there, which is where they physically arrive. */
+    ('[1] Triage [*]',    @admin_id, NOW(), '255800b2-2c20-4687-89d5-eb7ac7b19b46', @facility_id, 0),
+    ('[2] Suspect Zone',  @admin_id, NOW(), '930f5328-9d23-4a65-b364-d7dea1020217', @facility_id, 0),
+    ('[3] Probable Zone', @admin_id, NOW(), 'c9e04bed-7abb-4b9f-8178-c74627c4970a', @facility_id, 0),
+    ('[4] Confirmed Zone',@admin_id, NOW(), '66c6dc36-6d80-4bf3-a391-a20e50d19d78', @facility_id, 0),
+    ('[5] Discharged',    @admin_id, NOW(), 'b990663d-b80b-41ba-9b55-de172a5db780', @facility_id, 0)
     ON DUPLICATE KEY UPDATE
         name = VALUES(name), parent_location = VALUES(parent_location), retired = 0;
 

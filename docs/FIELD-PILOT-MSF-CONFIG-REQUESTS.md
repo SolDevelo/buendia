@@ -12,7 +12,7 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29 (added A10 auto-logout timeout, A11 tablet data-at-rest)._
+> _Last updated: 2026-07-29 (A3 rewritten after the tablet test — bracket markup; A10, A11 added)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -41,28 +41,37 @@
 - **⚠️ Ask MSF specifically about display order — see A3.**
 - **Answer:** _(pending — expected to be adjusted before the final package)_
 
-### A3. Zone display order → do you want numeric name prefixes? — ⬜ **needs an explicit MSF decision**
+### A3. Zone display order + which zone receives new patients — 🟡 *(default chosen; confirm)*
 
-- **Need:** confirmation of the order clinicians want the zones listed in, and whether they accept
-  numeric prefixes in the names to achieve it.
+- **Need:** (a) the order clinicians want the zones listed in, and (b) **which zone new patients are
+  admitted to** by default.
 - **Why (the constraint):** the Android client sorts locations **alphanumerically by name**
-  (`LocationForest` / `Utils.ALPHANUMERIC_COMPARATOR`); insertion order and `location_id` are ignored.
-  There is **no sort-order field** in the data model. So with plain names the tablet shows:
+  (`LocationForest` / `Utils.ALPHANUMERIC_COMPARATOR`) and there is **no sort-order column**. Also,
+  the add-patient dialog has **no location picker at all** — it always uses
+  `LocationForest.getDefaultLocation()`, which is the location whose name contains an asterisk, or,
+  failing that, **the first leaf in alphanumeric order**.
+- **The good news — the fix is free and invisible.** The client strips anything in **square
+  brackets** from a location's displayed name (`Intl.java`), so brackets can carry metadata:
+  `[<n>]` sets sort order, `[*]` marks the default location, `[fr:…]` gives a localized name. This is
+  the same convention the profile CSV already uses for form names. So:
 
-  > Confirmed Zone · Discharged · Probable Zone · Suspect Zone · Triage
+  > `[1] Triage [*]` · `[2] Suspect Zone` · `[3] Probable Zone` · `[4] Confirmed Zone` · `[5] Discharged`
 
-  …which is alphabetical, not clinical flow. The comparator sorts numeric prefixes *numerically*, so
-  the only way to control order is to put it in the name:
+  displays as **Triage · Suspect Zone · Probable Zone · Confirmed Zone · Discharged** — clinical-flow
+  order, no visible numbers — and admits new patients to Triage.
 
-  > `1 Triage` · `2 Suspect Zone` · `3 Probable Zone` · `4 Confirmed Zone` · `5 Discharged`
-
-- **Trade-off to put to MSF:** prefixes give clinical-flow order but the numbers are visible in the UI
-  (and in printed/exported records). Alphabetical order needs no name changes. Changing the client's
-  sort logic is possible but is a code change to a 2016 app — out of scope for the pilot.
-- **Recommendation:** use the prefixes. Triage-first matches the patient journey and reduces mis-taps.
-- **Default shipped:** plain names (alphabetical order).
+  *(This corrects an earlier version of this document, which claimed the prefixes would be visible in
+  the UI and framed that as a trade-off. There is no trade-off; brackets are hidden.)*
+- **Why it matters — found in testing:** during the 2026-07-29 tablet smoke test, a patient added
+  while viewing **Triage** was assigned **Confirmed Zone**, because "Confirmed Zone" was
+  alphabetically the first leaf. Admitting a suspect case into the confirmed zone is a clinically
+  meaningful error, not a cosmetic one.
+- **Default shipped:** the bracketed scheme above — clinical-flow order, **Triage** as the default
+  landing zone. Applied to the running pilot DB and to the seed.
+- **⚠️ To verify with MSF:** whether the **printed/exported** record shows the raw name (with
+  brackets) — the stripping is client-side, so server-rendered output may show `[1] Triage [*]`.
 - **Lands in:** `deploy/seed/initdb/20-buendia-site.sql` §1 (zone `name` values).
-- **Answer:** _(pending)_
+- **Answer:** _(pending — confirm Triage is the right landing zone and the order is right)_
 
 ### A4. Clinician accounts → provider list — ⬜
 
