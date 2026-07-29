@@ -143,15 +143,26 @@
 - **Lands in:** no config file today — a validation/format decision; may need a client or profile change.
 - **Answer:** _(pending)_
 
-### A9. Timezone — ⬜
+### A9. Timezone — 🟡 *(narrowed on 2026-07-29: only printed/exported output is affected)*
 
-- **Need:** the site's timezone (e.g. `Africa/Kinshasa` UTC+1, or `Africa/Lubumbashi` UTC+2 — DRC spans both).
-- **Why:** the stack currently runs **UTC** end-to-end (deliberately, to fix an earlier timezone bug).
-  Observation timestamps and the printed/exported record will read in UTC unless set. Clinically this
-  matters for shift boundaries and "when was this observation taken".
-- **Default shipped:** `TZ=UTC`.
-- **Lands in:** `deploy/.env` (`TZ=`) — applied to both containers and the JVM.
-- **Answer:** _(pending)_
+- **Need now:** confirmation of the site's timezone (`Africa/Kinshasa` UTC+1 or `Africa/Lubumbashi`
+  UTC+2 — DRC spans both), and a ruling on **one specific thing**: must the **printed patient record
+  and any data export** show *local* time, or is UTC acceptable there?
+- **What we established by testing (so this is no longer a broad question):** the stack runs **UTC**
+  end-to-end and the **tablet displays device-local time**. An admission recorded at 16:59 local was
+  stored as `14:59:27Z` and shown on the tablet as **~16:59**. So:
+  - **clinicians at the bedside already see local time** — nothing to change, and we specifically do
+    *not* want to change `TZ`, because UTC end-to-end was chosen to fix an earlier timezone bug;
+  - **server-rendered output is NOT converted** — the OpenMRS admin web UI, the printable record and
+    `DataExportServlet` CSV read UTC, i.e. 1–2 h off local wall-clock. This is the only remaining
+    exposure, and it matters for a printed record that goes in a physical file.
+- **Dependencies on the tablets, worth stating to MSF (see B5 q8):** the stored instant comes from the
+  **tablet's** clock (the sync payload carries a client-supplied time), so a tablet with a wrong clock
+  writes wrong data, and a tablet with a wrong timezone displays wrong times. The server cannot
+  compensate for either — both are per-device staging checks.
+- **Default shipped:** `TZ=UTC` (host + MySQL + JVM). **Recommend keeping it.**
+- **Lands in:** `deploy/.env` (`TZ=`). Changing it must be validated on a throwaway stack first.
+- **Answer:** _(pending — only the printed/exported-record question remains)_
 
 ---
 

@@ -6,7 +6,7 @@
 
 _Last updated: 2026-07-29 (WS-1..WS-5 COMPLETE. **Installed on a second, bare Ubuntu 24 machine from a USB
 stick and validated end to end — including a tablet installing by QR.** Images are published to Docker Hub;
-the APK payload ships from a private GitHub release. **Next: WS-6 runbooks; A9 timezone needs a tablet check**)._
+the APK payload ships from a private GitHub release. **Next: WS-6 runbooks**)._
 
 ---
 
@@ -242,8 +242,9 @@ Notes from that run:
   other means. The generated-netplan path (and especially the `wifis:` branch) is **still unproven on
   hardware**.
 - **The host clock reads UTC** — `setup.sh` does `timedatectl set-timezone "$TZ"` with `TZ=UTC`, and
-  the containers + JVM match. Working as designed, but it is exactly **A9**: a 16:59 local admission
-  is stored and rendered `14:59Z`. See the gotcha in §4.
+  the containers + JVM match. Working as designed: the 16:59 local admission is stored `14:59:27Z`
+  and the **tablet displayed it as ~16:59**, confirming the client converts to device-local. **Keep
+  `TZ=UTC`.** Only server-rendered/exported output stays UTC — see §4 and **A9**.
 - The bootstrap script is now committed as **`deploy/tools/bootstrap.sh`**.
 
 ### Not started / deferred (the remaining pilot work)
@@ -574,10 +575,18 @@ card prints a blank line to fill in by hand.
   **`14:59:27Z`** and the desktop clock showed 14:59. That is by design (UTC end-to-end fixed an
   earlier timezone bug) but it **will** be noticed at a DRC site (UTC+1/+2) for shift boundaries and
   "when was this taken".
-- **Open question, cheap to answer:** does the *tablet* render times in device-local or in UTC? If
-  local, UTC storage is purely internal and nothing needs changing. If UTC, consider
-  `TZ=Africa/Kinshasa`. **Validate any `TZ` change on a throwaway stack** — UTC was chosen to fix a
-  bug, so don't change it casually.
+- **✅ ANSWERED on the tablet (2026-07-29): the client renders times in DEVICE-LOCAL.** The admission
+  stored as `14:59:27Z` displayed as **~16:59** on a UTC+2 tablet. So **keep `TZ=UTC`** — the UTC
+  storage is purely internal, clinicians already see local time, and we avoid touching the setting
+  that was chosen to fix an earlier bug. **Do not "fix" this.**
+- **Residual, still open:** *server-rendered* output is not converted — the OpenMRS admin web UI, the
+  printable patient record, and `DataExportServlet` CSV will read **UTC**. So a printed or exported
+  record is 1–2 h off local wall-clock at a DRC site. That is the part of **A9** MSF still needs to
+  rule on (and it lands in WS-7 / **C2** for exports).
+- **Two dependencies this creates on the tablets** (see **B5** q8): the stored instant comes from the
+  *tablet's* clock (`JsonEncounter.time` is client-supplied), so a wrong tablet clock writes wrong
+  data; and the displayed time depends on the tablet's *timezone* being right. Both must be verified
+  per device at staging — the server cannot compensate for either.
 
 ### REST quirks that look like faults but aren't
 
@@ -680,7 +689,8 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
    during the notebook install. The APK payload is a **private** GitHub release
    (`SolDevelo/buendia-pilot-artifacts`, tag `pilot-1.0.0-rc2`).
 0b. ~~Run `setup.sh` on real hardware~~ **done** — see §2. Two follow-ups it left open:
-   **(i) A9 timezone** — check what the *tablet* displays for the 14:59Z admission (see §4); and
+   **(i) A9 is now narrowed, not open** — the tablet displays local time (~16:59 for `14:59Z`), so
+   `TZ=UTC` stays; the only residual is whether the *printed/exported* record must be local; and
    **(ii) the netplan path is still unproven** — the run used `CONFIGURE_NETWORK=false`, so
    generated netplan, and especially the `wifis:` branch, have never been applied on hardware.
 0c. **Send MSF the config questions** — especially the new **B5 (tablet system image)**, which can
