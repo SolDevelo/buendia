@@ -5,8 +5,9 @@ with no USB cable, no adb and no internet. It also serves the two paths the Andr
 probes on that port, which stops a spurious warning on the tablet.
 
 ```bash
-cd deploy/apk       && ./build-apk.sh      # build the APK first
-cd ../pkgserver     && ./publish.sh        # populate www/ + print the QR
+cd deploy/apk       && ./build-apk.sh           # build the APK first
+cd ../pkgserver     && ./publish.sh             # populate www/ + print the QR
+                    && ./make-install-card.sh   # printable in-zone card (Wi-Fi + install QRs)
 cd ../compose       && docker compose --env-file ../.env up -d pkgserver
 ```
 
@@ -49,6 +50,42 @@ installer is handed a `file://` Uri that throws at `targetSdkVersion 24`. So:
 > **If you publish an APK newer than what a tablet has, that tablet will start prompting for
 > an update it cannot install.** Update tablets by re-scanning the QR (or via adb), and
 > publish only what you intend people to install.
+
+## The printable in-zone install card
+
+`./make-install-card.sh ["Zone name"]` writes `cards/install-card.html` — a self-contained,
+print-ready A5 card (QRs embedded as data URIs, no external assets) carrying **two** QR codes:
+
+1. **Join Wi-Fi** — a `WIFI:` URI the Android/iOS camera acts on directly, so nobody types a
+   passphrase while gloved. Reserved characters (`; , : \ "`) are escaped per spec.
+2. **Install app** — the stable `/latest.apk` URL.
+
+Print from a browser (Ctrl+P → A5 → PDF or paper) and **laminate**. Deliberately no
+pandoc/LaTeX dependency: a browser is always available and gives a better result.
+
+**Post one in every zone, including the Red Zone.** That is the point of a no-cable install
+(plan §3.4): a reset or replacement tablet is re-provisioned *in place*, without carrying it
+across a contamination boundary. Nothing is lost — the tablet DB is only a cache.
+
+Reads `SITE_WIFI_SSID`, `SITE_WIFI_PASSWORD`, `SITE_FACILITY_NAME` from `deploy/.env`. With no
+SSID set it still produces a card, with a blank ruled line to fill in by hand, plus a warning.
+Cards land in `cards/` (git-ignored) and **not** in `www/`, because they carry the passphrase.
+
+## Updating the app on tablets (OTA is not available)
+
+An update is a **manual re-install**, and its signature must match the installed app — same
+keystore, always:
+
+```bash
+cd deploy/apk   && APK_VERSION=1.1.0 ./build-apk.sh   # bump the version
+cd ../pkgserver && ./publish.sh                       # regenerates www/; the QR URL is unchanged
+```
+Then on each tablet: re-scan the install QR and install over the existing app (local data is
+preserved — same app id and signature), or `adb install -r` over USB.
+
+**Publish as part of rolling an update out, not ahead of it.** `publish.sh` advertises only the
+version it published, so no prompt appears normally; but if you publish 1.1.0 while tablets still
+run 1.0, every tablet starts prompting for an update the broken updater cannot perform.
 
 ## Image choice
 

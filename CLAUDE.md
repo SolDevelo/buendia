@@ -15,7 +15,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   file it lands in. **Keep it up to date**: when an answer arrives, apply it and mark the item ✅; when a
   new config question surfaces during the build, add it there rather than burying it in a commit message.
 - The deployment package itself lives in `deploy/` (server container stack, seed builder, image builder,
-  tools) — see `deploy/README.md`.
+  APK builder, package server, tools) — see `deploy/README.md`. Two sub-READMEs matter:
+  `deploy/apk/README.md` (reproducible release-signed APK build; the signing-key and versioning
+  traps) and `deploy/pkgserver/README.md` (the `:9001` QR-install server and the printable in-zone
+  card; why in-app OTA is not available).
+- **Client (Android) changes for the pilot go on the `client` submodule's `drc-pilot` branch**
+  (`git@github.com:SolDevelo/buendia-client.git` — the fork was renamed from `SolDevelo/client`),
+  which the superproject's `drc-pilot` branch pins via `.gitmodules`. Prefer making behaviour
+  **build-configurable** (a gradle `-P` property surfaced as an `APK_*` var in `deploy/.env`) over
+  editing a hardcoded constant.
 - `docs/TECHNICAL-REVIEW.md` — full technical findings from a 2026 review, including the architecture summary, known bugs, two deployment scope shapes for DRC (1.5–2.5 weeks vs 3–5 weeks), and future-direction options. Start here for the "what state is this in" question.
 
 ## Repository layout

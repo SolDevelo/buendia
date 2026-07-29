@@ -34,7 +34,7 @@ Consequences for this plan:
 4. The workflow survives a server power-cycle (data is on the server).
 5. Tablets receive their **first APK install** over the local Wi-Fi via QR/URL (WS-5).
 
-**Verified by SolDevelo, not re-tested at initial setup:** the **OTA update channel** — a new signed APK on the server installs on the tablets over local Wi-Fi. SolDevelo proves this once in WS-5 (its acceptance test). Neither the Staging nor the Site Area pushes a fresh APK during initial bring-up to test it; OTA is exercised later, when an actual update ships. (First install at the site is the QR/URL step in item 5, which is a different path from OTA.)
+**Not available — see WS-5 (revised 2026-07-29):** an **in-app OTA update channel**. The v1.0 client cannot download and install an update itself, so app updates are a **manual re-install** (re-scan the in-zone install QR, or `adb install -r` over USB); local data survives because the app id and signing key are unchanged. First install at the site is the QR/URL step in item 5 — that path *is* verified.
 
 Not required for "done" (deferred to §7): hardening of the narrow *same-patient simultaneous-write* edge case (ordinary multi-tablet use **is** in scope, item 3); the bespoke SBC appliance; central multi-site management (one dashboard across many facilities — irrelevant to a single site; this site's tablets are managed by hand per WS-5).
 
@@ -131,7 +131,7 @@ The pilot does not run the server as a Wi-Fi access point. Topology:
   3. The APK is built with the same IP baked in (`-Pserver=192.168.8.10`) plus `-PrequireWifi=true`.
 
   Result: power on the router, power on the server, and the tablets already address the server — no command line, no IP lookup.
-- No Internet is required at the site for clinical use or OTA updates. (Occasional internet, when available, is used only for the opt-in remote-support channel — §3.5.)
+- No Internet is required at the site for clinical use, first install, or app updates. (Occasional internet, when available, is used only for the opt-in remote-support channel — §3.5.)
 - Optionally the kit may join **available area Wi-Fi** instead of using its own router; the autonomous shipped-router is the default, since joining a shared network reintroduces a dependency and a wider security surface. SolDevelo selects and procures the router (§8).
 - UPS on the server; router on a power bank (§7 power chain).
 
@@ -231,14 +231,15 @@ The from-scratch build is broken by dead artifact hosts (Bintray/JCenter) and Ja
 ### WS-4 — Android client release build + real-tablet validation  *(~1–1.5 days; patches already committed)*
 The demo patches are already in the `v1.0` client submodule (`targetSdkVersion 24`, multidex on, SQLCipher `.so` removed, telephony try/catch in `third_party/odkcollect/.../PropertyManager.java`). This is the frozen baseline (§3.2). Remaining work:
 - Build a signed release APK with pilot config: `-Pserver=<static-IP>`, `-PrequireWifi=true`. Set `versionNumber`. (No `-PencryptionPassword`: the flag is inert in v1.0 — data-at-rest is device-level per §3.2/§8.)
-- Signing: sideloaded APKs need only a self-generated keystore (`keytool` → `.jks`/`.keystore`) wired into Gradle `signingConfigs`; no Google Play Developer account is required. Reuse the keystore the repo expects under `../../release/`, or generate one. The same key must sign every build for the life of the pilot — Android installs an OTA update only over an app signed with the identical key; a lost keystore forces uninstall + reinstall. SolDevelo retains and backs up the keystore + passwords (§7).
+- Signing: sideloaded APKs need only a self-generated keystore (`keytool` → `.jks`/`.keystore`) wired into Gradle `signingConfigs`; no Google Play Developer account is required. Reuse the keystore the repo expects under `../../release/`, or generate one. The same key must sign every build for the life of the pilot — Android installs an update only over an app signed with the identical key; a lost keystore forces uninstall + reinstall. The pilot key is created by `deploy/apk/build-apk.sh --make-keystore`. SolDevelo retains and backs up the keystore + passwords (§7).
 - Early iteration (SolDevelo): run the full §1 workflow on an emulator while the procured hardware is on order. The bug-9 fix is a defensive try/catch, and the review already confirmed the app launches on an emulator post-fix.
 - Real-hardware validation (SolDevelo, at staging): since SolDevelo procures and stages the tablets, it validates on the **actual T4 and T5 units before the kit ships** — telephony under CrossCall's ROM, glove-touch, screen legibility, the "install unknown apps" flow, and multi-tablet sync (data entered on one device appears on the other). This is done pre-ship, not deferred to the field.
 
 **Acceptance:** the full clinical round-trip passes on the actual T4 and T5 units (staged by SolDevelo) before packing.
 
-### WS-5 — APK delivery: first install + OTA updates  *(~0.5–1 day; OTA mechanism already implemented)*
-First install is manual and one-time; subsequent updates are OTA.
+### WS-5 — APK delivery: first install + updates  *(~0.5–1 day)*  ✅ **DONE 2026-07-29**
+First install is over-the-LAN by QR and is verified on a real tablet. Updates are a manual
+re-install: the in-app OTA path is broken on this client (below), so it is out of scope.
 
 **First install — over the LAN, no USB.** A tablet on the Wi-Fi installs the APK by visiting a URL on the server. The server hosts a small landing page (nginx on the static IP) offering the APK; the runbook and the page carry a QR code of that URL:
 1. Join the tablet to the SSID.
@@ -247,9 +248,13 @@ First install is manual and one-time; subsequent updates are OTA.
 
 `adb`/USB sideload remains a documented fallback for devices where browser install is blocked by policy.
 
-**Updates — OTA.** The mechanism exists (client `UpdateManager`/`PackageServer` polls `:9001/buendia-client.json`; server-side `buendia-pkgserver-import` ingests `projectbuendia-*.zip` bundles). The server serves `/usr/share/buendia/packages` on `:9001` with a `buendia-client.json` index. To push an update: drop a new (same-keystore-signed) `.apk` and bump the index; tablets poll, download, and install over local Wi-Fi. New APK versions arrive at the site by USB, never from the Internet.
+**Updates — manual re-install. ⚠️ REVISED 2026-07-29: in-app OTA is NOT available on the v1.0 client.** This section previously assumed "the mechanism exists"; reading the code disproved it. The client polls `:9001/buendia-client.json` and compares versions correctly, but the *download and install* path is dead: `UpdateManager.java:150-158` short-circuits the download with `if (2 > 1)` and instead opens `http://<server>/client` in a browser (port **80**, which the stack does not serve), and `installUpdate()` hands Android a raw `file://` Uri, which throws `FileUriExposedException` at `targetSdkVersion 24`. There is no `FileProvider` and no `REQUEST_INSTALL_PACKAGES` permission. Making OTA work is a client code change (FileProvider + `content://` Uri + the permission + removing the short circuit) — **out of pilot scope**.
 
-**Acceptance:** (a) a factory tablet on the SSID installs the app via QR/URL with no cable; (b) bumping the APK version on the server triggers installed tablets to update.
+Consequence: **an update is a manual re-install** — re-scan the install QR on each tablet, or `adb install -r` over USB. Local data survives (same app id and signing key). The signing key must be the same or Android refuses the update. New APK versions still arrive at the site by USB, never from the Internet.
+
+The server therefore serves `:9001` for **first install** and to satisfy the client's package-server health check (which probes `/dists/stable/Release` and otherwise shows a "check package server configuration" warning on the tablet). `publish.sh` advertises only the version it published, so tablets are never prompted for an update the client cannot perform.
+
+**Acceptance:** (a) a factory tablet on the SSID installs the app via QR/URL with no cable — ✅ **met 2026-07-29** on a real tablet; (b) ~~bumping the APK version triggers installed tablets to update~~ — **withdrawn as unachievable** (see above); replaced by: a laminated in-zone card carries the Wi-Fi-join and install QRs so a tablet can be re-provisioned in place, and the documented manual re-install preserves local data — ✅ card generated by `deploy/pkgserver/make-install-card.sh`.
 
 ### WS-6 — Runbooks & clinical quick-start  *(~2–3 days)*
 Three documents, authored in Markdown and delivered as PDF (§5).
@@ -282,7 +287,7 @@ This guide is also the basis for the from-USB rebuild referenced in the Site Are
 11. "Wrong date/time" → reset the device clock (§3.4); confirm the server's date first, as it is the time source.
 12. "Wi-Fi gone / router was reset" → restore the saved router config (§3.4).
 13. Backup: snapshot the MySQL volume to USB; restore.
-14. Apply an APK update (WS-5 OTA).
+14. Apply an APK update: re-scan the in-zone install QR on each tablet (or `adb install -r`). There is no automatic OTA — see WS-5.
 15. **Collect diagnostics for SolDevelo:** run the `buendia-diagnostics` script, copy the archive to USB, deliver it to SolDevelo (§3.4).
 
 *Fallback appendix — full re-install from USB (only if the kit must be rebuilt):* offline Docker install, `docker load` images, set static IP, `docker compose up -d`, then continue from step 3.
@@ -320,7 +325,7 @@ This guide is also the basis for the from-USB rebuild referenced in the Site Are
 | 3 | WS-2: snapshot load + bug-12 fix + `site-<pilot>.sql` + profile baked; clean boot ready-to-use. |
 | 4 | WS-3 Android: Gradle mirrors, reproducible release build. WS-4 signed APK produced. |
 | 5 | WS-4: signed APK + emulator validation (full clinical round-trip). Real-T4/T5 validation happens at staging once the procured units arrive. |
-| 6 | WS-5 OTA channel; WS-7 remote-support tunnel + data export; image tarball export; bundle assembly. |
+| 6 | WS-5 APK delivery (QR first install + in-zone card); WS-7 remote-support tunnel + data export; image tarball export; bundle assembly. |
 | 7–8 | WS-6 staging guide + site runbook + quick-start (Markdown → PDF); end-to-end dry-run from bare Ubuntu to a working tablet on a clean PC. |
 | 9–10 | Buffer: real-hardware surprises, profile iteration with the clinical owner, bundle polish. |
 
@@ -350,7 +355,7 @@ The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, gracef
 - **Real-hardware unknowns on T4/T5** (glove calibration, telephony under CrossCall's ROM, screen density). Low risk now: SolDevelo procures and stages the actual T4/T5, so these are validated before the kit ships rather than discovered in the field; emulator iteration during the build de-risks earlier.
 - **Single server, no spare (decided).** A dead laptop takes the pilot down until a replacement is built. Mitigations: USB DB backups (no data lost) + the setup script's `--offline` restore mode, so a replacement is stood up on any laptop from the USB bundle — fast, and even doable at an MSF office — rather than re-staged from scratch; an optional `dd`/Clonezilla restore image is an extra. No live spare is shipped (a deliberate cost trade-off).
 - **Patient data at rest on tablets** relies on Android device encryption + a screen lock (v1.0 has no app-level DB encryption — §3.2/§8). Residual risk: an unlocked or stolen tablet, or one with no lock set. Mitigations: set a PIN/screen lock on every tablet at staging (this activates device encryption), physical custody, and the local DB being only a cache. App-level encryption (SQLCipher) is available later if MSF's data-protection policy requires it.
-- **Signing-key loss** permanently breaks in-place OTA updates (WS-4): Android updates only over an app signed with the same key. SolDevelo retains the keystore + passwords for the life of the pilot, backed up in ≥2 access-controlled locations (mechanism per SolDevelo's secrets practice; if stored in a repo, the key material is encrypted at rest, not committed in plaintext).
+- **Signing-key loss** permanently breaks in-place updates (WS-4): Android updates only over an app signed with the same key, so a lost key forces uninstall + reinstall on every tablet, destroying any not-yet-synced local data. SolDevelo retains the keystore + passwords for the life of the pilot, backed up in ≥2 access-controlled locations (mechanism per SolDevelo's secrets practice; if stored in a repo, the key material is encrypted at rest, not committed in plaintext).
 
 ---
 

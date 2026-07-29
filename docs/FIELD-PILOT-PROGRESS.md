@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (WS-4 + WS-5 COMPLETE: cold rebuild, QR install and full clinical workflow validated on a real tablet)._
+_Last updated: 2026-07-29 (WS-1..WS-5 COMPLETE — validated on a real tablet; in-zone install card added. **Next: WS-6 runbooks**)._
 
 ---
 
@@ -78,6 +78,14 @@ tablet**, and is now in the seed.
   on a range request (so an interrupted ward-wifi download resumes), and both client-probed paths
   return 200. This also removes the tablet's spurious "check package server configuration" warning.
   See `deploy/pkgserver/README.md`.
+- **In-zone install card (WS-5 artefact, plan §3.4)** — `deploy/pkgserver/make-install-card.sh` writes a
+  self-contained, print-ready A5 `cards/install-card.html` with **two** QR codes: a `WIFI:`-URI
+  **join-Wi-Fi** code (so nobody types a passphrase while gloved; reserved characters escaped and
+  round-trip-verified) and the **install** code. Optional per-zone label
+  (`./make-install-card.sh "Suspect Zone"`). Print from a browser → laminate → post in every zone
+  **including the Red Zone**, so a reset/replacement tablet is re-provisioned in place without
+  crossing a contamination boundary. Cards go to `cards/` (git-ignored), never `www/`, because they
+  carry the Wi-Fi passphrase.
 - **Client `drc-pilot` branch** — `SolDevelo/buendia-client` now has a `drc-pilot` branch matching
   this superproject branch, and `.gitmodules` records `branch = drc-pilot`. Pilot client code
   changes land there. First change: the auto-logout fix below.
@@ -120,6 +128,8 @@ On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`029c650d`** — config request B4: tablet provisioning (Play Store is not the answer).
 - **`8856fa16`** — make the site seed's login account genuinely idempotent (see §4; this bug
   locked the test tablet out mid-session).
+- **`82521099`** — close out WS-4/WS-5 after the tablet validation.
+- plus the WS-5 finalization commit (in-zone install card, plan corrections, this handoff).
 
 In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
 `soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
@@ -170,6 +180,33 @@ adb install -r buendia-client-<version>.apk
 The script prints the baked-in server/user read back out of the finished APK — check that line.
 Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
+### State of the local test stack RIGHT NOW (2026-07-29, end of session)
+
+The stack is **running and validated**, holding the smoke-test data — don't `down -v` it unless you
+intend to lose that:
+
+| | |
+|---|---|
+| Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all **healthy** |
+| Image | `buendia-openmrs:1.10.6-7d0f5e8e` (cold-built with tests) |
+| Server URL | `http://192.168.0.150:9000/openmrs` — login `buendia` / `buendia` |
+| Package server | `http://192.168.0.150:9001/` — landing page + `/latest.apk` |
+| Data | 2 patients, 8 encounters, 62 observations, 1 order (from the tablet) |
+| Zones | `[1] Triage [*]` · `[2] Suspect Zone` · `[3] Probable Zone` · `[4] Confirmed Zone` · `[5] Discharged` |
+| APK | `deploy/apk/buendia-client-1.apk`, release-signed, baked for `192.168.0.150` |
+
+Re-attach in a new session with:
+```bash
+cd deploy/compose && docker compose --env-file ../.env ps          # should be 3× healthy
+curl -u buendia:buendia http://192.168.0.150:9000/openmrs/ws/rest/buendia/locations   # 200
+```
+`deploy/.env` is git-ignored, so it survives; it holds `APK_SERVER=192.168.0.150` and the
+throwaway `APK_KEYSTORE_PASSWORD`. Regenerate anything missing with `build-image.sh` /
+`build-seed.sh` / `build-apk.sh` — all of it is reproducible, only `.env` and the keystore are not.
+
+⚠️ **Use GET, not `curl -I`**, to probe the REST API: `HEAD` on the buendia resources returns **500**
+while `GET` returns 200. Harmless (the client only uses GET) but it will send you chasing ghosts.
+
 ### Publishing the APK for tablet install (QR code)
 
 ```bash
@@ -177,8 +214,19 @@ cd deploy/pkgserver && ./publish.sh          # generates www/ from the newest bu
 cd ../compose && docker compose --env-file ../.env up -d pkgserver
 # tablet: scan the QR, or open  http://<STATIC_IP>:9001/latest.apk
 ```
-`qrencode` isn't installed on this box — `publish.sh` prints the URL and how to get a generator
-(`sudo apt install qrencode`, then `./publish.sh --qr-only`). The URL is what matters, not the image.
+QR generation needs no root: **`segno` is installed** (`python3 -m pip install --user segno`) and
+`publish.sh` / `make-install-card.sh` use it. `qrencode` also works if present.
+
+```bash
+./make-install-card.sh                 # printable in-zone card -> cards/install-card.html
+./make-install-card.sh "Suspect Zone"  # ...with a zone label
+```
+Set `SITE_WIFI_SSID` / `SITE_WIFI_PASSWORD` / `SITE_FACILITY_NAME` in `deploy/.env` first, or the
+card prints a blank line to fill in by hand.
+
+⚠️ **`deploy/.env` is `source`d by bash**, so quote any value with a space or a shell metacharacter
+(`; & | $ \ ' " * ?`). `NAME=DRC Pilot Site` or a passphrase containing `;` aborts the scripts with
+"command not found". docker compose itself is fine with them — this bit only the shell scripts.
 
 ---
 
@@ -330,7 +378,7 @@ cd ../compose && docker compose --env-file ../.env up -d pkgserver
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations) |
 | WS-3 | Reproducible image build | ✅ done (`build-image.sh`) |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
-| WS-5 | APK delivery (QR install + OTA `:9001`) | ✅ **done for first install** — `deploy/pkgserver/` on `:9001`; a real tablet installed from the QR on 2026-07-29. **In-app OTA dropped** (broken on v1.0, §4): tablet updates are a manual re-install |
+| WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA withdrawn** as unachievable on v1.0 (§4) — updates are a documented manual re-install, and the plan's acceptance criterion was revised accordingly |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started (gated on data-protection) |
 
@@ -383,31 +431,38 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE: install the packaged APK on a real T4/T5 and re-run the clinical
-smoke test.** Everything needed is built; no device was attached this session.
+**➡️ NEXT SESSION STARTS HERE: WS-6 — write the three runbooks.** WS-1..WS-5 are complete; the
+technical kit is built and validated on a real tablet. What remains is documentation, MSF's config
+answers, and the gated tunnel.
 
-1. **Finish WS-4 — validate the packaged APK on a tablet.** `adb install -r` the release build against
-   a freshly-seeded stack and repeat the 2026-07-13 workflow (add patient → forms → observations →
-   treatment). Specifically confirm, because these are new/untested in a *release* build:
-   - the release app id installs and runs (the smoke test used a **debug** build);
-   - the auto-logout change behaves — leave it **plugged in and idle for >30 s**, which previously
-     bounced to the login screen, and confirm it now holds for 5 min;
-   - **the QR install path end-to-end from the tablet's own browser** — scan
-     `http://<STATIC_IP>:9001/latest.apk`, confirm Android accepts the download and the installer
-     runs. This is verified server-side only (headers, bytes, ranges); the Android side — the
-     "install unknown apps" prompt for the browser on CrossCall's Android 9–12 ROM — is untested;
-   - that the `:9001` snackbar is now gone (the stub `Release` file should have fixed it);
-   - that device encryption + screen-lock PIN are on (**A11**) — the app-level encryption flag is
-     inert, so this is the only data-at-rest protection the tablet has.
-2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start). The QR card
-   for the ward belongs here: `publish.sh` emits `install-qr.png` when `qrencode` is available.
-3. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off.
-5. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`) and apply answers as they
-   arrive. The location tree / display order (A2, A3) and the UI language (A6) are the ones that are
-   cheapest now and most expensive after tablets have synced. **A10** (auto-logout timeout) and
-   **A11** (tablet DB encryption) are new — A11 must be settled before tablets are provisioned.
+1. **WS-6 — the runbooks** (plan §WS-6, ~2–3 days). Three Markdown documents delivered as PDF:
+   - **`STAGING-SETUP-GUIDE`** — SolDevelo's staging procedure and the rebuild reference: bare Ubuntu
+     → `setup.sh` → `docker load` → `up -d` → router config → APK on every tablet → the §1 round-trip
+     on a T4 *and* a T5 → power off, label, pack (incl. the laminated in-zone cards).
+   - **`SITE-RUNBOOK`** — non-technical MSF staff: power-on order, the single go/no-go check,
+     add/replace a tablet, the troubleshooting list (plan §WS-6(b) items 7–15), and a separated
+     from-USB re-install appendix.
+   - **`CLINICAL-QUICKSTART`** — clinical admin: add providers, upload/activate a profile via the
+     Profile Manager page, extend the location tree.
+   Everything they must describe is already built and its gotchas are recorded in §4 — that section is
+   the raw material. **No pandoc on this box** (needs root), so either install it at staging or print
+   the Markdown from a browser/editor; `make-install-card.sh` deliberately uses the browser route.
+2. **Back up the APK signing key** (see *Not started* above) — five minutes, and it is the kit's
+   biggest single-point loss risk.
+3. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off (C1). Note
+   `deploy/tools/buendia-export.sh` still has a genuine TODO: the `DataExportServlet` path/auth.
+4. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`). Sequence matters:
+   **A5 (server password) and B1 (site IP) must be settled before the shipping APK is built**, because
+   both are baked into it — deciding them afterwards costs a rebuild plus a reinstall on every tablet.
+   A2/A3 (ward layout) are cheap now and expensive after tablets have synced.
+5. **Remaining genuine TODOs in the scaffold** (host-specific, not defects): the netplan interface
+   name in `deploy/config/netplan/60-buendia.yaml`, and the UPS/low-battery graceful-shutdown wiring
+   in `setup.sh`.
 
-Also outstanding, unrelated to any workstream: the local test stack still runs the **hand-configured**
-DB from before the site seed existed (`DRC Facility`, `Suspected Zone`, hand-made user). Recycle it with
-`down -v && up -d` to run on the real zero-config seed. And the pre-existing strays in the tree
-(`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal.
+Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
+(`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —
+they predate this work. And the superproject branch is still **unpushed**; the client submodule branch
+*is* pushed.
+
+*(The old note here — that the local stack ran a hand-configured DB — no longer applies: it was
+rebuilt cold from the seed on 2026-07-29. See §3 for its current state.)*
