@@ -13,8 +13,10 @@
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
 > _Last updated: 2026-07-29 (**B5 added** — MSF's tablet system image, which can invalidate the QR
-> install path; **B2 rewritten** for "the site already has Wi-Fi"; **B1** flagged as blocking the
-> shipping APK; **B4** shape decided)._
+> install path; **B6 added** — the IP space if we use their Wi-Fi, and why a "probably free" address
+> is not enough; **B2 rewritten** for "the site already has Wi-Fi"; **B1/A5** re-scoped from blocking
+> to cheap-but-manual now that the tablet's address/password are known to be runtime-editable;
+> **B4** shape decided)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -321,6 +323,44 @@
 - **Lands in:** the staging checklist / Site runbook (WS-6), `deploy/apk/README.md`.
 - **Answer:** _(pending)_
 
+### B6. If we use the site's existing Wi-Fi: the IP space — ⬜ **the consequences here are not obvious**
+
+- **Need, precisely:**
+  1. the **subnet and mask** the tablets get (e.g. `192.168.0.0/24`) and the **gateway**;
+  2. the **DHCP pool range**, so we can take an address *outside* it;
+  3. **one address reserved for the server** — either a static address outside the pool, or a DHCP
+     reservation against the server's MAC;
+  4. whether tablets and the server will **always land on the same subnet** — i.e. one flat L2
+     network, not several APs on different subnets/VLANs;
+  5. whether the network isolates clients from each other (see **B2** — this one is fatal and silent).
+
+- **Why this is not just "pick a free IP":** an IP has to be **routable from the tablet**, not merely
+  unused. A tablet on `192.168.0.42/24` treats only `192.168.0.*` as local; ask it for an address
+  outside that range and it hands the packet to the gateway, which has no route to it and drops it.
+  So a "probably free anywhere" address such as `192.168.200.1` is **completely unreachable** from a
+  tablet on a `192.168.0.0/24` network, however free it is. **The server must sit in the same subnet
+  as the tablets.**
+
+- **Consequences to state to MSF:**
+  - **The server address becomes a per-site value.** It is baked into the APK as the default for a
+    runtime preference, so a wrong value is fixable by a guided Settings change on each tablet
+    (**B1**) — but that is N tablet-visits, in the field.
+  - **A DHCP address is not good enough on its own.** If the server's lease changes, every tablet
+    silently loses the server. We need a reservation or a static address outside the pool.
+  - **Roaming across subnets breaks it.** If different APs put clients on different subnets, tablets
+    can reach the server from some places and not others — which will look like "the app is broken
+    in that ward".
+  - **If they cannot give us a fixed address in their space, we should ship our own router.** That is
+    the only arrangement where one APK works at any site without per-site tailoring, because then we
+    own the subnet. Worth weighing against the router we were planning to drop: the router is not
+    only about coverage, it is about owning the address space.
+
+- **Default shipped:** `STATIC_IP=192.168.8.10/24`, gateway unset (an isolated LAN — i.e. assumes
+  **our own** router). `setup.sh` can instead leave their network alone (`CONFIGURE_NETWORK=false`).
+- **Lands in:** `deploy/.env` — `STATIC_IP`, `NET_PREFIX`, `GATEWAY_IP`, `DNS_SERVERS`,
+  `CONFIGURE_NETWORK`, `NET_IFACE`; and the APK's `APK_SERVER` (which defaults to `STATIC_IP`).
+- **Answer:** _(pending)_
+
 ## C. Governance (gates work, not just config)
 
 ### C1. Data-protection sign-off — 🟡 **blocking WS-7**
@@ -352,6 +392,9 @@ Worth putting in front of MSF once, because they shape acceptable answers:
    reference them, and changing a UUID orphans them. **Get A1–A3 right before go-live**, not after.
 2. **Renaming is safe; re-parenting and deleting are not.** A `name` change syncs cleanly to tablets.
 3. **No sort-order field exists** — ordering is name-based only (A3).
+3b. **The server must share a subnet with the tablets.** An address outside the tablets' subnet is
+   unreachable no matter how free it is (see **B6**). A fixed, reserved address in their IP space is
+   a hard requirement of using their Wi-Fi; if it can't be had, we bring our own router.
 4. **This is a 2016 Android app on an end-of-life server stack.** Config-shaped requests (names, accounts,
    profile content, locale, timezone) are cheap. Behaviour changes (sorting, validation, new screens) are
    code changes to an unmaintained codebase and are out of pilot scope unless explicitly funded.
