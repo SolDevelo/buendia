@@ -86,6 +86,27 @@ tablet**, and is now in the seed.
   **including the Red Zone**, so a reset/replacement tablet is re-provisioned in place without
   crossing a contamination boundary. Cards go to `cards/` (git-ignored), never `www/`, because they
   carry the Wi-Fi passphrase.
+- **Go/no-go verification tool** — `deploy/tools/buendia-verify.sh` checks that a stack is
+  *usable*, not merely up: REST auth (200 / 401 on a wrong password), the location tree, **exactly
+  one `[*]` default zone**, `/charts`, Guest provider, the **single-login-row** guard (the lockout
+  bug), the active profile, the **six sync triggers' DEFINER resolving**, and the `:9001` install
+  path (APK mime type, `206` range, `/dists/stable/Release`, byte-identity with the built APK,
+  numeric version). `--quick` is the field go/no-go (REST only, no docker); `--write` admits and
+  then voids a throwaway patient — the only check that proves admission works end to end.
+  Exit 0/1. Verified against the live stack (16 checks) and a cold throwaway (17 with `--write`),
+  and its failure paths were exercised. This is what `setup.sh`'s `health_check()` is not: that
+  only proves the ports answer.
+- **Throwaway stacks are now actually possible.** Working guideline #7 recommended validating a
+  change "on a spare port" but `docker-compose.yml` hardcoded `"9000:8080"`, so it could not be
+  done. Now `${OPENMRS_PORT:-9000}` (pkgserver was already parameterized) — defaults are unchanged
+  for every real deployment. Verified: a `-p throwaway` stack boots alongside the live one on
+  9100/9101 with **its own volumes** (0 patients vs the live 2, full 51k-concept seed), passes
+  `--write`, and tears down without touching the live stack.
+- **Claude Code skills** — `.claude/skills/` (committed, so they travel with the repo):
+  `pilot-stack` (reattach/fresh/throwaway/teardown + the `down -v` guard), `pilot-verify`,
+  `pilot-build-kit` (A→Z cold rebuild + the decide-before-you-build ordering), `pilot-site-config`
+  (apply an MSF config answer + the cost hierarchy), `pilot-checkpoint` (this close-out routine).
+  They carry procedure and guards only, and point here for the facts, to avoid drifting from §4.
 - **Client `drc-pilot` branch** — `SolDevelo/buendia-client` now has a `drc-pilot` branch matching
   this superproject branch, and `.gitmodules` records `branch = drc-pilot`. Pilot client code
   changes land there. First change: the auto-logout fix below.
@@ -197,9 +218,20 @@ intend to lose that:
 
 Re-attach in a new session with:
 ```bash
-cd deploy/compose && docker compose --env-file ../.env ps          # should be 3× healthy
-curl -u buendia:buendia http://192.168.0.150:9000/openmrs/ws/rest/buendia/locations   # 200
+cd deploy/compose && docker compose --env-file ../.env ps   # should be 3× healthy
+deploy/tools/buendia-verify.sh                              # 16 checks, expect GO
 ```
+
+To validate a seed/config change **without touching this stack**, boot a throwaway alongside it
+(own containers, own volumes; shares only the read-only `seed/initdb` and `pkgserver/www` mounts):
+```bash
+cd deploy/compose
+OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env up -d
+deploy/tools/buendia-verify.sh --port 9100 --pkg-port 9101 --project throwaway --write
+OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env down -v
+```
+Pass the same `-p` and port vars to **every** command in the group, `down` included, or you will
+act on the wrong stack. Cold boot to healthy took ~1 min on this box.
 `deploy/.env` is git-ignored, so it survives; it holds `APK_SERVER=192.168.0.150` and the
 throwaway `APK_KEYSTORE_PASSWORD`. Regenerate anything missing with `build-image.sh` /
 `build-seed.sh` / `build-apk.sh` — all of it is reproducible, only `.env` and the keystore are not.
@@ -439,7 +471,9 @@ answers, and the gated tunnel.
    - **`STAGING-SETUP-GUIDE`** — SolDevelo's staging procedure and the rebuild reference: bare Ubuntu
      → `setup.sh` → `docker load` → `up -d` → router config → APK on every tablet → the §1 round-trip
      on a T4 *and* a T5 → power off, label, pack (incl. the laminated in-zone cards).
-   - **`SITE-RUNBOOK`** — non-technical MSF staff: power-on order, the single go/no-go check,
+   - **`SITE-RUNBOOK`** — non-technical MSF staff: power-on order, the single go/no-go check
+     (now built: `deploy/tools/buendia-verify.sh --quick` — prints PASS/FAIL lines and GO/NO-GO,
+     needs no docker, so it is safe to put in front of a non-technical operator),
      add/replace a tablet, the troubleshooting list (plan §WS-6(b) items 7–15), and a separated
      from-USB re-install appendix.
    - **`CLINICAL-QUICKSTART`** — clinical admin: add providers, upload/activate a profile via the

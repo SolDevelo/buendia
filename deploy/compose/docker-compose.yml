@@ -43,7 +43,11 @@ services:
       TZ: ${TZ}
       JAVA_OPTS: "-Duser.timezone=UTC"   # JVM in UTC (bug 1)
     ports:
-      - "9000:8080"                       # OpenMRS at http://<STATIC_IP>:9000/openmrs
+      # Stays 9000 for every real deployment (the APK bakes in http://<server>:9000).
+      # Parameterized only so a THROWAWAY stack can be booted alongside a running one to
+      # validate a seed/config change without disturbing it:
+      #   OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env up -d
+      - "${OPENMRS_PORT:-9000}:8080"      # OpenMRS at http://<STATIC_IP>:9000/openmrs
     volumes:
       - openmrs_profiles:/opt/openmrs/profiles   # persist uploaded profile CSVs across restarts
     healthcheck:
