@@ -11,10 +11,15 @@
 # specific language governing permissions and limitations under the License.
 
 # Tells the server to clear its per-session entity cache.
+#
+# Creds/URL come from buendia-settings on the appliance, or from /usr/share/buendia/site/*
+# (sourced by utils.sh) in the split-container setup, where OpenMRS listens on :8080 and
+# SERVER_OPENMRS_URL overrides the default. Best-effort: never fail the caller if the server
+# is unreachable or the API user isn't provisioned yet.
 
-set -e
+. /usr/share/buendia/utils.sh 2>/dev/null || true
+eval $(buendia-settings 2>/dev/null) || true
 
-eval $(buendia-settings 2>/dev/null)
-
-curl -u "$SERVER_OPENMRS_USER:$SERVER_OPENMRS_PASSWORD" -sS \
-    'http://localhost:9000/openmrs/ws/rest/buendia/providers?clear-cache=1' >/dev/null
+curl -u "${SERVER_OPENMRS_USER}:${SERVER_OPENMRS_PASSWORD}" -sS \
+    "${SERVER_OPENMRS_URL:-http://localhost:9000/openmrs}/ws/rest/buendia/providers?clear-cache=1" \
+    >/dev/null 2>&1 || echo "server_clear_cache: skipped (server unreachable or no API creds)"

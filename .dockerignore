@@ -1,0 +1,11 @@
+# Build context for deploy/image/Dockerfile is the repo root. Keep it lean.
+# Needed in context: openmrs/, tools/, packages/, deploy/, .git/
+client/
+# keep third_party/openmrs-module-xforms — the omod symlinks its buendia xforms sources in
+third_party/*
+!third_party/openmrs-module-xforms
+db-snapshot/
+devices/
+recovery/
+docs/
+*.jar

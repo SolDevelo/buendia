@@ -1,0 +1,17 @@
+# Static IP for the server's wired interface (plan §3.3).
+# REVIEW at staging: the interface name (enp1s0 / eth0 / ...) is host-specific —
+# check with `ip -br link`. Keep this IP identical to STATIC_IP in .env and the value
+# baked into the APK (-Pserver=...). 0600 perms (set by setup.sh).
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp1s0:                       # TODO: set to the actual wired interface name
+      dhcp4: false
+      addresses:
+        - 192.168.8.10/24         # TODO: keep in sync with STATIC_IP
+      routes:
+        - to: default
+          via: 192.168.8.1        # the router's LAN address
+      nameservers:
+        addresses: [192.168.8.1]  # router (dnsmasq) — also serves the NTP-hostname trick (§3.4)

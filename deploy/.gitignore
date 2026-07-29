@@ -1,0 +1,31 @@
+# Secrets — never commit real values
+.env
+
+# Heavy binaries — ship via GitHub Releases / Git LFS / USB, not in git
+images/*.tar
+images/*.tar.gz
+debs/*.deb
+apk/*.apk
+# NB: the default profile (profile/bunia.csv) IS committed — it's a package artifact, baked
+# into the seed by seed/build-seed.sh. Ignore only site-tailored variants if they hold PII.
+profile/site-*.csv
+
+# Seed SQL — regenerable (base) or site-specific/patient data — keep out of git
+seed/*.sql
+seed/initdb/*.sql
+seed/*site*
+
+# Local artefacts
+*.log
+buendia-diag-*.tar.gz*
+buendia-db-*.sql.gz
+buendia-export-*.csv
+
+# Keep the empty dirs tracked
+!**/.gitkeep
+!seed/README.md
+
+# WS-3 image build: vendored heavy artefacts + optional maven mirror
+image/artifacts/*
+!image/artifacts/.gitkeep
+image/settings.xml

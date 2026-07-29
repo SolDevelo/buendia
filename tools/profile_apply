@@ -43,8 +43,8 @@ def sqlrepr(x):
 
 
 class Database:
-    def __init__(self, database, user, password):
-        self.db = MySQLdb.connect(db=database, user=user, passwd=password)
+    def __init__(self, database, user, password, host='localhost'):
+        self.db = MySQLdb.connect(host=host, db=database, user=user, passwd=password)
         cursor = self.db.cursor()
         cursor.execute('set character_set_client = utf8;')
         cursor.execute('set character_set_server = utf8;')
@@ -166,10 +166,12 @@ class OpenmrsDatabase:
 
 def get_db(database):
     pipe = os.popen("bash -c '. /usr/share/buendia/utils.sh; "
+                    "echo $OPENMRS_MYSQL_HOST; "
                     "echo $OPENMRS_MYSQL_USER; echo $OPENMRS_MYSQL_PASSWORD'")
+    host = pipe.readline().strip() or 'localhost'
     user = pipe.readline().strip() or 'openmrs_user'
     password = pipe.readline().strip() or 'openmrs'
-    return Database(database, user, password)
+    return Database(database, user, password, host=host)
 
 def read_csv(filename, tab=None):
     """Returns a dictionary mapping tab names to lists of row dictionaries."""

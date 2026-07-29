@@ -1,0 +1,61 @@
+# Buendia field-pilot server stack. Both services share UTC (fixes bug 1).
+# Started by ../setup.sh via: docker compose --env-file ../.env up -d
+services:
+  db:
+    image: ${MYSQL_IMAGE}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: ${TZ}
+    command:
+      - --default-time-zone=+00:00      # MySQL in UTC (bug 1)
+      - --character-set-server=utf8
+      - --collation-server=utf8_general_ci
+      - --skip-log-bin                  # binlog off — single-server pilot, snapshot backups (§3.1)
+    volumes:
+      - db_data:/var/lib/mysql
+      - ../seed/initdb:/docker-entrypoint-initdb.d:ro   # only *.sql here (base + concept-fix + site-<pilot>.sql, WS-2)
+    healthcheck:
+      # Gate on the REAL server over TCP with a real query as the app user — NOT `mysqladmin ping`,
+      # which passes during MySQL's init-phase (socket-only) temp server and lets OpenMRS start
+      # before the DB is truly ready (→ DatabaseUpdater "Unable to get a connection").
+      test: ["CMD-SHELL", "mysql -h127.0.0.1 --protocol=TCP -u$$MYSQL_USER -p\"$$MYSQL_PASSWORD\" -e 'SELECT 1' $$MYSQL_DATABASE >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+
+  openmrs:
+    image: ${OPENMRS_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # The image entrypoint renders openmrs-runtime.properties from these (verified working).
+      DB_HOST: db
+      DB_DATABASE: ${MYSQL_DATABASE}
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: ${TZ}
+      JAVA_OPTS: "-Duser.timezone=UTC"   # JVM in UTC (bug 1)
+    ports:
+      - "9000:8080"                       # OpenMRS at http://<STATIC_IP>:9000/openmrs
+    volumes:
+      - openmrs_profiles:/opt/openmrs/profiles   # persist uploaded profile CSVs across restarts
+    healthcheck:
+      # session endpoint returns 200 without auth (proves REST framework is up);
+      # /ws/rest/buendia/patients would 401 (auth required) and flap the healthcheck.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null",
+              "http://localhost:8080/openmrs/ws/rest/v1/session"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+
+volumes:
+  db_data:
+  openmrs_profiles:

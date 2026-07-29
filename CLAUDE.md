@@ -4,6 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Related documents in `docs/`
 
+- **`docs/FIELD-PILOT-PROGRESS.md` — START HERE for the DRC field-pilot work.** Living status/handoff:
+  where things stand, how to run the deployment package locally, hard-won gotchas, and working guidelines.
+  Keep it updated after each major step.
+- `docs/FIELD-PILOT-DEPLOYMENT-PLAN.md` — the full field-pilot deployment plan (goal, scope, workstreams,
+  risks, decisions). `docs/FIELD-PILOT-EXECUTIVE-SUMMARY.md` is the one-page version.
+- The deployment package itself lives in `deploy/` (server container stack, seed builder, image builder,
+  tools) — see `deploy/README.md`.
 - `docs/TECHNICAL-REVIEW.md` — full technical findings from a 2026 review, including the architecture summary, known bugs, two deployment scope shapes for DRC (1.5–2.5 weeks vs 3–5 weeks), and future-direction options. Start here for the "what state is this in" question.
 
 ## Repository layout

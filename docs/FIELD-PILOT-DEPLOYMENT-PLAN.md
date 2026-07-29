@@ -4,7 +4,7 @@
 **Goal:** the leanest path to a *working* Buendia system on-site — on the users' tablets, against an on-site server.
 **Companion document:** `docs/TECHNICAL-REVIEW.md` (bug numbers below, e.g. "bug 9", refer to its bug list).
 
-This plan covers **development work and documentation only**. Hardware procurement, staging, and physical delivery are MSF's (see Parties). The output is a single, self-contained **deployment bundle** plus runbooks that MSF uses to stage, test, deploy, and operate the system.
+SolDevelo's scope: **select and procure the hardware, build the software, and stage/test/pack a ready-to-run kit**, plus the runbooks and a secure remote-support channel. **MSF deploys the kit on-site** (power-on + verify) and operates it; SolDevelo does not travel to site (see Parties). The system is an **autonomous kit** — independent of MSF's existing LIME EMR / OpenMRS 3 infrastructure and field-IT teams (the agreed approach; a LIME-compatible app is the deferred long-term alternative).
 
 ---
 
@@ -12,21 +12,21 @@ This plan covers **development work and documentation only**. Hardware procureme
 
 | Party | Role | Responsibilities |
 |---|---|---|
-| **SolDevelo** | Technical | Builds the **deployment bundle** (server container stack, seed data/config, signed APK) and the **runbooks**. Provides the reproducible build. Consults and advises (hardware specs, network/Wi-Fi, environment, troubleshooting). Does not procure hardware or travel to site. |
-| **MSF** | Execution + domain knowledge | Procures the devices (server PC, tablets, router, power kit). Operates the **Staging Area**: installs the bundle, runs the quick test. Delivers and sets up the system on-site. Owns all domain/clinical knowledge and site specifics (facility, ward/bed structure, clinician accounts, form content). |
+| **SolDevelo** | Technical + procurement + staging | **Selects and procures** the hardware (server, tablets, router, power kit). Builds the **deployment bundle** (server container stack, seed data/config, signed APK) and the reproducible build. **Stages, tests, and packs** the ready-to-run kit. Writes the **runbooks**. Provides a **secure remote-support channel** and a **hypercare** support window (scope TBD, §8). Advises on everything technical. Does not travel to site. |
+| **MSF** | Deployment + domain knowledge | Provides the **site specifics** (facility, ward/bed structure, clinician accounts), the **clinical content**, and **data-protection sign-off**. **Receives the staged kit and deploys it on-site** (power-on + verify), then operates it. Owns the field environment and IPC. (Alternatively may supply reset standard laptops as the server base — §8.) |
 | **Users** | Operation | Clinicians and staff at the site who use the system for patient care. The on-site experience (power-on, login, data entry) is designed around them. |
 
 Consequences for this plan:
-- The Staging Area is operated by MSF's technical person, who installs the SolDevelo-built bundle and runs the quick test before delivery.
-- The Site Area runbook targets non-technical staff (power-on + verify + recover); the Staging Area setup guide targets MSF's technical staff.
-- The open items in §8 are MSF's to decide; SolDevelo advises.
-- SolDevelo's deliverables are portable: bundle and runbooks must work for any devices within the §3 specs and any Staging Area.
+- **SolDevelo operates the Staging Area** (its own premises: internet + technical staff): procures the hardware, installs the bundle, configures, tests, and packs the kit. MSF receives a working kit and only deploys it.
+- The Site Area runbook targets MSF's non-technical staff (power-on + verify + recover); the Staging Area setup guide is SolDevelo's own procedure (and the basis for a rebuild).
+- The open items in §8 are MSF inputs (site specifics, clinical content, data-protection sign-off); SolDevelo owns hardware selection, build, staging, and support.
+- SolDevelo selects specific hardware models (§3.1/§3.3); the bundle and runbooks stay model-agnostic within the §3 specs so a model can be substituted without rework.
 
 ---
 
 ## 1. Definition of done
 
-**Confirmed on-site, with no Internet** (run during the Staging Area quick test, and briefly again at site go-live):
+**Confirmed before ship (SolDevelo staging) and again at site go-live (MSF), all with no Internet:**
 
 1. The server boots, brings up MySQL + OpenMRS, and serves the Buendia REST API on the local network.
 2. A clinician on a **CrossCall Core-T5** and on a **CrossCall Core-T4** can: log in → browse the location tree → add a patient → assign a bed → open the chart → open a form → enter vitals → save → **see the saved values persist** (the round-trip that the timezone bug breaks — bug 1).
@@ -53,14 +53,14 @@ Not required for "done" (deferred to §7): hardening of the narrow *same-patient
 
 ### 2.1 Installation model — two environments
 
-The deployment is defined by **capability, not geography**:
+Two environments, split by who does the work:
 
-- **Staging Area** — any location with **Internet access and a technical person**. SolDevelo delivers the software **pre-built** (server image tarballs, signed APK, seed data, compose file — §5); the Staging Area **installs finished artefacts, it does not build from source**. Work: on the procured PC's fresh Ubuntu install, run the bundle's setup script (applies the static-IP netplan + unattended-operation hardening), load the container images, start the stack; install the signed APK on every tablet; run the quick test (the §1 round-trip); then power off, pair, label, and pack the kit (server + tablets + router + cables + UPS/power banks).
-- **Site Area** — the field hospital. **No Internet, non-technical staff.** Work: unpack, connect the power chain, power on, verify "green," use. Adding or replacing a tablet = join Wi-Fi + scan QR (WS-5). Nothing is built or configured here.
+- **Staging Area (SolDevelo)** — SolDevelo's premises (internet + technical staff). SolDevelo procures the hardware, builds and installs the software on it, configures it (static-IP netplan, unattended hardening, clocks, encryption, the secure remote-support channel), installs and configures the signed APK on every tablet, runs the full quick test (the §1 round-trip on a T4 and T5), then powers off, pairs, labels, and packs the ready-to-run kit (server + tablets + router + cables + UPS/power banks).
+- **Site Area (MSF)** — the field hospital. **No Internet, non-technical staff.** Work: unpack, connect the power chain, power on, verify "green," use. Adding or replacing a tablet = join Wi-Fi + scan QR (WS-5). Nothing is built or configured here.
 
-Everything technical happens at a Staging Area; the Site Area only powers on a kit that already works. The Site Area runbook is therefore a power-on + verify + recover guide, with a fallback re-install appendix (the from-USB path) for the rare case where the kit must be rebuilt — which must itself happen at a Staging Area, never in the field.
+Everything technical happens at SolDevelo; the Site Area only powers on a kit that already works. The Site Area runbook is therefore a power-on + verify + recover guide, with a fallback re-install appendix (the from-USB path) for the rare case where the kit must be rebuilt — done by SolDevelo (or, with remote support, guided remotely), never cold in the field.
 
-**Build vs. install boundary.** All compilation, dependency wrangling, and the reproducible build (WS-3) happen at SolDevelo, before anything reaches a Staging Area; the broken-toolchain problems (dead Bintray/JCenter mirrors, Java-7 pinning) are solved once. The Staging Area consumes finished artefacts and installs them on the procured devices (which only MSF has). The Staging Area's skill bar is "follow an install checklist," not "build Android/OpenMRS from source." Once MSF fixes the server hardware model, SolDevelo may instead ship a full pre-built server disk image to flash, reducing the Staging Area's server step to "flash and boot"; until then the portable artefact bundle is the default.
+The reproducible build (WS-3) solves the broken-toolchain problems (dead Bintray/JCenter mirrors, Java-7 pinning) once. Because SolDevelo fixes the exact server model, it can also ship the server as a **pre-imaged disk** rather than a script-configured install if that proves more reliable — an implementation choice within SolDevelo's staging.
 
 ---
 
@@ -68,7 +68,7 @@ Everything technical happens at a Staging Area; the Site Area only powers on a k
 
 ### 3.1 On-site server
 
-The pilot runs the server on a generic machine via Docker Compose, skipping the custom SBC appliance. Requirements follow from the stack: MySQL 5.6 + OpenMRS 1.10.6 (Tomcat 7 / Java 7) in containers, x86-64.
+The pilot runs the server on a generic machine via Docker Compose, skipping the custom SBC appliance. **SolDevelo selects and procures a specific unit meeting the spec below** (alternative: MSF supplies reset standard laptops as the base — §8). Requirements follow from the stack: MySQL 5.6 + OpenMRS 1.10.6 (Tomcat 7 / Java 7) in containers, x86-64.
 
 **Specification — small x86-64 mini-PC (NUC-class):**
 
@@ -118,23 +118,24 @@ Build implications:
 - Freeze the client at the `v1.0` baseline; apply only the fixes needed for Android 9–12 (the telephony try/catch, harmless on Android 9 where it may not even throw). Do not pull in unrelated upstream changes.
 - Keep `targetSdkVersion 24`. It is the floor that already triggers the runtime-permission model these devices use, and it opts the app out of the stricter scoped-storage/permission behaviors of newer targets. A higher target adds risk and no benefit for T4/T5.
 - Do not do bug 7 (`android:exported`) or any SDK-31+ work; that is only needed to target 31+, which the pilot does not.
-- Real-device behavior is confirmed on the actual T4/T5 at staging (not just an emulator); SolDevelo's own gate is an emulator + a representative arm64 device (see WS-4).
+- Real-device behavior is confirmed on the actual T4/T5 that SolDevelo procures and stages; the emulator is for early iteration only (see WS-4).
 
 ### 3.3 Network & power
 
 The pilot does not run the server as a Wi-Fi access point. Topology:
 
 - One off-the-shelf Wi-Fi router at the site. The server connects by Ethernet; tablets join the router's SSID.
-- The network is predetermined by the bundle; the installer never inspects or chooses an IP. One address (e.g. `192.168.8.10`) is fixed and shipped three ways:
+- The network is predetermined by the bundle; neither staging nor the site needs to inspect or choose an IP. One address (e.g. `192.168.8.10`) is fixed and shipped three ways:
   1. A static-IP netplan config for the server's wired interface is applied by the bundle's setup script at the Staging Area.
   2. The router config is pre-set (SSID, password, matching subnet) and shipped paired with the server; a DHCP reservation for the server's MAC is the belt-and-suspenders backup.
   3. The APK is built with the same IP baked in (`-Pserver=192.168.8.10`) plus `-PrequireWifi=true`.
 
   Result: power on the router, power on the server, and the tablets already address the server — no command line, no IP lookup.
-- No Internet is required at the site for clinical use or OTA updates.
+- No Internet is required at the site for clinical use or OTA updates. (Occasional internet, when available, is used only for the opt-in remote-support channel — §3.5.)
+- Optionally the kit may join **available area Wi-Fi** instead of using its own router; the autonomous shipped-router is the default, since joining a shared network reintroduces a dependency and a wider security surface. SolDevelo selects and procures the router (§8).
 - UPS on the server; router on a power bank (§7 power chain).
 
-**Router specification.** A mini/travel router: low power (USB-powered, can run from a power bank); dual-band; able to operate as a plain access point and as a mesh node (for the coverage fallback); and supporting **custom local DNS overrides** (OpenWrt/GL.iNet-class dnsmasq), required for the local-NTP-via-DNS-interception in §3.4. Specific model is an open procurement item (§8). Wi-Fi throughput is never the bottleneck — clinical sync traffic is kilobytes of JSON every 10 s, easily handled for 5–10 tablets. **Coverage of the ward is the constraint.**
+**Router specification.** A mini/travel router: low power (USB-powered, can run from a power bank); dual-band; able to operate as a plain access point and as a mesh node (for the coverage fallback); and supporting **custom local DNS overrides** (OpenWrt/GL.iNet-class dnsmasq), required for the local-NTP-via-DNS-interception in §3.4. SolDevelo selects and procures the specific model (§8). Wi-Fi throughput is never the bottleneck — clinical sync traffic is kilobytes of JSON every 10 s, easily handled for 5–10 tablets. **Coverage of the ward is the constraint.**
 
 Coverage characteristics of a single small router:
 - Range vs. walls: small antennas and low transmit power give solid coverage to ~10–15 m line-of-sight, degrading quickly through walls.
@@ -158,7 +159,7 @@ Barrier material (plastic sheeting vs. concrete/metal) decides which applies —
 
 ### 3.4 Offline resilience & recovery
 
-The site has no Internet and no remote access; the system must stay correct unattended and remain debuggable by post.
+The site is offline by default; the system must stay correct unattended and remain debuggable. (Occasional internet enables an opt-in remote-support channel — §3.5; the offline USB diagnostic dump below is the fallback when there is no connectivity.)
 
 **Time / clock.** Buendia's sync and clinical timestamps are time-sensitive (the sensitivity behind bug 1), and the client stamps the encounter time from the **tablet** clock, so both server and tablet clocks must stay correct without Internet NTP — what the original appliance's `setclock`/`ntpserver`/`pushclock` packages handled.
 - **Server (time authority):** its hardware clock is set to UTC at staging and it runs a local NTP service (chrony) for the LAN. Offline it relies on its RTC. The server, not the router, is the authority — travel routers usually have no RTC and lose time when powered off.
@@ -176,14 +177,25 @@ The site has no Internet and no remote access; the system must stay correct unat
 
 **In-zone (Red Zone) tablet re-provisioning.** Because install is QR-over-Wi-Fi with no cable, a reset or replacement tablet is re-provisioned in place without crossing a contamination boundary. A laminated card carrying the Wi-Fi SSID/password and the install QR is posted in each zone, including the Red Zone: rejoin Wi-Fi → scan QR → install → log in; the tablet then re-syncs from the server (the local DB is a cache, so no data is lost). The detailed clinical/IPC rule book is MSF's and comes later; the plan ensures the in-zone card and the no-cable install path exist.
 
+### 3.5 Remote support & data extraction
+
+The site is offline for clinical use, but internet is expected intermittently. Two capabilities ride on that occasional connectivity. **Both are patient-data-touching and require MSF data-protection sign-off (§8) before they are enabled.**
+
+**Remote support channel (decided: Tailscale + SSH to start).** Skilled staff cannot be guaranteed on-site, so the kit includes an **opt-in secure tunnel**, **server-initiated** (dials out — no inbound ports, works behind the router's NAT with nothing configured at site), **dormant when offline**, connecting to a SolDevelo endpoint only when internet is present. Support is via **SSH** (terminal + a forwarded port to the OpenMRS web UI) — the server is headless, so **no remote *desktop* is needed**; "remote desktop, no VPN" is the mental model, SSH is the right tool. Transport starts with **Tailscale** (zero site-side config, NAT-traversing; it is technically a WireGuard mesh VPN, but nothing is configured at site — the honest framing to MSF is "the server dials out to us, no inbound access, no VPN client for you to manage"). Its coordination plane is a third-party service (cannot read the end-to-end-encrypted traffic, but in the path), so the **data-protection sign-off may push to self-hosted WireGuard/Headscale** — the plan is written around "server-initiated dial-out + SSH" so the transport can be swapped without rework. Properties: authenticated, encrypted, server-initiated, controllable, auditable, switch-off-able; **ships disabled until sign-off**. It is a **support side-channel only** — clinical operation never depends on it. When there is no connectivity, the offline `buendia-diagnostics` USB dump (§3.4) is the fallback.
+
+**Data extraction.** So MSF medical teams are not "blind" to the data, the kit provides a basic export of the clinical data, leveraging the module's existing `DataExportServlet` (CSV). The export can be **pulled over the remote-support tunnel** when internet is available, or written to a **USB key at the server** as the offline fallback. As patient data leaving the kit, its format, destination, and access are governed by MSF's data-protection rules; a future option is to feed it into MSF's LIME EMR rather than flat files.
+
 ---
 
 ## 4. Development workstreams
 
-Six streams. WS-1 and WS-3 are the critical path; WS-4 runs in parallel once WS-3 produces a build environment.
+Seven streams. WS-1 and WS-3 are the critical path; WS-4 runs in parallel once WS-3 produces a build environment; WS-7 (remote support + data export) is independent.
 
-### WS-1 — Deployable server container stack  *(core; ~2–3 days)*
-A new `docker-compose.yml` (none exists in the repo) with two services:
+### WS-1 — Deployable server container stack + packaging  *(core; ~2–3 days)*
+
+**Packaging (decided): a versioned `deploy/` tree whose entry point is one idempotent `setup.sh`** — the source of truth, run on a fresh Ubuntu install. `--online` (default, at SolDevelo staging with internet) pulls Docker + images; `--offline` rebuilds from bundled `.debs` + `docker save` tarballs with no internet. The `--offline` mode is important given **1 server, no spare** (§8): it lets a replacement be stood up on any laptop from the USB bundle without a full re-stage. A full disk image is an optional downstream *restore* artifact, not the foundation. Reproducibility comes from a pinned `.env` (Ubuntu point release, Docker version, **image digests** not tags) + the vendored Java-7/OpenMRS artifacts (WS-3). `setup.sh` phases: preflight → host config (netplan, logind lid-ignore, suspend masks, UTC, chrony, log caps, shutdown hook) → Docker install → image load → seed + `compose up` → Tailscale (§3.5) → health check.
+
+The stack itself — a new `docker-compose.yml` (none exists in the repo) with two services:
 
 - **`db`**: stock `mysql:5.6`, `TZ=UTC`, `default-time-zone=+00:00`, init SQL mounted into `/docker-entrypoint-initdb.d/` (WS-2), named volume for persistence.
 - **`openmrs`**: Tomcat 7 + JRE 7 + OpenMRS Platform 1.10.6 `.war` + three modules in the modules dir: the Buendia `.omod` (WS-3), `xforms 4.3.5`, `webservices.rest 2.6`. Runtime properties point at `db`. `JAVA_OPTS=-Duser.timezone=UTC` (fixes bug 1; both containers must share UTC). Python 2 + pymysql baked in so the shelled-out `buendia-profile-apply` runs without a Python 3 port (handles bug 4; the port is deferred to production scope).
@@ -220,11 +232,10 @@ The from-scratch build is broken by dead artifact hosts (Bintray/JCenter) and Ja
 The demo patches are already in the `v1.0` client submodule (`targetSdkVersion 24`, multidex on, SQLCipher `.so` removed, telephony try/catch in `third_party/odkcollect/.../PropertyManager.java`). This is the frozen baseline (§3.2). Remaining work:
 - Build a signed release APK with pilot config: `-Pserver=<static-IP>`, `-PrequireWifi=true`. Set `versionNumber`. (No `-PencryptionPassword`: the flag is inert in v1.0 — data-at-rest is device-level per §3.2/§8.)
 - Signing: sideloaded APKs need only a self-generated keystore (`keytool` → `.jks`/`.keystore`) wired into Gradle `signingConfigs`; no Google Play Developer account is required. Reuse the keystore the repo expects under `../../release/`, or generate one. The same key must sign every build for the life of the pilot — Android installs an OTA update only over an app signed with the identical key; a lost keystore forces uninstall + reinstall. SolDevelo retains and backs up the keystore + passwords (§7).
-- Functional validation (SolDevelo): run the full §1 workflow on an emulator **and** a representative arm64 Android 9–12 device. The bug-9 fix is a defensive try/catch, and the review already confirmed the app launches on an emulator post-fix, so SolDevelo does **not** need the actual CrossCall units to validate functionality.
-- Confirm multi-tablet operation: with two devices on the network, data entered on one appears on the other after sync.
-- OEM-specific + physical confirmation on the real T4/T5: telephony behavior under CrossCall's ROM, glove-touch, screen legibility, and the "install unknown apps" flow. **MSF performs this as part of the Staging Area quick test** (it has the tablets there); SolDevelo supports remotely, optionally via a brief remote session or one sample unit shipped early. This de-risks; it is not a hard gate on the build.
+- Early iteration (SolDevelo): run the full §1 workflow on an emulator while the procured hardware is on order. The bug-9 fix is a defensive try/catch, and the review already confirmed the app launches on an emulator post-fix.
+- Real-hardware validation (SolDevelo, at staging): since SolDevelo procures and stages the tablets, it validates on the **actual T4 and T5 units before the kit ships** — telephony under CrossCall's ROM, glove-touch, screen legibility, the "install unknown apps" flow, and multi-tablet sync (data entered on one device appears on the other). This is done pre-ship, not deferred to the field.
 
-**Acceptance:** the full clinical round-trip passes on SolDevelo's emulator + representative device, and on the real T4/T5 at the Staging Area quick test (MSF, with SolDevelo support).
+**Acceptance:** the full clinical round-trip passes on the actual T4 and T5 units (staged by SolDevelo) before packing.
 
 ### WS-5 — APK delivery: first install + OTA updates  *(~0.5–1 day; OTA mechanism already implemented)*
 First install is manual and one-time; subsequent updates are OTA.
@@ -243,7 +254,7 @@ First install is manual and one-time; subsequent updates are OTA.
 ### WS-6 — Runbooks & clinical quick-start  *(~2–3 days)*
 Three documents, authored in Markdown and delivered as PDF (§5).
 
-**(a) Staging Area setup guide** (MSF's technical person). The end-to-end staging procedure:
+**(a) Staging Area setup guide** (SolDevelo's staging procedure; delivered for MSF visibility and as the rebuild reference). The end-to-end staging procedure:
 1. Install Ubuntu Server LTS on the procured PC.
 2. Run the bundle's setup script (static-IP netplan, unattended-operation hardening, clean shutdown, log caps, host clock → UTC — §3.1, §3.4).
 3. `docker load` the image tarballs; `docker compose up -d`; confirm the stack is healthy (status page, REST round-trip).
@@ -280,18 +291,23 @@ This guide is also the basis for the from-USB rebuild referenced in the Site Are
 
 **Acceptance:** a technical reviewer can take a procured PC from bare Ubuntu to a packed, tested kit using guide (a); a reviewer new to Buendia can take that kit from powered-off to a working tablet using runbook (b).
 
+### WS-7 — Remote support channel + data export  *(~1–2 days; §3.5; independent)*
+- **Remote support tunnel:** a server-initiated secure tunnel (WireGuard/Tailscale-style), dormant offline, dialling a SolDevelo endpoint when internet is present; authenticated, encrypted, auditable, switch-off-able; no inbound ports exposed at the site.
+- **Data export:** wire the existing `DataExportServlet` (CSV) into a one-command export that writes to a USB key and is reachable over the tunnel when online; document both paths.
+- Gate: **enabled only after MSF data-protection sign-off** (§8); ships disabled-by-default if sign-off is pending.
+
+**Acceptance:** with simulated intermittent connectivity, SolDevelo reaches the server over the tunnel and pulls a data export; offline, the same export writes to USB; with the tunnel down, clinical operation is unaffected.
+
 ---
 
 ## 5. Deliverables (SolDevelo → MSF)
 
-A single USB bundle:
-1. `docker-compose.yml` + container images as tarballs (no registry/Internet needed on-site): `mysql:5.6`, the prebuilt `openmrs` image (war + 3 omods + python2), and the optional `pkgserver` image.
-2. **Server host-configuration** — a setup script plus config files (static-IP netplan, lid/suspend/restart hardening per §3.1) that the Staging Area applies to the procured PC's fresh Ubuntu install. SolDevelo ships configuration + a script, **not a full OS image**, because the server hardware is not fixed. (If MSF later fixes the hardware model, this item can be replaced by a full pre-built disk image to flash — §2.1.)
-3. Seed SQL (snapshot + concept fix + `site-<pilot>.sql`) and the profile CSV.
-4. The signed, pilot-configured release APK.
-5. **Documentation as PDF** (authored and maintained in Markdown, exported to PDF for delivery): `STAGING-SETUP-GUIDE.pdf` (MSF technical staff), `SITE-RUNBOOK.pdf` (non-technical site staff), `CLINICAL-QUICKSTART.pdf` (clinical admin).
-6. **Operations tools** — the `buendia-diagnostics` dump script, the router configuration backup file, and the printable in-zone Wi-Fi+QR cards (§3.4).
-7. The one-command build script + notes (WS-3) for rebuilding/patching the bundle.
+**A staged, ready-to-run kit** — procured hardware with all software installed, configured, and tested, packed for shipment — plus the artefacts to operate, rebuild, and support it:
+1. **The assembled kit:** server (Ubuntu + Docker + the Buendia stack, hardened per §3.1), configured tablets (APK + screen lock + clock), the pre-configured/paired router, UPS/power banks, cables, and the laminated in-zone Wi-Fi+QR cards (§3.4).
+2. **The deployment bundle** (for rebuild/patch, on USB): `docker-compose.yml` + container image tarballs (`mysql:5.6`, prebuilt `openmrs` = war + 3 omods + python2, optional `pkgserver`); the server host-config setup script (static-IP netplan + hardening per §3.1; or a pre-imaged disk — §2.1); seed SQL (snapshot + concept fix + `site-<pilot>.sql`) + profile CSV; the signed release APK.
+3. **Documentation as PDF** (authored in Markdown): `STAGING-SETUP-GUIDE.pdf` (SolDevelo staging procedure / rebuild reference), `SITE-RUNBOOK.pdf` (MSF site staff), `CLINICAL-QUICKSTART.pdf` (clinical admin).
+4. **Operations & support tools:** the `buendia-diagnostics` dump script; the secure remote-support tunnel and the data-export (USB/tunnel) per §3.5 (subject to data-protection sign-off); the router configuration backup file.
+5. The one-command build script + notes (WS-3) for rebuilding/patching the bundle.
 
 ---
 
@@ -303,14 +319,16 @@ A single USB bundle:
 | 2 | WS-1 complete: UTC alignment, profile-apply (python2) in image, REST round-trip green. |
 | 3 | WS-2: snapshot load + bug-12 fix + `site-<pilot>.sql` + profile baked; clean boot ready-to-use. |
 | 4 | WS-3 Android: Gradle mirrors, reproducible release build. WS-4 signed APK produced. |
-| 5 | WS-4: validation on emulator + a representative device (full clinical round-trip). Real-T4/T5 confirmation happens later at MSF staging. |
-| 6 | WS-5 OTA channel; image tarball export; bundle assembly. |
+| 5 | WS-4: signed APK + emulator validation (full clinical round-trip). Real-T4/T5 validation happens at staging once the procured units arrive. |
+| 6 | WS-5 OTA channel; WS-7 remote-support tunnel + data export; image tarball export; bundle assembly. |
 | 7–8 | WS-6 staging guide + site runbook + quick-start (Markdown → PDF); end-to-end dry-run from bare Ubuntu to a working tablet on a clean PC. |
 | 9–10 | Buffer: real-hardware surprises, profile iteration with the clinical owner, bundle polish. |
 
-A second engineer can take WS-4/WS-6 in parallel with WS-1/WS-2. **Two-person team:** dependencies (WS-1→WS-2, WS-3→WS-4) cap the speed-up, so figure ~6–8 working days of effort — about **1.5 calendar weeks (~8–11 calendar days)** — once started and given the **site specifics** (for WS-2). SolDevelo validates on an emulator + a representative device, so the build does not wait on the actual CrossCall units; the real-T4/T5 confirmation rides on MSF's Staging Area quick test (WS-4). These are effort estimates, not a commitment to a start date.
+A second engineer can take WS-4/WS-6 in parallel with WS-1/WS-2. **Two-person team:** dependencies (WS-1→WS-2, WS-3→WS-4) cap the speed-up, so figure ~6–8 working days of effort — about **1.5 calendar weeks (~8–11 calendar days)** — once started and given the **site specifics** (for WS-2). SolDevelo iterates on an emulator during the build; real-T4/T5 validation happens at staging once the procured units arrive (procurement lead time is separate — below). These are effort estimates, not a commitment to a start date.
 
-The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, graceful shutdown, log caps, the `buendia-diagnostics` script, router-config export, in-zone QR cards) are part of WS-1 (server/setup script) and WS-6 (tools/docs) — roughly +0.5–1 day, absorbed by the buffer.
+The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, graceful shutdown, log caps, the `buendia-diagnostics` script, router-config export, in-zone QR cards) are part of WS-1 (server/setup script) and WS-6 (tools/docs) — roughly +0.5–1 day, absorbed by the buffer. WS-7 (remote support + data export) adds ~1–2 days, gated on data-protection sign-off.
+
+**Procurement is separate calendar lead time.** SolDevelo now selects and buys the server, tablets, router, and power kit before staging can begin — order early; this lead time runs alongside (not inside) the engineering days above. Staging consumes ~1 day once hardware and the bundle are both in hand.
 
 ---
 
@@ -326,11 +344,11 @@ The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, gracef
 - **Device clock reset / drift** (RTC battery dead or full drain → e.g. 1970). A wrong server clock disrupts sync; a wrong tablet clock mis-stamps clinical times. Mitigation: server runs local NTP and tablets are disciplined to it via DNS interception of the NTP hostname (§3.4); clocks are also set at staging as the baseline, with a manual check at power-on as the fallback. Server clock is the sync reference.
 - **On-site router factory-reset** wipes the pre-set Wi-Fi config and strands the tablets. Mitigation: reset button covered + labelled, and the router config backup in the bundle restores it (§3.4).
 - **Disk fill from logs** over a long unattended deployment. Mitigation: log rotation + disk caps set by the setup script (§3.1).
-- **No remote access for debugging** an offline site. Mitigation: the offline `buendia-diagnostics` dump delivered by USB (§3.4).
+- **Remote access & data export expose patient data** — the support tunnel makes the server reachable when online, and the export takes clinical data off the kit (§3.5). Mitigations: server-initiated tunnel (no inbound ports at the site), encrypted + authenticated + auditable + switch-off-able, and **disabled until MSF data-protection sign-off**; export format/destination governed by MSF data policy. Clinical operation never depends on the tunnel; when offline, support falls back to the `buendia-diagnostics` USB dump (§3.4).
 - **Old, unsupported stack** (OpenMRS 1.10.x / Java 7 / MySQL 5.6, all EOL). Acceptable for a controlled pilot; the reason production scope eventually rebuilds the appliance.
 - **Profile-apply stays Python 2** inside the container. Works because the image is controlled; not a long-term answer (Python 3 port deferred).
-- **Real-hardware unknowns on T4/T5** (glove calibration, telephony fix under each OEM Android build, screen density). Surfaced at the Staging Area quick test (MSF has the tablets), with SolDevelo on standby to patch; shrinkable to near-zero if MSF ships one sample T4/T5 early.
-- **Single point of failure**: one server, one DB. Mitigation: documented USB backup/restore; optionally a cloned spare SSD in the kit.
+- **Real-hardware unknowns on T4/T5** (glove calibration, telephony under CrossCall's ROM, screen density). Low risk now: SolDevelo procures and stages the actual T4/T5, so these are validated before the kit ships rather than discovered in the field; emulator iteration during the build de-risks earlier.
+- **Single server, no spare (decided).** A dead laptop takes the pilot down until a replacement is built. Mitigations: USB DB backups (no data lost) + the setup script's `--offline` restore mode, so a replacement is stood up on any laptop from the USB bundle — fast, and even doable at an MSF office — rather than re-staged from scratch; an optional `dd`/Clonezilla restore image is an extra. No live spare is shipped (a deliberate cost trade-off).
 - **Patient data at rest on tablets** relies on Android device encryption + a screen lock (v1.0 has no app-level DB encryption — §3.2/§8). Residual risk: an unlocked or stolen tablet, or one with no lock set. Mitigations: set a PIN/screen lock on every tablet at staging (this activates device encryption), physical custody, and the local DB being only a cache. App-level encryption (SQLCipher) is available later if MSF's data-protection policy requires it.
 - **Signing-key loss** permanently breaks in-place OTA updates (WS-4): Android updates only over an app signed with the same key. SolDevelo retains the keystore + passwords for the life of the pilot, backed up in ≥2 access-controlled locations (mechanism per SolDevelo's secrets practice; if stored in a repo, the key material is encrypted at rest, not committed in plaintext).
 
@@ -339,17 +357,28 @@ The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, gracef
 ## 8. Decisions
 
 ### Decided
-- **Tablet data-at-rest: device-level encryption + a mandatory screen lock**, not app-level. v1.0 has no working app-level DB encryption (the code uses plain Android SQLite, not SQLCipher; the `ENCRYPTION_PASSWORD` flag is inert), and the pilot does not re-introduce SQLCipher — doing so would reverse the bug-8 cleanup and break the v1.0 freeze. Protection = Android's built-in FBE/FDE (active once a screen lock is set on T4/T5) + a mandatory PIN/lock + physical custody; the local DB is only a cache (§3.2, §7). App-level encryption (SQLCipher) is available later if MSF's data-protection policy requires it.
-- **Signing keystore custody:** the APK signing keystore + passwords are **SolDevelo's to retain and back up** (§7) — redundant, access-controlled, for the life of the pilot; mechanism is SolDevelo's secrets practice. (Separate from data-at-rest; required for OTA updates.)
+- **Autonomous kit** (not integrated with MSF's LIME EMR / OpenMRS 3 infra or field-IT) — confirmed by MSF as the agreed approach; a LIME-compatible app is the deferred long-term alternative.
+- **Roles:** SolDevelo **selects, procures, builds, stages, tests, and packs** the kit and provides remote support; **MSF deploys it on-site** (power-on + verify) and operates it. SolDevelo does not travel.
+- **Remote support + data export:** an opt-in, server-initiated secure tunnel (dormant offline) — **Tailscale + SSH to start** (dial-out; SSH, no remote desktop needed on a headless server; swappable to self-hosted WireGuard/Headscale at sign-off) — carrying a `DataExportServlet` CSV export; USB export as the offline fallback (§3.5). **Enabled only after MSF data-protection sign-off** (open below).
+- **Tablet data-at-rest: device-level encryption + a mandatory screen lock**, not app-level. v1.0 has no working app-level DB encryption (plain Android SQLite, not SQLCipher; the `ENCRYPTION_PASSWORD` flag is inert), and the pilot does not re-introduce SQLCipher (would reverse the bug-8 cleanup and break the v1.0 freeze). Protection = Android FBE/FDE (active once a screen lock is set) + mandatory PIN/lock + physical custody; the local DB is only a cache (§3.2, §7).
+- **Signing keystore custody:** the APK signing keystore + passwords are SolDevelo's to retain and back up (§7) — redundant, access-controlled, for the life of the pilot.
 - **Clinical profile baseline:** upstream Ebola profile [`ebola/bunia.csv`](https://github.com/projectbuendia/profiles/blob/master/ebola/bunia.csv); deploy then adapt. (Verified free of the `#%` bug.)
 - **Server OS/stack:** Ubuntu 22.04 LTS + Docker Engine + Compose; unattended hardening per §3.1.
-- **Router approach:** a low-power mini/travel router (dual-band, AP/mesh-capable) per §3.3, plus a spare and one extra AP/mesh node for coverage fallback. Specific model is an open procurement item (below).
+- **Hardware (SolDevelo to select + procure):** server = small x86-64 mini-PC/NUC/laptop per §3.1; router = low-power mini/travel router (dual-band, AP/mesh-capable, custom-DNS-capable) per §3.3, plus a spare router (cheap) and one extra AP/mesh node for coverage. SolDevelo proposes exact models for MSF visibility. (Server has no spare — §7; the router spare is unaffected.)
+- **Packaging & staging:** the deployment package is an idempotent `setup.sh` (source of truth; `--online` at staging, `--offline` for rebuild) with pinned versions/image digests (WS-1); an optional disk image is a downstream restore artifact. **SolDevelo staff stage the single pilot kit.** **One server, no spare** — recovery is USB backup + `--offline` restore onto any laptop (§7).
 
-### Open — MSF inputs (execution + domain knowledge); SolDevelo advises
-1. **Server hardware** — buy a mini-PC vs. repurpose an on-hand laptop (within §3.1 specs).
-2. **Staging Area** — the plan requires a Staging Area (Internet + technical person + space). Where it sits and who staffs it is operational; MSF may already operate one.
-3. **Pilot site specifics** for `site-<pilot>.sql`: facility name, ward/room/bed/zone structure, clinician user accounts.
-4. **Tablet count** (drives install runbook + spare-device planning).
-5. **Ward layout & construction** (drives §3.3 Wi-Fi + §7 environment): open bay vs. walled rooms, wall material, longest router-to-farthest-bed distance.
-6. **Router model** — specific unit meeting the §3.3 specification (including custom local DNS support, per §3.4).
-7. **Clinical owner** — adapts `bunia.csv` (final form & chart content).
+### Open
+**MSF inputs (domain knowledge):**
+1. **Pilot site specifics** for `site-<pilot>.sql`: facility name, ward/room/bed/zone structure, clinician user accounts.
+2. **Tablet count** (drives spare-device planning).
+3. **Ward layout & construction** (drives §3.3 Wi-Fi + §7 environment): open bay vs. walled rooms, wall material, longest router-to-farthest-bed distance.
+4. **Clinical owner** — adapts `bunia.csv` (final form & chart content).
+
+**MSF decisions:**
+5. **Data-protection sign-off** for the remote-support tunnel and the data export (§3.5) — the "discuss with Iona / Nan Hsin" thread; gates WS-7 being enabled.
+6. **Server base:** SolDevelo-procured mini-PC (default) vs. MSF supplying reset standard laptops.
+7. **Area Wi-Fi vs. shipped router** (§3.3) — default is the shipped autonomous router.
+
+**SolDevelo decisions:**
+8. **Hypercare support window** — whether/how SolDevelo provides an intensive early-pilot support period (commercial/staffing scope; MSF asked for it).
+9. **Exact hardware models** (server, router) meeting §3.1/§3.3 — to propose to MSF.
