@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (full cold rebuild + QR-install smoke test PASSED on a real tablet; default-zone bug fixed)._
+_Last updated: 2026-07-29 (WS-4 + WS-5 COMPLETE: cold rebuild, QR install and full clinical workflow validated on a real tablet)._
 
 ---
 
@@ -31,7 +31,15 @@ was provisioned only by scanning a QR code.
 
 The path that was exercised: **scan QR → download + install APK → app opens already pointed at the
 server with credentials baked in → provider picker shows Guest + Buendia User → locations/concepts
-sync → select zone → add patient → fill two `bunia.csv` forms → save.** Verified working.
+sync → select zone → add patient → fill `bunia.csv` forms → record a treatment → save.**
+
+Confirmed in the database afterwards: **2 patients, 8 encounters, 62 observations** (via `[1] Admission`
+and `[3] Vitals / Physical exam`) and **1 order** written by the tablet's own account (`creator=101`) —
+so add-patient, observations *and* treatment were all genuinely exercised from the app, not just over
+REST. The `buendia_concept_placement` obs also record the zone bug and its fix in sequence: the first
+patient landed in `[4] Confirmed Zone` at 10:55, the second in `[1] Triage [*]` at 11:06.
+The **auto-logout fix was verified too** — a charging tablet no longer drops to the provider picker
+after 30 s.
 
 One real bug was found and fixed during that test — new patients were admitted to the wrong zone
 (see *location name markup* in §4); the fix was applied to the live server and **re-tested on the
@@ -75,10 +83,18 @@ tablet**, and is now in the seed.
   changes land there. First change: the auto-logout fix below.
 
 ### Not started / deferred (the remaining pilot work)
-- **Auto-logout fix not yet confirmed on a tablet** — the 30 s-while-charging fix is compiled into the
-  installed APK (`IDLE_LOGOUT_SECONDS=600` / `DOCKED_IDLE_LOGOUT_SECONDS=300`) but was not explicitly
-  exercised in the 2026-07-29 test. Leave a tablet **plugged in and idle for >30 s** to confirm it no
-  longer bounces to the provider picker.
+- **APK signing key is NOT backed up** — it exists only at `deploy/apk/keystore/buendia-pilot.jks` on
+  the build machine (git-ignored, by design). Losing it means **uninstall + reinstall on every tablet**,
+  destroying any unsynced local data, because Android only accepts an update signed with the same key.
+  Copy it and its password out-of-band before this goes anywhere. **This is the biggest single-point
+  loss risk in the kit right now** and it takes five minutes to remove.
+- **The shipping APK must be rebuilt at staging** — the tested build bakes in `APK_SERVER=192.168.0.150`
+  (this dev box). At staging, set `APK_SERVER` to the site `STATIC_IP` and rebuild.
+  **⚠️ The server password is baked in too** (`APK_OPENMRS_PASSWORD`), so rotating it for the real
+  deployment (**A5**) *requires* rebuilding the APK and reinstalling every tablet. Sequence it the other
+  way round: decide the final password and site IP **first**, then build the APK that ships.
+- **Multi-tablet not re-tested with the packaged build** — two devices syncing bidirectionally was
+  confirmed in an earlier ad-hoc demo, not with this APK.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
 - **In-app OTA updates** — **dropped, not deferred**: broken in the v1.0 client (§4). The `:9001`
   server now runs in compose, but it is for *first install* (QR) and to satisfy the client's health
@@ -313,8 +329,8 @@ cd ../compose && docker compose --env-file ../.env up -d pkgserver
 | WS-1 | Server container stack + packaging | ✅ done, smoke-tested |
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations) |
 | WS-3 | Reproducible image build | ✅ done (`build-image.sh`) |
-| WS-4 | Android APK build + real-tablet validation | 🟡 **build done** (`deploy/apk/build-apk.sh`, release-signed, self-verifying); **on-tablet validation outstanding** |
-| WS-5 | APK delivery (QR install + OTA `:9001`) | 🟡 **QR/LAN install done** (`deploy/pkgserver/`, served + verified); **in-app OTA dropped** — broken on v1.0 (see §4), updates are manual. Untested from a real tablet browser |
+| WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
+| WS-5 | APK delivery (QR install + OTA `:9001`) | ✅ **done for first install** — `deploy/pkgserver/` on `:9001`; a real tablet installed from the QR on 2026-07-29. **In-app OTA dropped** (broken on v1.0, §4): tablet updates are a manual re-install |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started (gated on data-protection) |
 
