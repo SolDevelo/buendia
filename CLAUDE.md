@@ -9,6 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Keep it updated after each major step.
 - `docs/FIELD-PILOT-DEPLOYMENT-PLAN.md` — the full field-pilot deployment plan (goal, scope, workstreams,
   risks, decisions). `docs/FIELD-PILOT-EXECUTIVE-SUMMARY.md` is the one-page version.
+- **`docs/FIELD-PILOT-MSF-CONFIG-REQUESTS.md` — the canonical list of configuration inputs needed from
+  MSF** (locations tree & display order, clinician accounts, credentials, UI language, profile content,
+  patient IDs, timezone, network, sign-offs). Each entry records the default we currently ship and the
+  file it lands in. **Keep it up to date**: when an answer arrives, apply it and mark the item ✅; when a
+  new config question surfaces during the build, add it there rather than burying it in a commit message.
 - The deployment package itself lives in `deploy/` (server container stack, seed builder, image builder,
   tools) — see `deploy/README.md`.
 - `docs/TECHNICAL-REVIEW.md` — full technical findings from a 2026 review, including the architecture summary, known bugs, two deployment scope shapes for DRC (1.5–2.5 weeks vs 3–5 weeks), and future-direction options. Start here for the "what state is this in" question.

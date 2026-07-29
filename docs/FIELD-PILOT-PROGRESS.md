@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (zero-config seed: baked-in login + locations)._
+_Last updated: 2026-07-29 (zero-config seed: baked-in login + locations; MSF config-request list added)._
 
 ---
 
@@ -50,15 +50,21 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
 - **Package/update server `:9001`** — optional; not running in compose (in-app updater inactive without it).
 - **Site-specific data** — the pilot-start location tree + default account are now **baked in**
   (`seed/initdb/20-buendia-site.sql`). Still open: the *real* ward/bed layout and the per-clinician
-  provider accounts, both pending MSF input (§6). Tailor that one file, no rebuild needed.
+  provider accounts, both pending MSF input (see `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`). Tailor that one
+  file, no rebuild needed.
 - **Runbooks (WS-6)** — Staging setup guide / Site runbook / Clinical quick-start (→ PDF) not written yet.
-- **Hardware procurement**, **hypercare support model**, **data-protection sign-off** — MSF decisions (§8).
+- **Hardware procurement**, **hypercare support model** — MSF/programme decisions (plan §8);
+  **data-protection sign-off** gates WS-7 (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md` C1).
 
 ### Committed
-The server package + tool fixes + docs were committed on `drc-pilot` as **`925dae3a`**
-("Add field-pilot deployment package …"). Not yet pushed. Gitignored heavy artefacts
-(the 80 MB seed, the war/omods, `deploy/.env`) are correctly excluded — regenerate them with
-`build-image.sh` / `build-seed.sh`.
+On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
+- **`925dae3a`** — the field-pilot deployment package (containerized server + baked Ebola profile).
+- **`bd52103f`** — zero-config first boot (site seed: login + location tree).
+- plus the commit adding `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` and this status update.
+
+Gitignored heavy artefacts (the 80 MB base seed, the war/omods, `deploy/.env`) are correctly excluded —
+regenerate them with `build-image.sh` / `build-seed.sh`. The **site seed is deliberately committed**
+(`deploy/.gitignore` has an explicit negation) — the package is not zero-config without it.
 
 - **Strays still in the tree (pre-existing, NOT from this work — review/remove):**
   `tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`; also an unrelated `.idea/` change.
@@ -149,19 +155,17 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
 
 ---
 
-## 6. Open decisions (MSF inputs / SolDevelo — plan §8)
+## 6. Open decisions
 
-Server hardware model; Staging Area location; ward/bed layout + clinician accounts (for
-`seed/initdb/20-buendia-site.sql`); tablet count; Wi-Fi coverage / router model; **data-protection
-sign-off** (gates remote access + data export); hypercare support scope. None block the build;
-they're needed to *finish* and deploy.
+**➡️ Configuration inputs we need from MSF now live in one place:
+`docs/FIELD-PILOT-MSF-CONFIG-REQUESTS.md`** — locations tree & display order, facility name, clinician
+accounts, credentials, **UI language (French?)**, profile content, patient ID scheme, timezone, network,
+tablet count, data-protection sign-off. Each item records the default we ship, the file it lands in, and
+its status. **Keep that file up to date** as answers arrive or new questions surface.
 
-Also pending, smaller:
-- **Real facility name** for the root location (currently the placeholder `Facility`).
-- **Zone display order** — the client sorts location names alphanumerically, so the tablet shows
-  Confirmed / Discharged / Probable / Suspect / Triage. Confirm whether clinicians want clinical-flow
-  order instead, which needs numeric name prefixes (`1 Triage`, …).
-- **Default password rotation** before deployment (the seeded salt is committed/public).
+Programme/logistics decisions (hardware model, Staging Area location, hypercare scope) stay in
+plan §8. Nothing here blocks the build — the package boots and is clinically usable on defaults; each
+answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`.
 
 ---
 
@@ -172,7 +176,7 @@ Also pending, smaller:
 2. **Keep the plan reviewed.** When scope changes (like MSF feedback), update
    `FIELD-PILOT-DEPLOYMENT-PLAN.md` and the exec summary, and note the change here.
 3. **Commit at checkpoints.** Don't let a working package sit only in the working tree. A labelled commit
-   after each milestone makes it restartable and reviewable. (Right now: everything is uncommitted — commit first.)
+   after each milestone makes it restartable and reviewable.
 4. **Verify by actually running it.** The whole package exists because we built + booted + smoke-tested it,
    not because it looked right. Prefer a real `docker compose up` + REST/tablet check over assumptions.
 5. **Record every bug + fix** in §4 so it's never re-hit. Most of this project's time went into EOL-stack and
@@ -180,15 +184,36 @@ Also pending, smaller:
 6. **When you find a defect in the shipped tools** (`tools/profile_apply`, `tools/server_clear_cache`, seed,
    triggers), fix it in the repo (backward-compatible with the appliance) — not just live in a container.
 7. **Don't disrupt an active test.** Regenerating the seed/image is safe (doesn't touch a running stack);
-   `down -v` is destructive — only when the user is done.
+   `down -v` is destructive — only when the user is done. To validate a seed/config change without
+   touching a live stack, boot a throwaway DB + OpenMRS on a spare port (see §2, how the site seed was verified).
+8. **A new config question — or a default we invented ourselves — goes in
+   `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` immediately**, with the default we ship and the file it lands in.
+   That list is what gets sent to MSF; anything left only in a commit message or a chat thread is lost.
+9. **No manual setup steps in the package.** If a fresh `up -d` needs a human to run something before it
+   is usable, that's a bug — bake it into the seed instead (this is why `20-buendia-site.sql` exists).
 
 ---
 
 ## 8. Suggested next steps (priority order)
 
-1. **Commit** the current working package (checkpoint).
-2. **WS-4 — build the Android APK** from `client/` (v1.0 baseline) configured for the pilot server, and
+**➡️ NEXT SESSION STARTS HERE: WS-4 — build the Android APK.**
+
+1. **WS-4 — build the Android APK** from `client/` (v1.0 baseline) configured for the pilot server, and
    validate on a real T4/T5. This makes the tablet side reproducible/packaged rather than ad-hoc.
-3. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start).
+   The toolchain is confirmed present: `client` submodule checked out at **`v1.0-1-g706f4769`** (the
+   correct pairing for server v1.0), **JDK 8 (Zulu 1.8.0_492)** on `PATH`, Android SDK at
+   **`~/Android/Sdk`** (note: `ANDROID_HOME`/`ANDROID_SDK_ROOT` are unset — export one first).
+   Build args live at the top of `client/app/build.gradle` (`-Pserver=`, `-PopenmrsUser=`,
+   `-PopenmrsPassword=`, `-PencryptionPassword=`). Output belongs in `deploy/apk/` (git-ignored, has a
+   `.gitkeep`), driven by a committed build script so it's reproducible.
+2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start).
+3. **WS-5 — APK delivery** (QR install + the optional `:9001` package server for OTA updates).
 4. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off.
-5. Revisit the **open decisions** with MSF (§6) as procurement/site details firm up.
+5. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`) and apply answers as they
+   arrive. The location tree / display order (A2, A3) and the UI language (A6) are the ones that are
+   cheapest now and most expensive after tablets have synced.
+
+Also outstanding, unrelated to any workstream: the local test stack still runs the **hand-configured**
+DB from before the site seed existed (`DRC Facility`, `Suspected Zone`, hand-made user). Recycle it with
+`down -v && up -d` to run on the real zero-config seed. And the pre-existing strays in the tree
+(`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal.
