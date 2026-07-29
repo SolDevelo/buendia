@@ -17,12 +17,17 @@ ENV_FILE="$HERE/../.env"
 [[ -f "$ENV_FILE" ]] && { set -a; source "$ENV_FILE"; set +a; }
 
 NAMESPACE="${REGISTRY_NAMESPACE:-soldevelo}"
-PUSH=0; VERSION=""
+PUSH=0; VERSION=""; INCLUDE_PKGSERVER=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --push)      PUSH=1; shift ;;
     --namespace) NAMESPACE="$2"; shift 2 ;;
     --version)   VERSION="$2"; shift 2 ;;
+    # OFF BY DEFAULT ON PURPOSE. The pkgserver image contains the tablet APK, and the APK carries
+    # the server password as a plain string resource — pushing it to a public namespace publishes
+    # that password. The APK ships via a private GitHub release instead (pkgserver/pack-www.sh).
+    # This flag exists only for a deliberately private registry.
+    --include-pkgserver) INCLUDE_PKGSERVER=1; shift ;;
     -h|--help)   sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -68,8 +73,17 @@ pk="$(resolve_tag "$(pick "${PKGSERVER_IMAGE:-}" buendia-pkgserver)")"
 
 [[ -n "$db" ]] && add "$db" "$NAMESPACE/buendia-db"
 [[ -n "$om" ]] && add "$om" "$NAMESPACE/buendia-openmrs"
-[[ -n "$pk" ]] && add "$pk" "$NAMESPACE/buendia-pkgserver" \
-  "SITE-SPECIFIC: contains the APK, which bakes in the server address and password"
+if [[ -n "$pk" ]]; then
+  if [[ $INCLUDE_PKGSERVER -eq 1 ]]; then
+    add "$pk" "$NAMESPACE/buendia-pkgserver" \
+      "CREDENTIAL: contains the APK, which carries the server password as a readable string resource"
+  else
+    echo "SKIPPING $pk — it contains the tablet APK, which carries the server password." >&2
+    echo "  The APK ships via a PRIVATE GitHub release (pkgserver/pack-www.sh), not a public registry." >&2
+    echo "  Pass --include-pkgserver only if $NAMESPACE is a private namespace you intend to use." >&2
+    echo >&2
+  fi
+fi
 
 [[ ${#LOCAL[@]} -gt 0 ]] || {
   echo "ERROR: found no local buendia-* images to publish." >&2
