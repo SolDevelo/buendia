@@ -46,15 +46,14 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
 - **Runbooks (WS-6)** — Staging setup guide / Site runbook / Clinical quick-start (→ PDF) not written yet.
 - **Hardware procurement**, **hypercare support model**, **data-protection sign-off** — MSF decisions (§8).
 
-### ⚠ Uncommitted
-All of this session's work is **uncommitted** on branch `drc-pilot` (last commit `923ac3eb`):
-- untracked: `deploy/`, `.dockerignore`, `docs/FIELD-PILOT-PROGRESS.md` (this file)
-- modified: `tools/profile_apply`, `tools/server_clear_cache`, `docs/FIELD-PILOT-DEPLOYMENT-PLAN.md`,
-  `docs/FIELD-PILOT-EXECUTIVE-SUMMARY.md`
-- **strays to review (pre-existing, not from this work):** `tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`
+### Committed
+The server package + tool fixes + docs were committed on `drc-pilot` as **`925dae3a`**
+("Add field-pilot deployment package …"). Not yet pushed. Gitignored heavy artefacts
+(the 80 MB seed, the war/omods, `deploy/.env`) are correctly excluded — regenerate them with
+`build-image.sh` / `build-seed.sh`.
 
-**→ First action in a new session: commit this working package** (a "WS-1/WS-2/WS-3 server package +
-baked profile, smoke-tested" checkpoint) so it stops living only in the working tree.
+- **Strays still in the tree (pre-existing, NOT from this work — review/remove):**
+  `tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`; also an unrelated `.idea/` change.
 
 ---
 
