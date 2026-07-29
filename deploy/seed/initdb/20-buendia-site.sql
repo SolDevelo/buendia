@@ -17,8 +17,14 @@
  *   re-applied by the entrypoint:
  *       docker compose --env-file ../.env down -v && docker compose --env-file ../.env up -d
  *   (You do NOT need to re-run build-seed.sh — that only rebuilds the 80 MB base seed.)
- *   Every statement is idempotent (keyed on uuid), so it can also be applied by hand to a
- *   running DB:  docker compose exec -T db mysql -uroot -p<pw> openmrs < 20-buendia-site.sql
+ *   Every statement is idempotent, so it can also be applied by hand to a running DB:
+ *       docker compose exec -T db mysql -uroot -p<pw> openmrs < 20-buendia-site.sql
+ *   ...then flush the server's caches, or renames won't reach the tablet:
+ *       curl -u buendia:buendia 'http://localhost:9000/openmrs/ws/rest/buendia/locations?clear-cache'
+ *   Idempotency is NOT uniform, though: most sections lean on a unique `uuid` index and
+ *   ON DUPLICATE KEY UPDATE, but `users` HAS NO SUCH INDEX and needs an explicit guard —
+ *   see the warning in section 2 before touching it. Section 4 self-checks the result;
+ *   if it prints FATAL, fix it before letting a tablet near the server.
  *
  * NB on LOCATION NAMES — the client reads markup out of the name. Anything in SQUARE
  * BRACKETS is stripped before display (client Intl.java), so brackets carry metadata that
@@ -115,13 +121,36 @@ INSERT INTO person_name (preferred, person_id, given_name, family_name, date_cre
     (1, @person_id, 'Buendia', 'User', NOW(), @admin_id, '0622e440-c34a-4792-9e2b-27db2bfba99b', 0)
     ON DUPLICATE KEY UPDATE given_name = VALUES(given_name), family_name = VALUES(family_name), voided = 0;
 
-INSERT INTO users (system_id, username, password, salt, person_id, date_created, creator, uuid, retired) VALUES
-    (@user_name, @user_name, SHA2(CONCAT(@user_password, @user_salt), 512), @user_salt,
-     @person_id, NOW(), @admin_id, '85c96ba2-547c-4f0f-9369-ae5b4570563f', 0)
-    ON DUPLICATE KEY UPDATE
-        username = VALUES(username), password = VALUES(password), salt = VALUES(salt), retired = 0;
+/* ⚠️ `users` is the ONE table used by this file that has NO unique index on `uuid`
+ * (verified on the pilot DB: location, person, person_name and provider all have one; users
+ * does not). So `INSERT ... ON DUPLICATE KEY UPDATE` — which is what every other section here
+ * relies on — silently does NOT de-duplicate for users: re-applying this file would insert a
+ * SECOND users row with the same uuid, and OpenMRS then fails EVERY login with "username or
+ * password incorrect" because the username no longer resolves to a single user. That happened
+ * on 2026-07-29 and locked the tablet out. Hence the explicit existence guard below instead of
+ * ON DUPLICATE KEY UPDATE. Recovery, if it ever happens again:
+ *   DELETE FROM user_role WHERE user_id = <the higher id>;
+ *   DELETE FROM users     WHERE user_id = <the higher id>;
+ * then hit any endpoint with ?clear-cache. Keep the LOWER id — that is the row the tablets
+ * have been authenticating against. */
+INSERT INTO users (system_id, username, password, salt, person_id, date_created, creator, uuid, retired)
+SELECT @user_name, @user_name, SHA2(CONCAT(@user_password, @user_salt), 512), @user_salt,
+       @person_id, NOW(), @admin_id, '85c96ba2-547c-4f0f-9369-ae5b4570563f', 0
+  FROM (SELECT 1) AS dummy
+ WHERE NOT EXISTS (SELECT 1 FROM (SELECT uuid, username FROM users) u
+                    WHERE u.uuid = '85c96ba2-547c-4f0f-9369-ae5b4570563f'
+                       OR u.username = @user_name);
 
-SELECT @user_id := user_id FROM users WHERE uuid = '85c96ba2-547c-4f0f-9369-ae5b4570563f';
+/* Re-assert the credential on the existing row, so that changing @user_password/@user_salt
+ * above and re-applying this file actually rotates the password. */
+UPDATE users
+   SET system_id = @user_name, username = @user_name,
+       password = SHA2(CONCAT(@user_password, @user_salt), 512),
+       salt = @user_salt, retired = 0
+ WHERE uuid = '85c96ba2-547c-4f0f-9369-ae5b4570563f';
+
+SELECT @user_id := user_id FROM users
+    WHERE uuid = '85c96ba2-547c-4f0f-9369-ae5b4570563f' ORDER BY user_id LIMIT 1;
 
 /* Roles. Mirrors deploy/tools/create-openmrs-user.sh; all six exist in the base seed.
  * 'System Developer' is what grants the REST access the tablet needs. */
@@ -141,3 +170,18 @@ INSERT IGNORE INTO user_role (user_id, role)
 INSERT INTO provider (person_id, identifier, name, creator, date_created, uuid, retired) VALUES
     (@person_id, 'buendia', 'Buendia User', @admin_id, NOW(), 'f0582eb9-026a-43df-81b7-338934eb6d4d', 0)
     ON DUPLICATE KEY UPDATE person_id = VALUES(person_id), name = VALUES(name), retired = 0;
+
+/* ---------------------------------------------------------------------------
+ * 4. Self-check
+ *
+ * Printed when this file is applied by hand. Exactly ONE row must carry the login username:
+ * more than one and OpenMRS rejects every login (see the warning in section 2). This is here
+ * because that failure mode is silent at apply time and only shows up as a locked-out tablet.
+ * ------------------------------------------------------------------------ */
+SELECT
+    IF(COUNT(*) = 1,
+       CONCAT('OK: one login account (user_id ', MIN(user_id), ')'),
+       CONCAT('*** FATAL: ', COUNT(*), ' rows have username=''', @user_name,
+              ''' -- every login will fail. Delete all but the lowest user_id. ***')
+    ) AS login_account_check
+FROM users WHERE username = @user_name;
