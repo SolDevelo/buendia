@@ -38,9 +38,15 @@ sudo ./setup.sh           # --online: pull Docker + images from the internet
 sudo ./setup.sh --offline
 ```
 
-The clean baseline seed ships **no usable login**, so after the server is up provision one:
+The server comes up **ready to use — no configuration steps**. The seed ships the login account
+`buendia` / `buendia`, the location tree (`Facility` → Triage / Confirmed / Suspect / Probable /
+Discharged), and the active clinical profile. See `seed/README.md` to tailor the locations and
+accounts (`seed/initdb/20-buendia-site.sql`) and for the fresh-boot verification commands.
+
+**Before a real deployment, change the default password** (the seed's salt is committed, so the
+default credential is public):
 ```bash
-../tools/create-openmrs-user.sh buendia buendia   # then log in / call the API as buendia/buendia
+../tools/create-openmrs-user.sh buendia <new-password>   # fresh random salt, running DB
 ```
 
 `setup.sh` configures the host (static IP, no-suspend, UTC + chrony, log caps),

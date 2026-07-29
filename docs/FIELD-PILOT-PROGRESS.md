@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29._
+_Last updated: 2026-07-29 (zero-config seed: baked-in login + locations)._
 
 ---
 
@@ -34,6 +34,12 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   deps, then rebuild on each code fix). Produces `buendia-openmrs:1.10.6-<gitsha>` (~393 MB).
 - **Seed** — `deploy/seed/build-seed.sh` turns the `db-snapshot` submodule into a single portable
   `initdb/10-buendia-base.sql` (~80 MB) **with the Ebola profile baked in** (active out-of-the-box).
+- **Zero-config first boot** — `deploy/seed/initdb/20-buendia-site.sql` (committed, hand-editable)
+  ships the **default login `buendia`/`buendia`** and the **location tree** `Facility` → Triage,
+  Confirmed Zone, Suspect Zone, Probable Zone, Discharged, plus a provider row. Previously both had
+  to be added by hand after every fresh boot. Verified on a throwaway stack built only from the two
+  seed files: auth 200 (401 on a wrong password), `/locations` returns the 6-node tree, `/charts`
+  returns `buendia_form_chart`, and a `POST /patients` succeeds.
 - **End-to-end validated** — fresh `docker compose up` → OpenMRS boots → profile active
   (`currentProfile=bunia.csv`) → REST 200 → **real tablet completed the clinical workflow**.
 
@@ -42,7 +48,9 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   pipeline yet. This is the biggest remaining piece to make the tablet side part of the package.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
 - **Package/update server `:9001`** — optional; not running in compose (in-app updater inactive without it).
-- **Site-specific data** — wards/beds + clinician accounts (`site-<pilot>.sql`); currently added by hand.
+- **Site-specific data** — the pilot-start location tree + default account are now **baked in**
+  (`seed/initdb/20-buendia-site.sql`). Still open: the *real* ward/bed layout and the per-clinician
+  provider accounts, both pending MSF input (§6). Tailor that one file, no rebuild needed.
 - **Runbooks (WS-6)** — Staging setup guide / Site runbook / Clinical quick-start (→ PDF) not written yet.
 - **Hardware procurement**, **hypercare support model**, **data-protection sign-off** — MSF decisions (§8).
 
@@ -69,8 +77,8 @@ cd ../compose
 docker compose --env-file ../.env down -v      # clean slate (drops DB + profile volumes)
 docker compose --env-file ../.env up -d        # db loads seed, OpenMRS boots (~2–4 min first boot)
 
-# provision a login (the clean seed ships none)
-../tools/create-openmrs-user.sh buendia buendia
+# NO configuration step — the seed ships the buendia/buendia login, the location tree and the
+# active profile. (To rotate the password: ../tools/create-openmrs-user.sh buendia <new-pw>.)
 
 # use it
 #   Web:  http://<HOST-LAN-IP>:9000/openmrs   (login buendia/buendia)
@@ -101,8 +109,26 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
   `GRANT ALL ON openmrs.* TO 'openmrs_user'@'localhost' IDENTIFIED BY 'openmrs'`.)
 - **Ports:** OpenMRS listens on **8080 inside** the container, mapped to **9000 on the host**. Scripts run
   inside the container must use `:8080`; anything from the host/LAN uses `:9000`.
-- **The clean seed has no login user** — provision with `deploy/tools/create-openmrs-user.sh <user> <pass>`
-  (mirrors `tools/openmrs_account_setup`; `password = sha2(concat(pass,salt),512)`).
+- **What the base seed does NOT contain** — `db-snapshot` has the schema + ~50k concepts + `admin`/`daemon`,
+  but **zero `location` rows, zero `provider` rows, and no usable login**. A fresh boot without
+  `20-buendia-site.sql` is unusable: nothing to admit a patient to, nobody can log in. That file now
+  fixes it; don't "fix" it by hand again.
+- **Passwords** — `password = sha2(concat(pass, salt), 512)`, salt = 64 random bytes as 128 hex chars
+  (`tools/openmrs_account_setup`). Seeding an account in plain SQL therefore works:
+  `SHA2(CONCAT('buendia', @salt), 512)`. `deploy/tools/create-openmrs-user.sh <user> <pass>` rotates
+  it with a fresh random salt.
+- **Don't seed what the server creates** — `DbUtils.ensureRequiredObjectsExist()` auto-creates, on first
+  use, the `Guest` provider (`uuid = buendia_provider_guest` — the client special-cases this exact
+  string in `JsonUser`, sorting it first), the Buendia identifier types, and the order/placement
+  concepts. Confirmed: `Guest` appears in `/providers` on a fresh DB that never seeded it.
+- **The client sorts locations ALPHANUMERICALLY BY NAME** (`LocationForest` /
+  `Utils.ALPHANUMERIC_COMPARATOR`) — insertion order and `location_id` are ignored. So the zones
+  display as Confirmed / Discharged / Probable / Suspect / Triage, *not* in clinical-flow order. To
+  control order, prefix the names (`1 Triage`, `2 Suspect Zone`, …); the comparator handles numeric
+  prefixes numerically. **Open question for MSF** (see §6).
+- **No location UUID is hardcoded** anywhere (client or server) — the root is simply the one location
+  with `parent_location = NULL`, and `LocationResource` serves `getAllLocations(false)`. So the tree is
+  free to change; keep UUIDs stable once tablets have synced, or admitted patients point at dead nodes.
 - **Profile as a package artifact** — `deploy/profile/bunia.csv` is the committed, tailorable default; edit it
   and re-run `build-seed.sh` to change the shipped profile. Activation = apply content + set
   `projectbuendia.currentProfile` (chartUuids stays NULL, not needed).
@@ -114,7 +140,7 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
 | WS | What | Status |
 |----|------|--------|
 | WS-1 | Server container stack + packaging | ✅ done, smoke-tested |
-| WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked) |
+| WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations) |
 | WS-3 | Reproducible image build | ✅ done (`build-image.sh`) |
 | WS-4 | Android APK build + real-tablet validation | ⬜ **not started** (biggest remaining) |
 | WS-5 | APK delivery (QR install + OTA `:9001`) | ⬜ not started |
@@ -125,9 +151,17 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
 
 ## 6. Open decisions (MSF inputs / SolDevelo — plan §8)
 
-Server hardware model; Staging Area location; ward/bed layout + clinician accounts (for `site-<pilot>.sql`);
-tablet count; Wi-Fi coverage / router model; **data-protection sign-off** (gates remote access + data export);
-hypercare support scope. None block the build; they're needed to *finish* and deploy.
+Server hardware model; Staging Area location; ward/bed layout + clinician accounts (for
+`seed/initdb/20-buendia-site.sql`); tablet count; Wi-Fi coverage / router model; **data-protection
+sign-off** (gates remote access + data export); hypercare support scope. None block the build;
+they're needed to *finish* and deploy.
+
+Also pending, smaller:
+- **Real facility name** for the root location (currently the placeholder `Facility`).
+- **Zone display order** — the client sorts location names alphanumerically, so the tablet shows
+  Confirmed / Discharged / Probable / Suspect / Triage. Confirm whether clinicians want clinical-flow
+  order instead, which needs numeric name prefixes (`1 Triage`, …).
+- **Default password rotation** before deployment (the seeded salt is committed/public).
 
 ---
 

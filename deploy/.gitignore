@@ -14,6 +14,10 @@ profile/site-*.csv
 seed/*.sql
 seed/initdb/*.sql
 seed/*site*
+# ...EXCEPT the site seed (locations + default account). It's a small, hand-edited package
+# artifact with no PII, and the package is not zero-config without it. Must come after the
+# broader rules above to win.
+!seed/initdb/20-buendia-site.sql
 
 # Local artefacts
 *.log

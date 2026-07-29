@@ -15,19 +15,44 @@ format (per-table `.sql` schema + `.txt` data via `LOAD DATA LOCAL`, driven by `
 ./build-seed.sh            # -> initdb/10-buendia-base.sql  (~83 MB, git-ignored, regenerable)
 ```
 
-That baseline has the schema, ~50k concepts, global properties, and the system users — but
-**no patients, no locations, no forms** (those are layered on per deployment).
+That baseline has the schema, ~50k concepts, global properties, and the system users (`admin`,
+`daemon`) — but **no patients, no locations, no providers, and no usable login account**. The
+last two are supplied by the site seed below.
 
-## Layering (per deployment, later)
+## Site seed — `initdb/20-buendia-site.sql` (committed, hand-edited)
 
-Add further numbered `*.sql` to `initdb/` (they run after the baseline):
+Without this file a fresh server boots but **cannot be used**: there is nowhere to admit a
+patient to and nobody can log in. It ships:
 
-- `20-concept-fix.sql` — bug-12 fix if needed (concept dictionary `creator=4`); note the
-  baseline load already runs with `FOREIGN_KEY_CHECKS=0`, so it may be unnecessary.
-- `30-site-<pilot>.sql` — **site-specific**: facility, ward/bed/zone tree, clinician accounts.
-- `40-profile-props.sql` — sets `projectbuendia.currentProfile` / `projectbuendia.chartUuids`.
+- the **location tree** — `Facility` (root) → `Triage`, `Confirmed Zone`, `Suspect Zone`,
+  `Probable Zone`, `Discharged`;
+- the **default login account** `buendia` / `buendia` (web admin, REST, tablet credentials)
+  with the six Buendia roles;
+- one **provider** row so the account is selectable in the tablet's user picker.
 
-All `initdb/*.sql` are git-ignored (the baseline is regenerable; site SQL is sensitive).
+This is the file to tailor per site (facility name, zone/ward/bed layout, clinician accounts).
+It is small and idempotent (keyed on `uuid`), so it can also be applied by hand to a running DB.
+Editing it only takes effect on a **fresh** DB — `down -v && up -d`; you do *not* need to re-run
+`build-seed.sh`, which only rebuilds the 80 MB baseline.
+
+> **Change the default password before a real deployment.** The salt is committed, so it is
+> public — it adds no secrecy for a well-known default. Rotate with
+> `../tools/create-openmrs-user.sh buendia <new-password>` (fresh random salt, running DB).
+
+Unlike the other `initdb/*.sql`, this one is **not** git-ignored (see `../.gitignore`) — it holds
+no PII and the package is not zero-config without it. Keep real patient data and any
+PII-bearing site variants out of git.
+
+The server module creates the rest of what it needs on first use (`DbUtils.ensureRequiredObjectsExist()`)
+— including the special `Guest` provider (`uuid = buendia_provider_guest`, which the client
+treats specially), the Buendia identifier types, and the order/placement concepts. Don't seed those.
+
+### Optional extra layers
+
+Add further numbered `*.sql` to `initdb/` if a deployment needs them (they run in filename order,
+after the above): e.g. `30-concept-fix.sql` for the bug-12 concept-dictionary fix — though the
+baseline load runs with `FOREIGN_KEY_CHECKS=0`, so it is probably unnecessary. Profile properties
+no longer need a layer: `build-seed.sh` bakes them in (below).
 
 ## Baked-in clinical profile
 
@@ -41,5 +66,15 @@ if the image or CSV is absent, the seed is a clean baseline instead.
 profile: edit it (avoid bare `#%` number formats — bug 10) and re-run `build-seed.sh`. MSF can
 still upload/activate a different profile at runtime via the Profile Manager UI.
 
-The Buendia API user (`buendia`) is created by `tools/openmrs_account_setup <user> <pass>`
-(`password = sha2(concat(pass, salt), 512)`), not shipped in the baseline.
+## Verifying a fresh boot
+
+After `down -v && up -d`, with **no manual configuration**, all of these must pass:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -u buendia:buendia \
+  http://localhost:9000/openmrs/ws/rest/v1/session                 # 200 — baked-in login works
+curl -s -u buendia:buendia http://localhost:9000/openmrs/ws/rest/buendia/locations
+                                                                   # 6 locations, Facility parent_uuid=null
+curl -s -u buendia:buendia http://localhost:9000/openmrs/ws/rest/buendia/charts
+                                                                   # buendia_form_chart — profile is active
+```

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Create (or update) an OpenMRS user for Buendia API / web login, in the RUNNING compose DB.
-# Mirrors tools/openmrs_account_setup (password = sha2(concat(pass,salt),512)). The clean
-# baseline seed ships no usable login, so provision one after `docker compose up`.
+# Mirrors tools/openmrs_account_setup (password = sha2(concat(pass,salt),512)).
 #
 #   ./create-openmrs-user.sh <username> <password>
+#
+# NB: the seed already ships a working default account (buendia/buendia) via
+# seed/initdb/20-buendia-site.sql, so this is NOT needed to get started. Use it to
+#   - ROTATE the default password before deployment (its seed salt is committed/public), or
+#   - add further accounts.
+# Unlike the seed, this generates a fresh random salt.
 #
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
