@@ -4,8 +4,9 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (WS-1..WS-5 COMPLETE. Installer hardened + **registry delivery**: `docker pull`
-is now enough, cold-boot verified 17/17. **Next: push the images, then run `setup.sh` on real hardware**)._
+_Last updated: 2026-07-29 (WS-1..WS-5 COMPLETE. **Installed on a second, bare Ubuntu 24 machine from a USB
+stick and validated end to end — including a tablet installing by QR.** Images are published to Docker Hub;
+the APK payload ships from a private GitHub release. **Next: WS-6 runbooks; A9 timezone needs a tablet check**)._
 
 ---
 
@@ -214,13 +215,38 @@ tablet**, and is now in the seed.
   static IP. Now autodetected (`NET_RENDERER` overrides). Verified: this box runs NetworkManager and
   the generated file now says so.
 
+### ✅ VALIDATED ON REAL HARDWARE — 2026-07-29 (second machine, bare Ubuntu 24)
+
+**`setup.sh`'s first run on real hardware succeeded, from a USB stick, on a machine that had never
+seen this project.** This closes what was the kit's biggest untested claim.
+
+What was exercised: bare Ubuntu 24 notebook → `deploy/tools/bootstrap.sh` from USB (installs
+git/curl, clones the public repo `--depth 1 --no-recurse-submodules`, drops in `.env`, unpacks the
+tablet payload after a sha256 check) → `setup.sh` (Docker install, host config, **pull of both
+digest-pinned images from Docker Hub**, stack up, go/no-go) → **tablet installed the APK by scanning
+the QR from the notebook** → smoke test through the app.
+
+Independently verified **from a different machine** (this box, over the WiFi), not just self-reported:
+`buendia-verify.sh --host 192.168.0.250 --no-db` → **13/13 GO**. And in the data:
+
+| | |
+|---|---|
+| Patient | `TEST/1659 Piotr TESTER` |
+| Placement | **`[1] Triage [*]`** (uuid `255800b2`) — the default-zone fix holds on a fresh deployment |
+| Obs | `buendia_concept_placement` + datetime, `2026-07-29T14:59:27Z` |
+| Order | created `15:01:01Z` — the treatment path works |
+| Reachability | `:9000` REST and `:9001` install path both answer across the LAN |
+
+Notes from that run:
+- **`CONFIGURE_NETWORK=false`** was used, so netplan was *not* exercised; the box got its address by
+  other means. The generated-netplan path (and especially the `wifis:` branch) is **still unproven on
+  hardware**.
+- **The host clock reads UTC** — `setup.sh` does `timedatectl set-timezone "$TZ"` with `TZ=UTC`, and
+  the containers + JVM match. Working as designed, but it is exactly **A9**: a 16:59 local admission
+  is stored and rendered `14:59Z`. See the gotcha in §4.
+- The bootstrap script is now committed as **`deploy/tools/bootstrap.sh`**.
+
 ### Not started / deferred (the remaining pilot work)
-- **`setup.sh` has never been run on real server hardware.** Its logic is now rehearsable
-  (`--dry-run`, exercised repeatedly) and the stack it starts is verified, but the host-mutating
-  half — Docker install, netplan apply, chrony, `systemctl` — has only ever been *printed*. This box
-  runs the stack via `docker compose` directly. **No VM tooling on this machine** (no multipass/lxd/
-  vagrant; bare qemu only), so this needs the real server or a VM. **Biggest remaining unknown in
-  the kit.**
 - **Server hardware not chosen** — SolDevelo's decision (spec + suggested models is a deliverable we
   owe). Hard constraint already known: **x86-64 only** — `mysql:5.6` has no arm64 image, so no
   Raspberry Pi / ARM mini-PCs. `setup.sh` hard-fails on non-x86_64. Also wants: fanless/sealed if
@@ -540,6 +566,28 @@ card prints a blank line to fill in by hand.
   file** `20-buendia-site.sql`. `setup.sh` also refuses to start a stack whose `DB_IMAGE` carries no
   baked-seed label, so this cannot ship silently broken.
 
+### Timezone: the stack is UTC end-to-end, and it shows (A9)
+
+- `setup.sh` sets the **host** timezone from `TZ` in `.env`, and compose passes the same `TZ` to
+  MySQL and `-Duser.timezone=UTC` to the JVM. With the shipped `TZ=UTC` the whole box reads UTC:
+  on the 2026-07-29 notebook test, an admission done at **16:59 local (UTC+2)** was stored as
+  **`14:59:27Z`** and the desktop clock showed 14:59. That is by design (UTC end-to-end fixed an
+  earlier timezone bug) but it **will** be noticed at a DRC site (UTC+1/+2) for shift boundaries and
+  "when was this taken".
+- **Open question, cheap to answer:** does the *tablet* render times in device-local or in UTC? If
+  local, UTC storage is purely internal and nothing needs changing. If UTC, consider
+  `TZ=Africa/Kinshasa`. **Validate any `TZ` change on a throwaway stack** — UTC was chosen to fix a
+  bug, so don't change it casually.
+
+### REST quirks that look like faults but aren't
+
+- **`?since=` with an EMPTY value returns zero results.** `GET /observations` (no param) returns the
+  data; `GET /observations?since=` returns an empty set. Cost a false "the smoke test wrote nothing"
+  conclusion on 2026-07-29. Omit the parameter rather than passing it empty.
+- **`GET /encounters` returns `UnsupportedOperationException: Listing all encounters is not
+  implemented`.** Expected upstream behaviour, not a broken deployment. Encounters come back nested
+  inside `/patients` and via the obs sync endpoints.
+
 ### Shell traps in the deploy scripts (all three cost real debugging time on 2026-07-29)
 
 - **`[[ test ]] && cmd` as the LAST statement of a function is fatal under `set -e`.** When the test
@@ -568,7 +616,7 @@ card prints a blank line to fill in by hand.
 
 | WS | What | Status |
 |----|------|--------|
-| WS-1 | Server container stack + packaging | ✅ done, smoke-tested. **Installer hardened 2026-07-29**: 6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go verification wired in so the exit code means something. ⚠️ still never run on real server hardware |
+| WS-1 | Server container stack + packaging | ✅ done. Installer hardened (6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go wired in) and **validated on real hardware 2026-07-29** — bare Ubuntu 24 notebook → USB bootstrap → GO, verified remotely 13/13, tablet installed by QR. Netplan branch still unexercised (`CONFIGURE_NETWORK=false` was used) |
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull` |
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
@@ -627,14 +675,14 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 **➡️ NEXT SESSION STARTS HERE — in this order:**
 
-0. **Push the images to Docker Hub** (`soldevelo`, public — decided). Needs the user's PAT:
-   `docker login`, then `deploy/tools/publish-images.sh --push` (it plans by default; nothing was
-   pushed yet). Then paste the printed **digests** into `deploy/.env`. Not done in-session because
-   publishing is the user's call. ⚠️ Think before pushing `buendia-pkgserver` — that image carries
-   the APK, which bakes in the server address and password.
-0b. **Run `setup.sh` on a real machine (or a VM)** — the single biggest untested claim in the kit.
-   Rehearse with `--dry-run` first, which is safe and needs no root. Expect the host half (Docker
-   install, netplan apply, chrony) to need a fix or two; the stack half is already verified.
+0. ~~Push the images~~ **done** — `soldevelo/buendia-db@sha256:8f1c6e1d…`,
+   `soldevelo/buendia-openmrs@sha256:f51a9d6d…` are public on Docker Hub and were pulled by digest
+   during the notebook install. The APK payload is a **private** GitHub release
+   (`SolDevelo/buendia-pilot-artifacts`, tag `pilot-1.0.0-rc2`).
+0b. ~~Run `setup.sh` on real hardware~~ **done** — see §2. Two follow-ups it left open:
+   **(i) A9 timezone** — check what the *tablet* displays for the 14:59Z admission (see §4); and
+   **(ii) the netplan path is still unproven** — the run used `CONFIGURE_NETWORK=false`, so
+   generated netplan, and especially the `wifis:` branch, have never been applied on hardware.
 0c. **Send MSF the config questions** — especially the new **B5 (tablet system image)**, which can
    invalidate the QR install path entirely, and the rewritten **B2** (their Wi-Fi: free address,
    client isolation, a wired port for the server). Ask for **one tablet with their image**.
