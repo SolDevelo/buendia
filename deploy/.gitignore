@@ -6,6 +6,10 @@ images/*.tar
 images/*.tar.gz
 debs/*.deb
 apk/*.apk
+apk/*.sha256
+apk/*.buildinfo.txt
+# The APK signing key IS the app's identity — never commit it. Back it up out-of-band.
+apk/keystore/
 # NB: the default profile (profile/bunia.csv) IS committed — it's a package artifact, baked
 # into the seed by seed/build-seed.sh. Ignore only site-tailored variants if they hold PII.
 profile/site-*.csv

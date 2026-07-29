@@ -4,7 +4,7 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (zero-config seed: baked-in login + locations; MSF config-request list added)._
+_Last updated: 2026-07-29 (WS-4: reproducible APK build + client `drc-pilot` branch; auto-logout fix)._
 
 ---
 
@@ -42,10 +42,20 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
   returns `buendia_form_chart`, and a `POST /patients` succeeds.
 - **End-to-end validated** — fresh `docker compose up` → OpenMRS boots → profile active
   (`currentProfile=bunia.csv`) → REST 200 → **real tablet completed the clinical workflow**.
+- **Reproducible APK build (WS-4, build side)** — `deploy/apk/build-apk.sh` produces a
+  **release-signed** `buendia-client-<version>.apk` with the server address, login, and all tunables
+  baked in, driven from `deploy/.env`. Verified: builds, signs with the pilot key, and the script
+  reads the baked-in values back out of the finished APK (`http://192.168.8.10:9000/openmrs`,
+  `:9001`, user `buendia`). See `deploy/apk/README.md`. **Not yet installed on a real tablet.**
+- **Client `drc-pilot` branch** — `SolDevelo/buendia-client` now has a `drc-pilot` branch matching
+  this superproject branch, and `.gitmodules` records `branch = drc-pilot`. Pilot client code
+  changes land there. First change: the auto-logout fix below.
 
 ### Not started / deferred (the remaining pilot work)
-- **Android APK build + on-tablet validation (WS-4)** — the app currently used is not built by this repo's
-  pipeline yet. This is the biggest remaining piece to make the tablet side part of the package.
+- **On-tablet validation of the packaged APK (rest of WS-4)** — the APK now builds reproducibly, but
+  the build has **not been installed on a T4/T5 yet** (no device attached during this session). The
+  tablet that passed the clinical smoke test on 2026-07-13 ran an ad-hoc **debug** build; the
+  packaged build is a *release* build, so it installs as a different app id — see the caveat in §4.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
 - **Package/update server `:9001`** — optional; not running in compose (in-app updater inactive without it).
 - **Site-specific data** — the pilot-start location tree + default account are now **baked in**
@@ -60,7 +70,13 @@ real tablet** — add patient → fill forms (from `bunia.csv`) → record obser
 On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`925dae3a`** — the field-pilot deployment package (containerized server + baked Ebola profile).
 - **`bd52103f`** — zero-config first boot (site seed: login + location tree).
-- plus the commit adding `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` and this status update.
+- **`73dbbcce`** — the canonical MSF config-request list.
+- plus the WS-4 commit (APK build script + `.gitmodules` submodule branch + this status update).
+
+In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
+`soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
+`SolDevelo/client`):
+- **`85ce064c`** — build-configurable auto-logout idle timeouts (the 30 s-while-charging fix).
 
 Gitignored heavy artefacts (the 80 MB base seed, the war/omods, `deploy/.env`) are correctly excluded —
 regenerate them with `build-image.sh` / `build-seed.sh`. The **site seed is deliberately committed**
@@ -92,6 +108,19 @@ docker compose --env-file ../.env up -d        # db loads seed, OpenMRS boots (~
 ```
 Local test host LAN IP seen so far: **192.168.0.150**. `:9000` is bound on all interfaces (LAN-reachable);
 if a tablet can't connect it's almost always the **host firewall** blocking inbound `:9000`.
+
+### Building the tablet APK
+
+```bash
+cd deploy/apk
+# one-time: fill in the APK_* block in deploy/.env, then create the signing key
+./build-apk.sh --make-keystore     # -> keystore/buendia-pilot.jks  (BACK THIS UP)
+./build-apk.sh                     # -> buendia-client-<version>.apk (+ .sha256 + .buildinfo.txt)
+adb install -r buendia-client-<version>.apk
+```
+`APK_SERVER` defaults to `STATIC_IP` from the same `.env`, so tablet and server can't drift apart.
+The script prints the baked-in server/user read back out of the finished APK — check that line.
+Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ---
 
@@ -135,6 +164,58 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
 - **No location UUID is hardcoded** anywhere (client or server) — the root is simply the one location
   with `parent_location = NULL`, and `LocationResource` serves `getAllLocations(false)`. So the tree is
   free to change; keep UUIDs stable once tablets have synced, or admitted patients point at dead nodes.
+### Android client / APK (WS-4)
+
+- **Toolchain that works:** JDK **8** (Zulu 1.8.0_492), Android SDK **platform 28** + build-tools
+  **28.0.3**, gradle **4.6** (wrapper), AGP **3.2.1**. `ANDROID_HOME`/`ANDROID_SDK_ROOT` are unset on
+  this box — `build-apk.sh` falls back to `~/Android/Sdk`. AGP 3.2.1 does **not** run on JDK 11+.
+  Build-tools **19.1.0 has no `apksigner`**; ≥28 is needed to verify signatures.
+- **Release signing must go through the `CI` env branch.** `client/app/build.gradle`'s non-CI branch
+  prompts on a console for the passphrase (and hard-fails with "only works from command line with
+  the Gradle Daemon disabled"). Setting `CI=1` + `ANDROID_KEYSTORE_FILE`/`ANDROID_KEYSTORE_PASSWORD`
+  is the only scriptable path. The key alias is hardcoded to **`buendia`**.
+- **The signing key is the app's identity.** Android only accepts an update signed with the same key.
+  `deploy/apk/keystore/` is git-ignored — **back it up out-of-band**; losing it means uninstall +
+  reinstall on every tablet, which destroys unsynced local data.
+- **`-PversionNumber=1.0.0` produces `versionName='1'`** — `build.gradle:139` strips trailing `.0`.
+  `build-apk.sh` therefore reads the real `versionName` back out of the built APK and names the file
+  from that, rather than trusting the requested value.
+- **The updater compares `versionName`, NOT `versionCode`** (`AvailableUpdateInfo.shouldUpdate()` via
+  `LexicographicVersion`, integer components only). A non-numeric version silently degrades the
+  installed version to `0`, so the app treats *every* published APK as an upgrade. Debug builds have
+  `versionName='dev'` and hit exactly this — another reason not to field a debug build.
+- **APK filename must be `buendia-client-<version>.apk`** — that is the `<module>-<version>.apk` form
+  `buendia-pkgserver-index-apks` needs to generate the `buendia-client.json` index the app fetches
+  (`PackageServer.MODULE_NAME = "buendia-client"`). A git sha in the name is misparsed as the version
+  and the file is skipped, so the sha goes in the `.buildinfo.txt` instead.
+- **In-app OTA updates are broken on v1.0 — don't plan on them (WS-5).** `UpdateManager.java:150-158`
+  short-circuits the download with `if (2 > 1)` and instead opens `http://<server>/client` (port
+  **80**, which the stack doesn't serve); and `installUpdate()` passes Android a raw `file://` Uri,
+  which throws `FileUriExposedException` at `targetSdkVersion 24`. There is no `FileProvider` and no
+  `REQUEST_INSTALL_PACKAGES`. **Pilot APK updates are manual** (adb, or copy the file and tap).
+- **The app health-checks `:9001/dists/stable/Release`** and shows a "check package server
+  configuration" snackbar when it 404s. Nothing runs on `:9001` in compose, so expect that warning
+  on the tablet; a minimal static server on `:9001` is the cheap fix (WS-5).
+- **Upstream polls for updates every 10 seconds** (`apkCheckIntervalDefault = 10`). `build-apk.sh`
+  ships **3600**.
+- **Release vs debug are different app ids** — `org.projectbuendia.client` ("Buendia") vs
+  `...client.dev` ("Buendia dev"), with distinct `ContentAuthority`. They coexist on a device, so
+  **remove the debug app from pilot tablets** or clinicians will open the wrong one. The 2026-07-13
+  smoke test used the *debug* build; its local data does not carry over to the release build.
+- **Auto-logout after 30 s while charging was stock upstream behaviour, now fixed.**
+  `LoggedInActivity.onTick()` (ticked every 1 s from `BaseActivity`) signed the user out to the
+  provider picker after 30 s idle whenever `BatteryWatcher.isDocked()`. "Docked" is **inferred from
+  AC charging**, not a dock event (the 2016 docks never fired `ACTION_DOCK_EVENT`), and idle resets
+  only on `onUserInteraction()` — so *reading* a chart on a plugged-in tablet bounced the user out.
+  Upstream `fb1b6099` had already relaxed it from log-out-immediately. Now build-configurable
+  (`-PidleLogoutSeconds` / `-PdockedIdleLogoutSeconds`), shipping **600 s / 300 s**; see MSF config
+  request **A10**. Client commit `85ce064c` on `drc-pilot`.
+- **Tablet DB encryption is a one-way, pre-provisioning decision** — `APK_ENCRYPTION_PASSWORD` is
+  baked in at build time; changing it later leaves tablets unable to open their existing SQLite DB.
+  Ships **empty (unencrypted)** today; MSF config request **A11**.
+
+### Server / seed / profile
+
 - **Profile as a package artifact** — `deploy/profile/bunia.csv` is the committed, tailorable default; edit it
   and re-run `build-seed.sh` to change the shipped profile. Activation = apply content + set
   `projectbuendia.currentProfile` (chartUuids stays NULL, not needed).
@@ -148,8 +229,8 @@ if a tablet can't connect it's almost always the **host firewall** blocking inbo
 | WS-1 | Server container stack + packaging | ✅ done, smoke-tested |
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations) |
 | WS-3 | Reproducible image build | ✅ done (`build-image.sh`) |
-| WS-4 | Android APK build + real-tablet validation | ⬜ **not started** (biggest remaining) |
-| WS-5 | APK delivery (QR install + OTA `:9001`) | ⬜ not started |
+| WS-4 | Android APK build + real-tablet validation | 🟡 **build done** (`deploy/apk/build-apk.sh`, release-signed, self-verifying); **on-tablet validation outstanding** |
+| WS-5 | APK delivery (QR install + OTA `:9001`) | ⬜ not started — **in-app OTA is broken on v1.0** (see §4); scope is manual install + optional `:9001` static server to silence the health-check warning |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started (gated on data-protection) |
 
@@ -191,27 +272,38 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
    That list is what gets sent to MSF; anything left only in a commit message or a chat thread is lost.
 9. **No manual setup steps in the package.** If a fresh `up -d` needs a human to run something before it
    is usable, that's a bug — bake it into the seed instead (this is why `20-buendia-site.sql` exists).
+10. **Client code changes go on the submodule's `drc-pilot` branch** (`SolDevelo/buendia-client`), then
+    the gitlink bump is committed here. Never leave a client fix uncommitted in the submodule working
+    tree — it is invisible in the superproject's `git status` beyond a bare `m client`, and the next
+    `submodule update` silently discards it. Prefer making behaviour **build-configurable** (a `-P`
+    property surfaced as an `APK_*` var in `.env`) over changing a hardcoded constant, so the value
+    can be retuned from `deploy/.env` without another client release.
 
 ---
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE: WS-4 — build the Android APK.**
+**➡️ NEXT SESSION STARTS HERE: install the packaged APK on a real T4/T5 and re-run the clinical
+smoke test.** Everything needed is built; no device was attached this session.
 
-1. **WS-4 — build the Android APK** from `client/` (v1.0 baseline) configured for the pilot server, and
-   validate on a real T4/T5. This makes the tablet side reproducible/packaged rather than ad-hoc.
-   The toolchain is confirmed present: `client` submodule checked out at **`v1.0-1-g706f4769`** (the
-   correct pairing for server v1.0), **JDK 8 (Zulu 1.8.0_492)** on `PATH`, Android SDK at
-   **`~/Android/Sdk`** (note: `ANDROID_HOME`/`ANDROID_SDK_ROOT` are unset — export one first).
-   Build args live at the top of `client/app/build.gradle` (`-Pserver=`, `-PopenmrsUser=`,
-   `-PopenmrsPassword=`, `-PencryptionPassword=`). Output belongs in `deploy/apk/` (git-ignored, has a
-   `.gitkeep`), driven by a committed build script so it's reproducible.
+1. **Finish WS-4 — validate the packaged APK on a tablet.** `adb install -r` the release build against
+   a freshly-seeded stack and repeat the 2026-07-13 workflow (add patient → forms → observations →
+   treatment). Specifically confirm, because these are new/untested in a *release* build:
+   - the release app id installs and runs (the smoke test used a **debug** build);
+   - the auto-logout change behaves — leave it **plugged in and idle for >30 s**, which previously
+     bounced to the login screen, and confirm it now holds for 5 min;
+   - whether the `:9001` package-server snackbar is intrusive enough to justify WS-5's static server;
+   - then decide `APK_ENCRYPTION_PASSWORD` (**A11**) *before* provisioning real tablets — it cannot be
+     changed afterwards without wiping each tablet's local DB.
 2. **WS-6 — write the runbooks** (staging setup / site power-on / clinical quick-start).
-3. **WS-5 — APK delivery** (QR install + the optional `:9001` package server for OTA updates).
+3. **WS-5 — APK delivery**, rescoped: in-app OTA is broken on v1.0 (see §4), so this is manual install
+   (USB/adb, or a file + tap) plus optionally a minimal static `:9001` server to serve the APK, its
+   `buendia-client.json` index, and the `/dists/stable/Release` file the health check probes.
 4. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off.
 5. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`) and apply answers as they
    arrive. The location tree / display order (A2, A3) and the UI language (A6) are the ones that are
-   cheapest now and most expensive after tablets have synced.
+   cheapest now and most expensive after tablets have synced. **A10** (auto-logout timeout) and
+   **A11** (tablet DB encryption) are new — A11 must be settled before tablets are provisioned.
 
 Also outstanding, unrelated to any workstream: the local test stack still runs the **hand-configured**
 DB from before the site seed existed (`DRC Facility`, `Suspected Zone`, hand-made user). Recycle it with

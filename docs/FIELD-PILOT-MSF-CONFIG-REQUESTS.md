@@ -12,7 +12,7 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29._
+> _Last updated: 2026-07-29 (added A10 auto-logout timeout, A11 tablet DB encryption)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -160,6 +160,36 @@
   coverage is the most common field failure.
 - **Default shipped:** none — staging step.
 - **Lands in:** router config at staging + the Staging Area runbook (WS-6).
+- **Answer:** _(pending)_
+
+### A10. Auto-logout idle timeout — ⬜ *(we changed the shipped default — confirm it)*
+
+- **Need:** how long a tablet may sit idle before the app signs the clinician out back to the
+  provider picker — separately for a tablet on battery and one on a charger.
+- **Why:** the app auto-logs-out on idle so an unattended tablet can't have the next person's data
+  entry attributed to the previous clinician. Upstream hardcoded **30 seconds** whenever the tablet
+  is AC-charging (it infers "docked" from charging, because the 2016 docks never fired a dock
+  event). Since idle time only resets on a touch, *reading* a chart for 30 s on a plugged-in tablet
+  bounced the user to the login screen — unusable in a ward where tablets live on chargers.
+  Trade-off to state: longer = fewer interruptions, but a longer window in which someone else could
+  record data under the previous clinician's name.
+- **Default shipped:** **10 min on battery, 5 min while charging** (we raised the charging value
+  from 30 s). Now build-configurable rather than hardcoded.
+- **Lands in:** `deploy/.env` (`APK_IDLE_LOGOUT_SECONDS`, `APK_DOCKED_IDLE_LOGOUT_SECONDS`) → baked
+  into the APK by `deploy/apk/build-apk.sh`. Requires a rebuild + reinstall to change.
+- **Answer:** _(pending)_
+
+### A11. Tablet SQLite encryption password — ⬜ **decide before provisioning tablets**
+
+- **Need:** confirmation that the tablet-side database must be encrypted (it should be, for patient
+  data on a device that can leave a ward), and who holds the password.
+- **Why:** the client encrypts its local SQLite DB with a **build-time** password. We currently ship
+  it **empty = unencrypted**, which is the upstream dev default. Critically, this is a one-way
+  decision: **changing the password after tablets are provisioned leaves them unable to open their
+  existing database**, so it must be set before go-live, not after.
+- **Default shipped:** empty (**unencrypted**).
+- **Lands in:** `deploy/.env` (`APK_ENCRYPTION_PASSWORD`) → baked into the APK. Store it with the
+  APK signing-key backup (`deploy/apk/README.md`).
 - **Answer:** _(pending)_
 
 ### B3. Tablet count & device policy — ⬜

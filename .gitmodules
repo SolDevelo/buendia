@@ -1,6 +1,11 @@
 [submodule "client"]
 	path = client
 	url = ../client
+	# The field-pilot client work lives on the fork's drc-pilot branch, matching this
+	# superproject branch. The URL stays relative so a clone of SolDevelo/buendia picks up
+	# SolDevelo's client fork and a clone of projectbuendia/buendia picks up upstream's.
+	# `branch` only affects `git submodule update --remote`; normal clones use the pinned commit.
+	branch = drc-pilot
 [submodule "db-snapshot"]
 	path = db-snapshot
 	url = ../db-snapshot

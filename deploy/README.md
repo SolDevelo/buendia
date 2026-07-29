@@ -14,7 +14,8 @@ deploy/
   config/               netplan (static IP), logind (lid-ignore), docker (log caps), chrony (LAN NTP)
   seed/                 build-seed.sh → initdb/*.sql (db init; only initdb/ is mounted) — see seed/README.md
   profile/              bunia.csv — default clinical profile (committed; baked into the seed)
-  apk/                  signed Buendia APK (git-ignored; ship via Releases/USB)
+  apk/                  build-apk.sh → release-signed Buendia APK (the .apk + signing key are
+                        git-ignored; ship via Releases/USB) — see apk/README.md
   images/               docker-save tarballs for --offline (git-ignored)
   debs/                 Docker/Compose .debs for --offline (git-ignored)
   tools/                buendia-diagnostics.sh, buendia-export.sh
@@ -82,5 +83,8 @@ produces the OpenMRS image, `seed/build-seed.sh` produces the DB seed from `db-s
 - **Genuine TODOs in the scaffold:** the `DataExportServlet` endpoint in `tools/buendia-export.sh`
   (§3.5), the netplan interface name in `config/netplan/60-buendia.yaml`, and the UPS/battery
   graceful-shutdown wiring in `setup.sh` (§3.1) — each host-/deployment-specific.
-- **Not yet exercised:** the Android APK build + tablet validation, the remote-support tunnel, and
+- **APK:** the build is now reproducible (`apk/build-apk.sh`, release-signed, configured from `.env`)
+  but **has not been installed on a real tablet yet**. In-app OTA updates don't work on the v1.0
+  client, so pilot APK updates are manual — see `apk/README.md`.
+- **Not yet exercised:** tablet validation of the packaged APK, the remote-support tunnel, and
   the full save-observation sync round-trip.
