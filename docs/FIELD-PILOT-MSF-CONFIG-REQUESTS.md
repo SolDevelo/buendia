@@ -12,7 +12,7 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29 (A3 rewritten after the tablet test — bracket markup; A10, A11 added)._
+> _Last updated: 2026-07-29 (A3 rewritten after the tablet test — bracket markup; A10, A11, B4 added)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -35,8 +35,9 @@
   tents/wards/beds (Buendia supports arbitrary depth; historically sites used `C1…C10`, `S1…S4`).
 - **Why:** this is where patients are admitted. Nothing else in the app works without it, and changing
   it after tablets have synced orphans already-admitted patients (see *UUID stability* below).
-- **Default shipped (pilot start, per SolDevelo/PW):** `Facility` → `Triage`, `Confirmed Zone`,
-  `Suspect Zone`, `Probable Zone`, `Discharged`. No beds/tents.
+- **Default shipped (pilot start, per SolDevelo/PW):** `Facility` → Triage, Suspect Zone,
+  Probable Zone, Confirmed Zone, Discharged (that display order, Triage receiving new patients — see
+  A3 for the bracket markup that achieves it). No beds/tents.
 - **Lands in:** `deploy/seed/initdb/20-buendia-site.sql` §1 / §1b.
 - **⚠️ Ask MSF specifically about display order — see A3.**
 - **Answer:** _(pending — expected to be adjusted before the final package)_
@@ -215,6 +216,34 @@
 - **Answer:** _(pending)_
 
 ---
+
+### B4. Tablet provisioning model — plain sideload, or managed (Android Enterprise)? — ⬜
+
+- **Need:** a decision on how tablets are provisioned: (a) **plain sideload** — install the APK at
+  staging and accept Android's one-time "install unknown apps" prompt per tablet, or (b) **managed
+  device (Android Enterprise device-owner)** — factory-reset + QR enrollment into a device policy
+  controller that installs the APK **silently** and can enforce the screen lock and lock the tablet to
+  the Buendia app (kiosk).
+- **Why:** the install warning clinicians see is Android's sideload gate, and it **cannot be removed by
+  publishing to the Play Store** — Play only suppresses it for apps installed *from Play*, and the
+  site has no internet, so tablets can never reach it. (Play would also require modernizing a 2016 app
+  to a current `targetSdkVersion`, which the plan descopes, and Android has no purchasable
+  code-signing trust like Windows Authenticode, so no certificate makes a sideloaded APK "trusted".)
+  The prompt is **per install source and persists**, so with (a) it is a one-time staging step, not
+  something clinicians meet repeatedly. Option (b) removes it entirely and is the same mechanism that
+  would satisfy the screen-lock requirement in **A11**/**B3** — but it needs an EMM (self-hosted, or
+  Google's Android Management API which needs internet at enrollment time) and is a separate piece of
+  work.
+- **Recommendation for the pilot:** (a). Provision at staging over USB with `adb install`, which raises
+  **no warning at all** (there is no "unknown source"), and keep the QR install as the in-field
+  fallback — notably for a tablet inside a contamination zone that cannot come out. Revisit (b) only if
+  MSF wants managed fleet control.
+- **To check on the actual hardware:** whether CrossCall T4/T5 ship Google Play Services / Play Protect
+  (which adds its own "unsafe app" scan warning, separately from the sideload gate) and whether Play
+  Protect should be turned off at staging.
+- **Default shipped:** plain sideload; QR install documented, `adb install` recommended at staging.
+- **Lands in:** the staging checklist / Site runbook (WS-6), `deploy/apk/README.md`.
+- **Answer:** _(pending)_
 
 ## C. Governance (gates work, not just config)
 
