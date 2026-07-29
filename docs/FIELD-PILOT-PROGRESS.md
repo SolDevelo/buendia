@@ -100,7 +100,7 @@ On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
 - **`532f78bd`** — correction: the client's encryption password is inert (see §4).
 - **`7d0f5e8e`** — the `:9001` QR-install package server (WS-5).
 - **`0ab7ac28`** — pkgserver healthcheck fix (IPv6 `localhost`) + rootless QR fallback (segno).
-- **`7075d1da`** — admit new patients to Triage (the default-zone bug found on the tablet).
+- **`51c3825e`** — admit new patients to Triage (the default-zone bug found on the tablet).
 
 In the **client** submodule, on its own `drc-pilot` branch, **pushed** to
 `soldevelo` (`git@github.com:SolDevelo/buendia-client.git` — note the fork was renamed from
