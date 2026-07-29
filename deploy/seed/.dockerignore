@@ -1,0 +1,6 @@
+# Only the baseline seed belongs in the DB image.
+*
+!initdb/10-buendia-base.sql
+# Explicitly NOT baked: the site seed stays bind-mounted so it can be tailored per site
+# without an image rebuild (see Dockerfile).
+initdb/20-buendia-site.sql

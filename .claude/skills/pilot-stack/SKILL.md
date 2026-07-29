@@ -25,9 +25,11 @@ what the current stack is holding — read it before touching anything.
 
 ## Fresh boot
 
-Needs the image and seed to exist already (`deploy/image/build-image.sh`,
-`deploy/seed/build-seed.sh` → `initdb/10-buendia-base.sql`, ~80 MB, git-ignored). If either is
-missing, see the `pilot-build-kit` skill.
+Needs the OpenMRS image and the **DB image** to exist already: `deploy/image/build-image.sh`, and
+`deploy/seed/build-seed.sh` → `initdb/10-buendia-base.sql` (~83 MB, git-ignored) →
+`deploy/seed/build-db-image.sh` → `buendia-db:5.6-<gitsha>`, referenced as **`DB_IMAGE` in
+`deploy/.env`**. The baseline seed lives *inside* that image now; only the 12 KB
+`20-buendia-site.sql` is bind-mounted. If anything is missing, see the `pilot-build-kit` skill.
 
 ```bash
 cd deploy/compose
@@ -57,8 +59,8 @@ OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../
 ```
 
 `-p throwaway` gives it its own containers **and its own named volumes**, so it cannot touch the
-real stack's database. It does share `../seed/initdb` and `../pkgserver/www`, both mounted
-read-only. Always pass the same `-p` and port vars to every command in the group, including
+real stack's database. It does share `../seed/initdb/20-buendia-site.sql` and `../pkgserver/www`,
+both mounted read-only. Always pass the same `-p` and port vars to every command in the group, including
 `down` — otherwise you will act on the wrong stack. **Tear it down when finished**; a second
 MySQL + Tomcat is not free.
 

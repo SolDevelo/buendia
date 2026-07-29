@@ -12,7 +12,9 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29 (A3 rewritten after the tablet test — bracket markup; A10, A11, B4 added)._
+> _Last updated: 2026-07-29 (**B5 added** — MSF's tablet system image, which can invalidate the QR
+> install path; **B2 rewritten** for "the site already has Wi-Fi"; **B1** flagged as blocking the
+> shipping APK; **B4** shape decided)._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -153,23 +155,87 @@
 
 ## B. Network & devices
 
-### B1. Server LAN address & site ID — 🟡
+### B1. Server LAN address & site ID — 🟡 **blocks the shipping APK**
 
-- **Need:** the static IP the server should take on the site LAN, and a short site identifier.
-- **Why:** tablets are configured to point at a fixed server address; changing it later means
-  re-configuring every tablet.
+- **Need:** the static IP the server should take on the site network, and a short site identifier.
+  If we are using the site's existing Wi-Fi (**B2**), this must be an address on **their** subnet that
+  is free or reserved for us.
+- **Why:** the server address is **baked into the tablet APK** at build time. Changing it later means
+  rebuilding the APK and re-installing every tablet. Together with **A5** (the password, also baked
+  in) this is the sequencing constraint for the whole kit: **decide B1 + A5 first, then build the APK
+  that ships.**
+- **⚠️ Risk if it can only be known on arrival:** we cannot pre-build the shipping APK, and the
+  Android toolchain (JDK 8 + SDK) is not on the site server, so it cannot be rebuilt there. Fallbacks
+  are (a) set the address by hand in the app's Settings on each tablet — loses zero-touch, or (b) ship
+  our own router so we control the subnet. Worth flagging to MSF as a reason to answer early.
 - **Default shipped:** `STATIC_IP=192.168.8.10`, `SITE_ID=pilot`.
-- **Lands in:** `deploy/.env`.
+- **Lands in:** `deploy/.env` (`STATIC_IP`, `SITE_ID`) → netplan + the APK's `APK_SERVER`.
 - **Answer:** _(pending)_
 
-### B2. Wi-Fi / router — ⬜
+### B2. Site network — 🟡 *(MSF indicated the site already has Wi-Fi — needs confirming, then detail)*
 
-- **Need:** router model, SSID + passphrase, coverage expectations (how many rooms/tents, distance),
-  and whether the network is Buendia-only or shared.
-- **Why:** the kit assumes an isolated LAN with no Internet. Tablets must associate automatically; poor
-  coverage is the most common field failure.
-- **Default shipped:** none — staging step.
-- **Lands in:** router config at staging + the Staging Area runbook (WS-6).
+- **Need:** if the site's existing Wi-Fi is the network we use, we need, **before staging**:
+  1. **subnet / netmask / gateway**, and a **free static address** for the server — ideally a DHCP
+     reservation on their AP or controller;
+  2. confirmation the network does **not isolate clients from each other** (see below);
+  3. whether there is a **wired port** (AP or switch) where the server will live;
+  4. SSID + passphrase, and whether the network is shared with other services or internet-facing;
+  5. coverage over the actual zones (tents/wards) — poor coverage is the most common field failure;
+  6. who administers it, and whether their IT must approve an unmanaged server holding patient data
+     on it (ties to **C1**/**C2**).
+- **Why this changes things:** using their Wi-Fi removes the router from our kit, but it also removes
+  our control of DHCP — and **the server's address is baked into every tablet's APK**, so it must be
+  known and stable *before* the shipping APK is built (**B1**, **A5**).
+- **⚠️ The silent killer — client isolation.** Many office/guest Wi-Fi networks isolate clients from
+  each other ("AP isolation" / "client isolation"). On such a network tablets associate perfectly and
+  simply **cannot reach the server at all**, with no visible cause. Same for VLAN separation and for a
+  **captive portal**, which would break the app's HTTP calls. This must be tested on *their* actual
+  network, not assumed.
+- **Server on Wi-Fi vs wired:** a server should normally be **wired** into the network. `setup.sh`
+  can put a static address on a wireless interface (it generates a netplan `wifis:` block), but that
+  needs their passphrase stored on the box and is less reliable.
+- **Contingency we should keep:** a cheap travel router in the kit anyway, so we can fall back to a
+  network we control with a known address if their Wi-Fi turns out to be unusable.
+- **Default shipped:** `CONFIGURE_NETWORK=true` with a static `192.168.8.10/24` and no gateway (an
+  isolated LAN). Set `CONFIGURE_NETWORK=false` to leave their network alone.
+- **Lands in:** `deploy/.env` (`STATIC_IP`, `NET_IFACE`, `NET_PREFIX`, `GATEWAY_IP`, `DNS_SERVERS`,
+  `CONFIGURE_NETWORK`, `SITE_WIFI_*`) → `setup.sh` generates `/etc/netplan/60-buendia.yaml`.
+- **Answer:** _(pending — "the site already has Wi-Fi" is so far a note to re-confirm, not an answer)_
+
+### B5. MSF's tablet system image — what does it contain and permit? — ⬜ **can invalidate the whole install path**
+
+- **Context / decision taken:** MSF will supply the tablets with **their own system image**, reused
+  from previous projects, and the Buendia APK is installed **by scanning the QR code after the server
+  is up**. That settles **B4**'s shape — but the image's contents are unknown to us, and the QR path
+  has hard prerequisites. If any of the first three answers below is "no", the QR path does not work
+  and we need a different provisioning route.
+- **Need — please ask whoever maintains that image:**
+  1. **Is the device managed (MDM / Android Enterprise device-owner)?** If yes: (a) sideloading may be
+     blocked by policy, which kills QR install outright; (b) their MDM could push our APK **silently**,
+     which would be *better* than QR and would also satisfy **A11**/**B3**. Who administers it?
+  2. **Is "install unknown apps" permitted** for the browser that will download the APK? This is the
+     single make-or-break setting.
+  3. **Is there a browser and a QR/camera scanner** on the image? Some hardened images strip Google
+     apps entirely.
+  4. **Is Google Play Services / Play Protect present?** Play Protect adds its own "unsafe app" scan
+     warning, separate from the sideload gate, and can block installation.
+  5. **Which Android version?** Our client is `minSdkVersion 19` / **`targetSdkVersion 24`**. Fine on
+     current Android (14+ only blocks `targetSdk < 23`), but worth confirming before 20 tablets arrive.
+  6. **Can a user add a Wi-Fi network manually?** If not, the `WIFI:`-URI join QR on our in-zone card
+     is useless and the Wi-Fi must be pre-provisioned in the image.
+  7. **Is device encryption on, and a screen lock enforced?** If the image already does this, **A11**
+     is answered for free and it is no longer a staging step.
+  8. **What is the tablet's time source with no internet?** ⚠️ The sync wire format carries a
+     client-supplied encounter time (`JsonEncounter.time`), so a tablet with a wrong clock plausibly
+     writes wrong timestamps — and Android will not accept a custom NTP server without root, so our
+     chrony-on-the-server design does **not** reach the tablets. We should verify this properly rather
+     than promise anything about timestamps. Related: **A9**.
+  9. **Locale** — is the image French? (ties to **A6**).
+- **Highest-value ask: one tablet with that exact image, in our hands before staging.** Everything
+  above collapses into a 30-minute test.
+- **Default shipped:** nothing — we assume a stock-ish Android that permits sideload from a browser.
+- **Lands in:** the staging checklist / Site runbook (WS-6); may change `deploy/apk/README.md` and, in
+  the worst case, the provisioning route itself.
 - **Answer:** _(pending)_
 
 ### A10. Auto-logout idle timeout — ⬜ *(we changed the shipped default — confirm it)*
@@ -217,7 +283,15 @@
 
 ---
 
-### B4. Tablet provisioning model — plain sideload, or managed (Android Enterprise)? — ⬜
+### B4. Tablet provisioning model — plain sideload, or managed (Android Enterprise)? — 🟡 *(shape decided 2026-07-29)*
+
+> **Decision (2026-07-29):** MSF supplies tablets carrying **their own system image** (reused from
+> previous projects) and the APK is installed **by QR code after the server is up** — i.e. option (a),
+> sideload, with the QR route as the *primary* path rather than the in-field fallback. The
+> `adb install`-at-staging recommendation below therefore no longer applies, since the tablets do not
+> pass through our hands. **This makes B5 critical**: whether QR install works at all depends on what
+> that image permits.
+
 
 - **Need:** a decision on how tablets are provisioned: (a) **plain sideload** — install the APK at
   staging and accept Android's one-time "install unknown apps" prompt per tablet, or (b) **managed

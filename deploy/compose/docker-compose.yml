@@ -2,7 +2,11 @@
 # Started by ../setup.sh via: docker compose --env-file ../.env up -d
 services:
   db:
-    image: ${MYSQL_IMAGE}
+    # DB_IMAGE is mysql:5.6 with the ~83 MB baseline seed BAKED IN (../seed/build-db-image.sh),
+    # so a site server gets the whole heavy part of the deployment from `docker pull` and needs
+    # no seed file copied onto it. Falls back to MYSQL_IMAGE for older .env files — but a bare
+    # mysql image has no baseline seed, and setup.sh fails the run if that combination is used.
+    image: ${DB_IMAGE:-${MYSQL_IMAGE:-mysql:5.6}}
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -17,7 +21,12 @@ services:
       - --skip-log-bin                  # binlog off — single-server pilot, snapshot backups (§3.1)
     volumes:
       - db_data:/var/lib/mysql
-      - ../seed/initdb:/docker-entrypoint-initdb.d:ro   # only *.sql here (base + concept-fix + site-<pilot>.sql, WS-2)
+      # SINGLE FILE, not the directory. The baseline seed (10-buendia-base.sql) is baked into
+      # DB_IMAGE; mounting the whole ../seed/initdb directory here would SHADOW it and leave the
+      # DB with no schema and no concepts. Only the small, hand-edited site seed is mounted, so
+      # locations/accounts stay tailorable without rebuilding or re-pushing the image.
+      # (mysql runs initdb.d/*.sql alphabetically, first boot only: 10- baked, then 20- mounted.)
+      - ../seed/initdb/20-buendia-site.sql:/docker-entrypoint-initdb.d/20-buendia-site.sql:ro
     healthcheck:
       # Gate on the REAL server over TCP with a real query as the app user — NOT `mysqladmin ping`,
       # which passes during MySQL's init-phase (socket-only) temp server and lets OpenMRS start

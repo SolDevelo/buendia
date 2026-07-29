@@ -43,6 +43,13 @@ cd ../seed && ./build-seed.sh
 #    → initdb/10-buendia-base.sql (~80 MB, git-ignored) with the bunia.csv profile baked in
 #    initdb/20-buendia-site.sql is COMMITTED and hand-edited — build-seed.sh does not touch it
 
+# 2b. Bake the seed into the DB image, and SET DB_IMAGE IN .env  (required — compose reads it)
+./build-db-image.sh
+#    → buendia-db:5.6-<gitsha>  (the ~83 MB seed travels inside the image, so a site server
+#      needs only `docker pull`; compose mounts ONLY the 12 KB site seed alongside it)
+#    Forgetting the .env line is caught, not silent: setup.sh refuses to start a stack whose
+#    DB_IMAGE has no baked-seed label (the DB would come up with no schema and no concepts).
+
 # 3. Boot + verify           (see the pilot-stack skill for the destructive-action guard)
 cd ../compose && docker compose --env-file ../.env up -d
 cd ../.. && deploy/tools/buendia-verify.sh --write
@@ -58,22 +65,40 @@ cd deploy/apk && ./build-apk.sh --make-keystore
 # 6. Publish for QR install
 cd ../pkgserver && ./publish.sh && cd ../compose && docker compose --env-file ../.env up -d pkgserver
 
+# 6b. Bake the APK into a pkgserver image, so it ships by `docker pull` too (for what SHIPS)
+./build-pkgserver-image.sh
+#    → buendia-pkgserver:<site>-<apkver>.  SITE-SPECIFIC: the APK inside bakes in the server
+#      address and password. Local dev can keep bind-mounting www/ instead (PKGSERVER_IMAGE empty).
+
 # 7. Printable in-zone card
 cd ../pkgserver && ./make-install-card.sh "Suspect Zone"
 #    → cards/install-card.html (git-ignored: it carries the Wi-Fi passphrase). Print, laminate.
 
 deploy/tools/buendia-verify.sh          # final GO/NO-GO across all of it
+
+# 8. Publish to the registry so a site server needs only `docker pull` (internet at setup only)
+deploy/tools/publish-images.sh                 # PLANS by default — prints what it would push
+docker login && deploy/tools/publish-images.sh --push
+#    then paste the printed DIGESTS into deploy/.env (pin by digest, never a floating tag)
+#    offline fallback instead/as well: deploy/tools/bundle-images.sh → images/*.tar (~771 MB)
 ```
 
-Steps 1 and 2 are independent of a running stack — safe to run while one is up. Step 3 is not; read
-`pilot-stack` first.
+Steps 1, 2 and 2b are independent of a running stack — safe to run while one is up. Step 3 is not;
+read `pilot-stack` first.
+
+**Rehearse the installer before it touches a machine:** `cd deploy && ./setup.sh --dry-run` prints
+every change and makes none (no root needed). Its exit code is meaningful — `setup.sh` ends by
+running `buendia-verify.sh` and returns non-zero on NO-GO.
 
 ## Traps that have actually bitten
 
-- **Back up `deploy/apk/keystore/` and its password, out of band, immediately.** It is git-ignored
-  by design and exists on one machine. The key *is* the app's identity: lose it and every tablet
-  needs uninstall + reinstall, destroying unsynced local data. This is the kit's biggest
-  single-point loss risk and it takes five minutes to remove.
+- **`deploy/apk/keystore/` must stay backed up out of band** (done for the pilot key on 2026-07-29:
+  SolDevelo internal system + a second location on the build machine). It is git-ignored by design.
+  The key *is* the app's identity: lose it and every tablet needs uninstall + reinstall, destroying
+  unsynced local data. Re-check this whenever a new key is created.
+- **A directory bind-mount shadows a file baked into the image at the same path.** This is why
+  compose mounts `20-buendia-site.sql` as a single FILE: mounting `../seed/initdb` would hide the
+  baked baseline seed and leave a DB with no schema and no concepts, on a server that looks fine.
 - **Never publish an APK newer than what the tablets run.** In-app OTA is broken on the v1.0
   client, so a newer published version makes every tablet nag about an update it cannot install.
   `publish.sh` advertises only what it publishes — keep it equal to what is installed.

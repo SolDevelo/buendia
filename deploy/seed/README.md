@@ -1,9 +1,27 @@
 # seed/ — database initialisation (WS-2)
 
-The MySQL container loads the **`initdb/`** subdirectory (mounted read-only into
-`/docker-entrypoint-initdb.d/`); every `*.sql` there runs, in filename order, on the first
-boot of an empty `db_data` volume. Only `initdb/` is mounted — so `build-seed.sh` and this
-README are *not* executed by MySQL init.
+MySQL runs every `*.sql` in `/docker-entrypoint-initdb.d/`, in filename order, on the first boot
+of an empty `db_data` volume. Two files land there, from **two different places** — this split is
+deliberate:
+
+| File | Size | Where it lives | Why |
+|---|---|---|---|
+| `10-buendia-base.sql` | ~83 MB | **baked into `DB_IMAGE`** (`build-db-image.sh`) | heavy, stable, regenerable — travels by `docker pull`, so nothing has to be copied onto a site server |
+| `20-buendia-site.sql` | ~12 KB | **bind-mounted** by compose | hand-edited per site (locations, accounts) — tailorable with no image rebuild or push |
+
+> ⚠️ **Compose mounts the site seed as a single FILE, not the `initdb/` directory.** Mounting the
+> directory would shadow the baked baseline inside the image, leaving a DB with no schema and no
+> concepts — a server that appears to boot and does nothing. `setup.sh` fails the run if `DB_IMAGE`
+> carries no baked seed (it checks the image label), so this can't ship silently broken.
+
+## Build order
+
+```bash
+./build-seed.sh        # 1. db-snapshot -> initdb/10-buendia-base.sql   (~83 MB, git-ignored)
+./build-db-image.sh    # 2. bake it     -> buendia-db:5.6-<gitsha>      (set as DB_IMAGE in .env)
+```
+
+Then publish it with `../tools/publish-images.sh` so a site server can `docker pull` it.
 
 ## Baseline seed — `build-seed.sh`
 
@@ -13,7 +31,13 @@ format (per-table `.sql` schema + `.txt` data via `LOAD DATA LOCAL`, driven by `
 
 ```bash
 ./build-seed.sh            # -> initdb/10-buendia-base.sql  (~83 MB, git-ignored, regenerable)
+./build-db-image.sh        # -> buendia-db:5.6-<gitsha>     (the seed, baked into an image)
 ```
+
+`build-db-image.sh` refuses to bake a seed that doesn't end in mysqldump's `Dump completed`
+marker — a truncated dump yields an image that boots with no concepts, which is a miserable
+thing to diagnose on site. It stamps the seed's sha256, byte count and the repo git sha as
+image labels (`docker image inspect --format '{{json .Config.Labels}}' buendia-db:latest`).
 
 That baseline has the schema, ~50k concepts, global properties, and the system users (`admin`,
 `daemon`) — but **no patients, no locations, no providers, and no usable login account**. The
