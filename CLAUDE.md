@@ -14,6 +14,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   patient IDs, timezone, network, sign-offs). Each entry records the default we currently ship and the
   file it lands in. **Keep it up to date**: when an answer arrives, apply it and mark the item ✅; when a
   new config question surfaces during the build, add it there rather than burying it in a commit message.
+- **`docs/FIELD-PILOT-MSF-REQUEST-OUTGOING.md` — the send-ready, MSF-facing extract of that list**,
+  reorganized by lead time and stripped of internal detail (file paths, class names, shas, cost
+  reasoning). It is a *derived* document: `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` stays canonical, and item
+  IDs (A1, B5, …) match between the two so answers can be tracked back. Regenerate it from the canonical
+  list rather than editing the two in parallel.
+- `docs/FIELD-PILOT-SERVER-SPEC.md` — the server hardware specification sent to MSF (item **D1** in the
+  outgoing request). Recommends a **repurposed/refurbished business laptop** over a mini-PC; records the
+  hard constraints (x86-64 only, working RTC battery, 8 GB, SSD) and Swiss purchase options.
 - The deployment package itself lives in `deploy/` (server container stack, seed builder, image builder,
   APK builder, package server, tools) — see `deploy/README.md`. Two sub-READMEs matter:
   `deploy/apk/README.md` (reproducible release-signed APK build; the signing-key and versioning

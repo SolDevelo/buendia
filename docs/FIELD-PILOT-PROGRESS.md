@@ -7,7 +7,10 @@
 _Last updated: 2026-07-30. **WS-1..WS-5 COMPLETE and twice validated on real hardware.** A bare Ubuntu 24
 notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
 clone — smoke-tested through the tablet, rebooted, wiped and reinstalled. Images are public on Docker Hub;
-the tablet APK payload ships from a private GitHub release. **Next: WS-6 runbooks.**_
+the tablet APK payload ships from a private GitHub release. The branch is now **pushed** to
+`soldevelo/drc-pilot`, and the two MSF-facing documents are written and ready to send
+(`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`). **Next: send those, then WS-6
+runbooks.**_
 
 ---
 
@@ -277,11 +280,21 @@ Notes from that run:
   a public release asset — only the APK payload stays private.
 
 ### Not started / deferred (the remaining pilot work)
-- **Server hardware not chosen** — SolDevelo's decision (spec + suggested models is a deliverable we
-  owe). Hard constraint already known: **x86-64 only** — `mysql:5.6` has no arm64 image, so no
-  Raspberry Pi / ARM mini-PCs. `setup.sh` hard-fails on non-x86_64. Also wants: fanless/sealed if
-  it's a dusty tent, ~8 GB RAM, SSD, a **healthy RTC battery** (timestamps depend on it — there is no
-  NTP upstream at an offline site), 12 V DC input so it can run from a UPS/battery.
+- **Server hardware — spec WRITTEN and sent to MSF (2026-07-30), machine not yet chosen.**
+  `docs/FIELD-PILOT-SERVER-SPEC.md` is the deliverable we owed, and it is item **D1** in the outgoing
+  request. **The recommendation changed shape: a laptop, not a mini-PC** (PW's preference, and it is
+  what we actually validated twice). The arguments that decided it: the laptop **battery is a built-in
+  UPS** — which is the pilot's main data-loss risk and would otherwise need a UPS bought and wired; the
+  **screen is what the tablet scans the install QR from**; a keyboard means on-the-spot
+  troubleshooting; and site staff can just use it. `setup.sh` already masks suspend and sets
+  `HandleLidSwitch=ignore` (`config/logind.conf.d/buendia.conf`), so the laptop path was already
+  engineered for. First suggestion is a **refurbished business laptop** (ThinkPad/Latitude/EliteBook,
+  i5+, 16 GB, 256 GB) from Digitec/Brack; fanless mini-PC (Minix NEO Z100-0dB, Shuttle DS10U, OnLogic
+  CL260) is documented as the alternative for a permanently dusty tent, with a UPS budgeted.
+  Hard constraints recorded there: **x86-64 only** — `mysql:5.6` has no arm64 image and `setup.sh`
+  hard-fails, which now rules out **Snapdragon X / "Copilot+" laptops and Apple Silicon Macs**, a large
+  share of current retail stock; ~8 GB RAM; SSD; a **healthy RTC battery** (timestamps depend on it —
+  no NTP upstream at an offline site).
 - **No backup mechanism.** Nothing takes a scheduled snapshot: binlog is deliberately off
   (`docker-compose.yml` says "snapshot backups") but no snapshot mechanism exists, and
   `tools/buendia-export.sh` still has the `DataExportServlet` TODO. The old Debian appliance had
@@ -312,7 +325,9 @@ Notes from that run:
   **data-protection sign-off** gates WS-7 (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md` C1).
 
 ### Committed
-On branch `drc-pilot`, **not yet pushed** (ahead of `soldevelo/drc-pilot`):
+On branch `drc-pilot`, **pushed to `soldevelo/drc-pilot` on 2026-07-30** (previously 6 commits ahead;
+the submodule gitlink `85ce064c` was confirmed reachable on the client remote, so a fresh clone +
+`submodule update` works):
 - **`925dae3a`** — the field-pilot deployment package (containerized server + baked Ebola profile).
 - **`bd52103f`** — zero-config first boot (site seed: login + location tree).
 - **`73dbbcce`** — the canonical MSF config-request list.
@@ -737,16 +752,24 @@ remains is documentation, MSF's answers, and two real gaps (backup, hardware).**
    - **`CLINICAL-QUICKSTART`** — add providers, upload/activate a profile, extend the location tree.
    **No pandoc on this box** (needs root) — print the Markdown from a browser, as
    `make-install-card.sh` already does.
-2. **Send MSF the config-request list.** Longest lead times and highest impact: **B5** (what their
-   tablet system image permits — can invalidate the QR install path outright) and **B6** (their IP
-   space, and why a "probably free" address is not enough). Also the narrowed **A9** (printed/exported
-   records read UTC) and **C1** (data-protection, which gates WS-7).
+2. ✅ **Config-request list prepared for MSF (2026-07-30) — send it.** The send-ready extract is
+   `docs/FIELD-PILOT-MSF-REQUEST-OUTGOING.md`, plus `docs/FIELD-PILOT-SERVER-SPEC.md` as an
+   accompanying attachment. Reordered by lead time, not by the internal A/B/C grouping: **B5** (what
+   their tablet image permits — can invalidate the QR install path outright), **B6/B2** (their IP space,
+   and why a "probably free" address is unreachable), **B1**, **D1** (hardware), **C1**
+   (data-protection, gates WS-7) come first; the clinical items follow. Each item is tagged with who at
+   MSF owns it (clinical / IT / programme / data-protection) so the mail can be routed, and it ends with
+   a fill-in summary table. **Remaining action is non-technical: actually send it** and log answers back
+   into the canonical `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`.
 3. **Backup — the largest remaining technical gap.** Nothing snapshots the DB; binlog is off and
    `tools/buendia-export.sh` still has the `DataExportServlet` TODO. Needs an MSF decision too
    (**C2**: may a backup leave the site?). One mini-PC holding the only copy of patient data.
-4. **Server hardware spec** — ours to produce (x86-64 only; fanless; healthy RTC; 12 V input for a
-   UPS). It also unblocks the UPS/graceful-shutdown TODO in `setup.sh` and gives a box on which the
-   netplan path can be tested without disturbing anything.
+4. ✅ **Server hardware spec written** (`docs/FIELD-PILOT-SERVER-SPEC.md`, 2026-07-30) — **recommends a
+   repurposed or refurbished business laptop**, not a mini-PC; see the hardware entry under *Not started
+   / deferred* for the reasoning. Now waiting on MSF (**D1**). Once the shape is known it unblocks the
+   **UPS/graceful-shutdown TODO** at `setup.sh:186` — on a laptop this is UPower battery thresholds,
+   which is much simpler than wiring Network UPS Tools to an external UPS — and gives a box on which
+   the netplan path can be tested without disturbing anything.
 5. **Test the untested branch:** `CONFIGURE_NETWORK=true` — generated netplan, and especially the
    `wifis:` block — has **never been applied on hardware**. Both real installs used
    `CONFIGURE_NETWORK=false`.
@@ -756,8 +779,7 @@ remains is documentation, MSF's answers, and two real gaps (backup, hardware).**
 
 Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
 (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —
-they predate this work. And the superproject branch is still **unpushed**; the client submodule branch
-*is* pushed.
+they predate this work. Both branches (superproject and client submodule) are now pushed to `soldevelo`.
 
 *(The old note here — that the local stack ran a hand-configured DB — no longer applies: it was
 rebuilt cold from the seed on 2026-07-29. See §3 for its current state.)*
