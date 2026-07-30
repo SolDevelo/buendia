@@ -4,9 +4,10 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-29 (WS-1..WS-5 COMPLETE. **Installed on a second, bare Ubuntu 24 machine from a USB
-stick and validated end to end — including a tablet installing by QR.** Images are published to Docker Hub;
-the APK payload ships from a private GitHub release. **Next: WS-6 runbooks**)._
+_Last updated: 2026-07-30. **WS-1..WS-5 COMPLETE and twice validated on real hardware.** A bare Ubuntu 24
+notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
+clone — smoke-tested through the tablet, rebooted, wiped and reinstalled. Images are public on Docker Hub;
+the tablet APK payload ships from a private GitHub release. **Next: WS-6 runbooks.**_
 
 ---
 
@@ -238,6 +239,14 @@ Independently verified **from a different machine** (this box, over the WiFi), n
 | Order | created `15:01:01Z` — the treatment path works |
 | Reachability | `:9000` REST and `:9001` install path both answer across the LAN |
 
+**Reinstalled from the bundle and re-verified (2026-07-30).** After the box was wiped (containers,
+volumes, images, network and `/opt/buendia`), it was installed again from the USB — this time via
+`bootstrap.sh` + `buendia-deploy-*.tar.gz`, so **no git clone and no internal docs ever touched the
+server** — and smoke-tested from the tablet again. Independently re-verified from this box:
+`buendia-verify.sh --host 192.168.0.250 --no-db` → **13/13 GO**, and in the data: a genuinely fresh DB
+(the previous `TEST/1659` is gone), `TEST/1028` placed in `[1] Triage [*]`, **30 observations** and
+**1 order** at `08:29:57Z`. So the bundle path is now the *proven* path, not just the tidier one.
+
 **Unattended restart confirmed (2026-07-29):** the notebook was rebooted — Docker came up on boot,
 the stack restarted on its own (`restart: unless-stopped` on all three services), and **the tablet
 reconnected and worked** with no intervention. That is the behaviour a site needs after a power cut.
@@ -369,53 +378,50 @@ adb install -r buendia-client-<version>.apk
 The script prints the baked-in server/user read back out of the finished APK — check that line.
 Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
-### State of the local test stack RIGHT NOW (2026-07-29, end of session)
+### State of things RIGHT NOW (2026-07-30, end of session)
 
-The stack is **running and healthy, but EMPTY** — it was deliberately torn down (`down -v`) and
-cold-booted to validate the registry path, with the user's go-ahead. **The 2026-07-29 tablet
-smoke-test data (2 patients / 8 encounters / 62 observations / 1 order) is gone**; it had already
-served its purpose and is recorded in §2. Nothing of value is in this stack now, so it is free to
-`down -v` again.
+**Two machines are involved. Neither holds anything precious — both are reproducible.**
+
+**A. This build box** — the local stack is **running and healthy**, rebuilt cold from the baked DB image:
 
 | | |
 |---|---|
-| Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all **healthy** |
-| DB image | **`buendia-db:5.6-68e59eeb`** — baseline seed baked in (no 83 MB bind-mount any more) |
-| OpenMRS image | `buendia-openmrs:1.10.6-7d0f5e8e` (tagged `latest`) |
-| Server URL | `http://192.168.0.150:9000/openmrs` — login `buendia` / `buendia` |
-| Package server | `http://192.168.0.150:9001/` — landing page + `/latest.apk` |
-| Data | **0 patients / 0 encounters / 0 obs** — 6 locations, 2 providers (fresh seed) |
-| Zones | `[1] Triage [*]` · `[2] Suspect Zone` · `[3] Probable Zone` · `[4] Confirmed Zone` · `[5] Discharged` |
-| APK | `deploy/apk/buendia-client-1.apk`, release-signed, baked for `192.168.0.150` |
-| Also built | `buendia-pkgserver:pilot-1` (APK baked in; not referenced by `.env`) |
+| Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all healthy |
+| Images | `buendia-db:5.6-68e59eeb` (running), `buendia-openmrs:1.10.6-7d0f5e8e` |
+| URL | `http://192.168.0.150:9000/openmrs` — login `buendia` / `buendia` |
+| Data | empty apart from anything a `--write` check left voided |
+| `.env` | `SITE_ID=notebook-test`, `STATIC_IP`/`APK_SERVER=192.168.0.250`, images pinned by **digest** |
 
-Re-attach in a new session with:
-```bash
-cd deploy/compose && docker compose --env-file ../.env ps   # should be 3× healthy
-deploy/tools/buendia-verify.sh                              # 16 checks, expect GO
-```
-`deploy/.env` now also holds `DB_IMAGE=buendia-db:5.6-68e59eeb`. If the DB image is missing after a
-`docker system prune`, rebuild it with `deploy/seed/build-db-image.sh` (the 83 MB seed is still on
-disk at `deploy/seed/initdb/10-buendia-base.sql`; regenerate with `build-seed.sh` if not).
+⚠️ `deploy/.env` is aimed at the **notebook** (`192.168.0.250`), not at this box. If you rebuild an APK
+here for local use, set `APK_SERVER=192.168.0.150` first — otherwise the tablet points at the notebook.
 
-Rehearse the installer without touching this box:
+**B. The test notebook** (`192.168.0.250`) — installed from the USB bundle, smoke-tested, verified 13/13.
+Holds `TEST/1028` + 30 obs + 1 order. Free to wipe; `pilot-usb` + the stick reinstall it in ~10 minutes.
+
+Re-attach / re-check:
 ```bash
-cd deploy && ./setup.sh --dry-run     # prints every change, makes none; runs as non-root
+cd deploy/compose && docker compose --env-file ../.env ps    # local: expect 3× healthy
+deploy/tools/buendia-verify.sh                               # local, 16 checks
+deploy/tools/buendia-verify.sh --host 192.168.0.250 --no-db   # the notebook, 13 checks
 ```
 
-To validate a seed/config change **without touching this stack**, boot a throwaway alongside it
-(own containers, own volumes; shares only the read-only `seed/initdb` and `pkgserver/www` mounts):
+**Artefacts on disk** (all git-ignored and regenerable — only `.env` and the signing key are not):
+`seed/initdb/10-buendia-base.sql` (83 MB), `apk/buendia-client-1.apk` (baked for `.250`),
+`pkgserver/pkgserver-www-notebook-test-1.tar.gz`, `buendia-deploy-<ver>.tar.gz`.
+The **USB stick** (`DataTravele`) holds `bootstrap.sh` + bundle + `buendia.env` + payload + the QR PNG;
+it is currently unmounted. Regenerate any of it with `make-bundle.sh` / `pack-www.sh`, or follow the
+**`pilot-usb`** skill.
+
+To validate a seed/config change without touching the local stack, boot a throwaway alongside it
+(own containers, own volumes):
 ```bash
 cd deploy/compose
 OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env up -d
 deploy/tools/buendia-verify.sh --port 9100 --pkg-port 9101 --project throwaway --write
 OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env down -v
 ```
-Pass the same `-p` and port vars to **every** command in the group, `down` included, or you will
-act on the wrong stack. Cold boot to healthy took ~1 min on this box.
-`deploy/.env` is git-ignored, so it survives; it holds `APK_SERVER=192.168.0.150` and the
-throwaway `APK_KEYSTORE_PASSWORD`. Regenerate anything missing with `build-image.sh` /
-`build-seed.sh` / `build-apk.sh` — all of it is reproducible, only `.env` and the keystore are not.
+Pass the same `-p` and port vars to **every** command in the group, `down` included, or you will act on
+the wrong stack.
 
 ⚠️ **Use GET, not `curl -I`**, to probe the REST API: `HEAD` on the buendia resources returns **500**
 while `GET` returns 200. Harmless (the client only uses GET) but it will send you chasing ghosts.
@@ -587,6 +593,21 @@ card prints a blank line to fill in by hand.
   file** `20-buendia-site.sql`. `setup.sh` also refuses to start a stack whose `DB_IMAGE` carries no
   baked-seed label, so this cannot ship silently broken.
 
+### Packaging traps (2026-07-30)
+
+- **`local a="$1" b="$a"` in ONE declaration is fatal under `set -u`.** Bash marks every name in a
+  single `local` as local *before* performing the assignments, so `$a` is unset while evaluating `b`
+  → "unbound variable". Split it into two `local` statements. Hit in `make-bundle.sh`.
+- **A glob whose "last match wins" silently selects the wrong artefact.** A build machine accumulates
+  payloads for several server addresses (`pkgserver-www-pilot-1`, `pkgserver-www-notebook-test-1`),
+  and glob order is alphabetical, so "pilot" beat "notebook-test" for no reason anyone could guess.
+  Since the APK bakes in a server address, the wrong payload **installs cleanly and then never
+  connects**, with nothing on the box to explain why. `bootstrap.sh` now refuses an ambiguous USB
+  (lists the candidates, exits 1) rather than choosing. Prefer failing closed over picking.
+- **A deployment must not be a git clone.** See §2: the bundle is an **allowlist** of the nine paths
+  the deployment touches, and `make-bundle.sh` fails the build if `CLAUDE.md`, anything under `docs/`,
+  a stray `*.md`, `.env` or `.git` appears inside. A denylist would leak whatever the repo gains next.
+
 ### Timezone: the stack is UTC end-to-end, and it shows (A9)
 
 - `setup.sh` sets the **host** timezone from `TZ` in `.env`, and compose passes the same `TZ` to
@@ -702,51 +723,36 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE — in this order:**
+**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. What
+remains is documentation, MSF's answers, and two real gaps (backup, hardware).**
 
-0. ~~Push the images~~ **done** — `soldevelo/buendia-db@sha256:8f1c6e1d…`,
-   `soldevelo/buendia-openmrs@sha256:f51a9d6d…` are public on Docker Hub and were pulled by digest
-   during the notebook install. The APK payload is a **private** GitHub release
-   (`SolDevelo/buendia-pilot-artifacts`, tag `pilot-1.0.0-rc2`).
-0b. ~~Run `setup.sh` on real hardware~~ **done** — see §2. Two follow-ups it left open:
-   **(i) A9 is now narrowed, not open** — the tablet displays local time (~16:59 for `14:59Z`), so
-   `TZ=UTC` stays; the only residual is whether the *printed/exported* record must be local; and
-   **(ii) the netplan path is still unproven** — the run used `CONFIGURE_NETWORK=false`, so
-   generated netplan, and especially the `wifis:` branch, have never been applied on hardware.
-0c. **Send MSF the config questions** — especially the new **B5 (tablet system image)**, which can
-   invalidate the QR install path entirely, and the rewritten **B2** (their Wi-Fi: free address,
-   client isolation, a wired port for the server). Ask for **one tablet with their image**.
-0d. **Server hardware spec** — ours to decide; a deliverable we owe. It also gates 0b and the
-   UPS/graceful-shutdown TODO.
-0e. **Decide the backup story** (with MSF, C2) and implement it — nothing snapshots the DB today.
-
-Then WS-6:
-
-1. **WS-6 — the runbooks** (plan §WS-6, ~2–3 days). Three Markdown documents delivered as PDF:
-   - **`STAGING-SETUP-GUIDE`** — SolDevelo's staging procedure and the rebuild reference: bare Ubuntu
-     → `setup.sh` → `docker load` → `up -d` → router config → APK on every tablet → the §1 round-trip
-     on a T4 *and* a T5 → power off, label, pack (incl. the laminated in-zone cards).
-   - **`SITE-RUNBOOK`** — non-technical MSF staff: power-on order, the single go/no-go check
-     (now built: `deploy/tools/buendia-verify.sh --quick` — prints PASS/FAIL lines and GO/NO-GO,
-     needs no docker, so it is safe to put in front of a non-technical operator),
-     add/replace a tablet, the troubleshooting list (plan §WS-6(b) items 7–15), and a separated
-     from-USB re-install appendix.
-   - **`CLINICAL-QUICKSTART`** — clinical admin: add providers, upload/activate a profile via the
-     Profile Manager page, extend the location tree.
-   Everything they must describe is already built and its gotchas are recorded in §4 — that section is
-   the raw material. **No pandoc on this box** (needs root), so either install it at staging or print
-   the Markdown from a browser/editor; `make-install-card.sh` deliberately uses the browser route.
-2. ~~Back up the APK signing key~~ — **done** (2026-07-29): SolDevelo internal system + a second
-   location on the build machine.
-3. **WS-7 — remote-support tunnel + data export**, once MSF data-protection signs off (C1). Note
-   `deploy/tools/buendia-export.sh` still has a genuine TODO: the `DataExportServlet` path/auth.
-4. **Send MSF the config-request list** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md`). Sequence matters:
-   **A5 (server password) and B1 (site IP) must be settled before the shipping APK is built**, because
-   both are baked into it — deciding them afterwards costs a rebuild plus a reinstall on every tablet.
-   A2/A3 (ward layout) are cheap now and expensive after tablets have synced.
-5. **Remaining genuine TODOs in the scaffold** (host-specific, not defects): the netplan interface
-   name in `deploy/config/netplan/60-buendia.yaml`, and the UPS/low-battery graceful-shutdown wiring
-   in `setup.sh`.
+1. **WS-6 — the three runbooks** (plan §WS-6, ~2–3 days). This is now largely *transcription*: the
+   procedure has been executed twice end to end, and every gotcha is in §4.
+   - **`STAGING-SETUP-GUIDE`** — the flow that was actually validated: `make-bundle.sh` →
+     `publish.sh` + `pack-www.sh` → stage the USB (`pilot-usb` skill) → `bootstrap.sh --dry-run` →
+     `bootstrap.sh` → `buendia-verify.sh` → tablet by QR → label and pack.
+   - **`SITE-RUNBOOK`** — non-technical MSF staff: power-on, the single go/no-go
+     (`buendia-verify.sh --quick`), add/replace a tablet, troubleshooting, and the from-USB
+     reinstall appendix (which is now a genuinely short procedure).
+   - **`CLINICAL-QUICKSTART`** — add providers, upload/activate a profile, extend the location tree.
+   **No pandoc on this box** (needs root) — print the Markdown from a browser, as
+   `make-install-card.sh` already does.
+2. **Send MSF the config-request list.** Longest lead times and highest impact: **B5** (what their
+   tablet system image permits — can invalidate the QR install path outright) and **B6** (their IP
+   space, and why a "probably free" address is not enough). Also the narrowed **A9** (printed/exported
+   records read UTC) and **C1** (data-protection, which gates WS-7).
+3. **Backup — the largest remaining technical gap.** Nothing snapshots the DB; binlog is off and
+   `tools/buendia-export.sh` still has the `DataExportServlet` TODO. Needs an MSF decision too
+   (**C2**: may a backup leave the site?). One mini-PC holding the only copy of patient data.
+4. **Server hardware spec** — ours to produce (x86-64 only; fanless; healthy RTC; 12 V input for a
+   UPS). It also unblocks the UPS/graceful-shutdown TODO in `setup.sh` and gives a box on which the
+   netplan path can be tested without disturbing anything.
+5. **Test the untested branch:** `CONFIGURE_NETWORK=true` — generated netplan, and especially the
+   `wifis:` block — has **never been applied on hardware**. Both real installs used
+   `CONFIGURE_NETWORK=false`.
+6. **Optional, cheap:** publish `buendia-deploy-<ver>.tar.gz` as a release asset on the public repo so
+   `bootstrap.sh` can fetch it via `BUNDLE_URL` with no USB.
+7. **WS-7 — remote-support tunnel + data export**, once **C1** signs off.
 
 Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
 (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —
