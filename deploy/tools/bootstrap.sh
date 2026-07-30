@@ -63,12 +63,20 @@ check_sha() {
   echo "  checksum OK (${got:0:12})"
 }
 
-# Pick the tarball, not its .sha256 sibling, from a glob.
+# Pick the tarball (not its .sha256 sibling) from a glob, and REFUSE if there is more than one.
+# Silently taking the last match is how you deploy a payload baked for the wrong server address:
+# glob order is alphabetical, so e.g. pkgserver-www-pilot-1 would beat pkgserver-www-notebook-1
+# for no reason anybody could guess. Better to stop and make the operator choose.
 pick_tar() {
-  local out=""
+  local -a found=()
   local f
-  for f in "$@"; do [[ "$f" == *.sha256 ]] || out="$f"; done
-  printf '%s' "$out"
+  for f in "$@"; do [[ "$f" == *.sha256 ]] || found+=("$f"); done
+  if [[ ${#found[@]} -gt 1 ]]; then
+    printf 'ERROR: more than one candidate on the USB — remove the ones you do not want:\n' >&2
+    printf '         %s\n' "${found[@]##*/}" >&2
+    exit 1
+  fi
+  [[ ${#found[@]} -eq 1 ]] && printf '%s' "${found[0]}" || printf ''
 }
 
 # ---------------------------------------------------------------------------
