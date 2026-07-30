@@ -8,12 +8,21 @@ _Last updated: 2026-07-30. **WS-1..WS-5 COMPLETE and twice validated on real har
 notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
 clone — smoke-tested through the tablet, rebooted, wiped and reinstalled. Images are public on Docker Hub;
 the tablet APK payload ships from a private GitHub release. The branch is now **pushed** to
-`soldevelo/drc-pilot`, and the two MSF-facing documents are written and ready to send
-(`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`).
+`soldevelo/drc-pilot`.
+
+**✉️ The configuration questions were SENT to MSF on 2026-07-30 — we are now waiting for answers**
+(`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`). Every item in the canonical
+`FIELD-PILOT-MSF-CONFIG-REQUESTS.md` is marked 🟡 awaiting; log answers **there**, not in the extract.
+
 **⚠️ Five direction changes landed on 2026-07-30** — end goal restated, two levels of test, MSF installs
 the shipping server, the user test will change the seed, and the network default inverted to reusing the
-site's Wi-Fi. See the DIRECTION CHANGES block in §2. **Next: send the MSF docs, test the remote tunnel
-locally, then WS-6.**_
+site's Wi-Fi. See the DIRECTION CHANGES block in §2 before touching the plan.
+
+**➡️ NEXT SESSION: don't wait on MSF — three things need nothing from them.** In order:
+**(1)** test the remote-support tunnel locally over a mobile hotspot (never tested; C1 does *not* gate
+testing it); **(2)** test `CONFIGURE_NETWORK=true`, both the `ethernets:` and the unproven `wifis:`
+branch — this moved onto the shipping path with the network change, and **MSF runs that step, not us**;
+**(3)** build the backup mechanism, which is still the largest technical gap. Then WS-6 runbooks._
 
 ---
 
@@ -475,7 +484,8 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 | Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all healthy |
 | Images | `buendia-db:5.6-68e59eeb` (running), `buendia-openmrs:1.10.6-7d0f5e8e` |
 | URL | `http://192.168.0.150:9000/openmrs` — login `buendia` / `buendia` |
-| Data | empty apart from anything a `--write` check left voided |
+| Data | **0 patients / 0 encounters / 0 obs / 0 orders**, 6 locations, 2 providers — a clean stack |
+| Verified | **`buendia-verify.sh` → GO, 16/16**, re-run at close of session 2026-07-30 |
 | `.env` | `SITE_ID=notebook-test`, `STATIC_IP`/`APK_SERVER=192.168.0.250`, images pinned by **digest** |
 
 ⚠️ `deploy/.env` is aimed at the **notebook** (`192.168.0.250`), not at this box. If you rebuild an APK
@@ -812,13 +822,24 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. What remains is
-MSF's answers, documentation, and three real gaps (backup, the untested remote tunnel, the untested
-netplan branch).**
+**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. The MSF questions
+are sent and we are waiting. What remains is three real gaps (the untested remote tunnel, the untested
+netplan branch, no backup) plus documentation.**
 
 ⚠️ **Read the DIRECTION CHANGES block in §2 first (2026-07-30).** The staging model, the number of test
 levels, who installs the shipping server, and the network default all changed; the priorities below assume
 those changes.
+
+> ### 🔢 Order to work in — the numbering below is stable, so read this for sequence
+>
+> **MSF is now the long pole, so do the things that need nothing from them.** In order:
+> **item 7** (test the remote tunnel over a mobile hotspot — never tested, and C1 does *not* gate testing),
+> then **item 5** (test `CONFIGURE_NETWORK=true`, both branches — newly on the shipping path, and MSF
+> executes it), then **item 3** (backup — the largest technical gap), then **item 8** (WS-6 runbooks, with
+> the changed audience). **Item 2 is done** (questions sent); items **4** and **6** are done or optional.
+> Item **9** (multi-tablet retest) has moved into MSF's UAT script and is no longer ours to schedule.
+>
+> Item numbers are referenced from other documents — **don't renumber them**, just mark them done.
 
 1. **WS-6 — the three runbooks** (plan §WS-6, ~2–3 days). This is now largely *transcription*: the
    procedure has been executed twice end to end, and every gotcha is in §4.
@@ -831,7 +852,15 @@ those changes.
    - **`CLINICAL-QUICKSTART`** — add providers, upload/activate a profile, extend the location tree.
    **No pandoc on this box** (needs root) — print the Markdown from a browser, as
    `make-install-card.sh` already does.
-2. ✅ **Config-request list prepared for MSF (2026-07-30) — send it.** The send-ready extract is
+2. ✅✉️ **SENT TO MSF on 2026-07-30 — we are now waiting for answers. Nothing to do here but chase.**
+   All items in `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` are marked **🟡 asked, awaiting answer** (none is ⬜
+   any more). **When an answer arrives: log it in that canonical file** (not the outgoing extract), flip the
+   item ✅, apply it via the `pilot-site-config` skill, and note it in §2 here.
+   **Which answers to chase hardest:** **B5** (their tablet image — can invalidate the QR install route),
+   **B2/B6** (the network choice + the server address — most schedule-critical, it is baked into the APK),
+   **C1** (data-protection, gates WS-7), **D1** (hardware, if anything is purchased — delivery lead time).
+   **Which answers can wait:** A1/A2/A3/A4/A7 are all things the MSF user test can settle live at no cost.
+   The send-ready extract was
    `docs/FIELD-PILOT-MSF-REQUEST-OUTGOING.md`, plus `docs/FIELD-PILOT-SERVER-SPEC.md` as an
    accompanying attachment. Reordered by lead time, not by the internal A/B/C grouping: **B5** (what
    their tablet image permits — can invalidate the QR install path outright), **B6/B2** (their IP space,

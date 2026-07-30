@@ -12,11 +12,29 @@
 > This file covers **configuration**. Programme/logistics decisions (hardware model, staging location,
 > hypercare scope, budget) live in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §8 — don't duplicate them here.
 >
-> _Last updated: 2026-07-29 (**B5 added** — MSF's tablet system image, which can invalidate the QR
-> install path; **B6 added** — the IP space if we use their Wi-Fi, and why a "probably free" address
-> is not enough; **B2 rewritten** for "the site already has Wi-Fi"; **B1/A5** re-scoped from blocking
-> to cheap-but-manual now that the tablet's address/password are known to be runtime-editable;
-> **B4** shape decided)._
+> ## ✉️ SENT TO MSF — 2026-07-30. We are now waiting for answers.
+>
+> The whole list went to MSF on **2026-07-30**, as the send-ready extract
+> `FIELD-PILOT-MSF-REQUEST-OUTGOING.md` plus `FIELD-PILOT-SERVER-SPEC.md` (for **D1**). Every item is
+> therefore **🟡 asked, awaiting answer** — none is ⬜ any more.
+>
+> **When an answer arrives:** fill in *Answer* **here** (this file is the master), flip the item to ✅,
+> apply it to the named file — the `pilot-site-config` skill is the apply path — and note it in
+> `FIELD-PILOT-PROGRESS.md` §2. The outgoing extract is *derived*; don't log answers into it.
+>
+> **Priority of the answers we are waiting on**, highest first:
+> 1. **B5** — what MSF's tablet image permits. Can invalidate the QR install route outright.
+> 2. **B2/B6** — the network choice and the server's address. **Most schedule-critical**: the address is
+>    baked into the tablet APK and the MSF-CH user test runs on a different network from the site.
+> 3. **C1** — data-protection sign-off. Gates WS-7 being enabled at a site.
+> 4. **D1** — the server machine, if anything is to be purchased (delivery lead time).
+>
+> _Last updated: 2026-07-30 (**all items marked sent**; **D1 added** — server hardware, with the spec
+> delivered as its own document; **B2/B6 rewritten** — the default inverted to *reusing* the site's Wi-Fi
+> and both options are now put to MSF; **new question added** — does the site Wi-Fi have internet, which
+> decides tablet clock discipline and whether remote support is possible at all; **A6** no longer "not yet
+> raised". Previously, 2026-07-29: B5 and B6 added, B2 rewritten, B1/A5 re-scoped to cheap-but-manual,
+> B4 shape decided.)_
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -24,7 +42,7 @@
 
 ## A. Clinical & site data
 
-### A1. Facility name (root location) — ⬜
+### A1. Facility name (root location) — 🟡
 
 - **Need:** the real name of the pilot site, as clinicians should see it on the tablet.
 - **Why:** Buendia's location tree has exactly one parentless root, shown as the top of the patient-list
@@ -78,7 +96,7 @@
 - **Lands in:** `deploy/seed/initdb/20-buendia-site.sql` §1 (zone `name` values).
 - **Answer:** _(pending — confirm Triage is the right landing zone and the order is right)_
 
-### A4. Clinician accounts → provider list — ⬜
+### A4. Clinician accounts → provider list — 🟡
 
 - **Need:** the list of people who will record data, and the **model**: shared accounts per role/shift,
   or one per clinician? For each: display name (given + family) as it should appear on the tablet.
@@ -92,7 +110,7 @@
 - **Lands in:** `deploy/seed/initdb/20-buendia-site.sql` §3 (one `provider` row per person).
 - **Answer:** _(pending)_
 
-### A5. Server login credentials & password policy — ⬜
+### A5. Server login credentials & password policy — 🟡
 
 - **Need:** the username/password the tablets and the web admin UI should use, or confirmation that we
   set one and hand it over at staging. Also: who is allowed to know it.
@@ -105,7 +123,7 @@
   the seed default lives in `20-buendia-site.sql` §2.
 - **Answer:** _(pending)_
 
-### A6. Interface language — French? — ⬜ **likely important, not yet raised**
+### A6. Interface language — French? — 🟡 **likely important; raised 2026-07-30**
 
 - **Need:** the UI language for clinicians, and if French: confirmation that the shipped French strings
   are acceptable (they are from ~2016 and were not written for this deployment).
@@ -119,7 +137,7 @@
 - **Lands in:** `locale.allowed.list` global property + tablet locale; clinical wording in the profile CSV.
 - **Answer:** _(pending)_
 
-### A7. Clinical profile — forms, charts, questions — ⬜
+### A7. Clinical profile — forms, charts, questions — 🟡
 
 - **Need:** confirmation that the shipped Ebola profile is the right clinical content, or a revised
   profile (which forms, which questions, which order, which chart layout, and in which language).
@@ -132,7 +150,7 @@
   upload/activate a profile at runtime via the Profile Manager web page.
 - **Answer:** _(pending)_
 
-### A8. Patient ID scheme — ⬜
+### A8. Patient ID scheme — 🟡
 
 - **Need:** the format of patient identifiers clinicians will type or scan (prefix, length, digits vs
   alphanumeric), and whether MSF numbers come from an existing external register.
@@ -187,20 +205,46 @@
 - **Lands in:** `deploy/.env` (`STATIC_IP`, `SITE_ID`) → netplan + the APK's `APK_SERVER`.
 - **Answer:** _(pending)_
 
-### B2. Site network — 🟡 *(MSF indicated the site already has Wi-Fi — needs confirming, then detail)*
+### B2. Site network — 🟡 *(default INVERTED 2026-07-30: reusing their Wi-Fi is now our preference; both options put to MSF)*
 
+> **⚠️ Direction change 2026-07-30 — this item was rewritten.** The default *was* our own shipped
+> autonomous router, with their Wi-Fi as an option. It is now **the other way round**: reusing the site's
+> Wi-Fi is our stated preference, and our own AP is the fallback (and the UAT subnet-mimic device). Full
+> reasoning and the trade-off table are in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §3.3; the short version is that
+> **coverage is the risk we can neither measure nor fix from Switzerland**, whereas the addressing risk has
+> a workaround on arrival — **and reusing someone else's network is already validated**, since both
+> hardware runs (2026-07-29/30) put the server on an existing office network at a given static address
+> (`192.168.0.250`) with the APK built for it, and it worked first time.
+>
+> **MSF has been asked to choose**, with both options explained, because "the site has Wi-Fi" is our
+> inference from a conversation and not a confirmed fact.
+
+- **⭐ NEW QUESTION (2026-07-30) — does the site's Wi-Fi have internet access, even intermittently?**
+  This is small to ask and decides two things we cannot otherwise solve:
+  1. **Tablet clock discipline.** With internet, Android's normal automatic time works and the problem
+     disappears — *better* than the workaround we had designed. Without it, we have no way to discipline
+     tablet clocks (our DNS-interception trick needs a resolver we control, which we do not have on their
+     network), and since the encounter timestamp is supplied by the tablet, drift becomes **wrong clinical
+     data**. See **A9** and **B5 q8**.
+  2. **Whether remote support is possible at all.** No internet path means the tunnel is *impossible*, not
+     merely disabled — a box nobody can look inside (**C1**, plan §3.5).
 - **Need:** if the site's existing Wi-Fi is the network we use, we need, **before staging**:
   1. **subnet / netmask / gateway**, and a **free static address** for the server — ideally a DHCP
      reservation on their AP or controller;
   2. confirmation the network does **not isolate clients from each other** (see below);
   3. whether there is a **wired port** (AP or switch) where the server will live;
   4. SSID + passphrase, and whether the network is shared with other services or internet-facing;
-  5. coverage over the actual zones (tents/wards) — poor coverage is the most common field failure;
+  5. coverage over the actual zones (tents/wards) — poor coverage is the most common field failure.
+     ⚠️ Ask specifically about the *zones*, not the site in general: a network covering an admin building
+     is not evidence that it reaches a triage tent 80 m away;
   6. who administers it, and whether their IT must approve an unmanaged server holding patient data
      on it (ties to **C1**/**C2**).
-- **Why this changes things:** using their Wi-Fi removes the router from our kit, but it also removes
-  our control of DHCP — and **the server's address is baked into every tablet's APK**, so it must be
-  known and stable *before* the shipping APK is built (**B1**, **A5**).
+- **⏱️ Why this is the most schedule-critical answer on the list:** the server's address is baked into the
+  tablet APK, and the **MSF-CH user test runs on a different network from the site**. Either the address is
+  known before the shipping APK is built, or the APK is rebuilt and reinstalled per tablet after UAT, or
+  somebody performs a guided Settings change on every tablet at the site. Plan §3.3 records the neat way
+  out: configure the fallback AP at MSF CH to **mimic the site's subnet**, so UAT runs against the final
+  address and nothing needs touching afterwards — which only works if the address is settled before UAT.
 - **⚠️ The silent killer — client isolation.** Many office/guest Wi-Fi networks isolate clients from
   each other ("AP isolation" / "client isolation"). On such a network tablets associate perfectly and
   simply **cannot reach the server at all**, with no visible cause. Same for VLAN separation and for a
@@ -209,15 +253,23 @@
 - **Server on Wi-Fi vs wired:** a server should normally be **wired** into the network. `setup.sh`
   can put a static address on a wireless interface (it generates a netplan `wifis:` block), but that
   needs their passphrase stored on the box and is less reliable.
-- **Contingency we should keep:** a cheap travel router in the kit anyway, so we can fall back to a
-  network we control with a known address if their Wi-Fi turns out to be unusable.
-- **Default shipped:** `CONFIGURE_NETWORK=true` with a static `192.168.8.10/24` and no gateway (an
+- **Contingency — now a firm decision, not a maybe: buy the AP regardless of MSF's answer.** It earns its
+  place three times over (plan §3.3): it is the recovery path if their network isolates clients or turns out
+  not to exist; it is how MSF CH can **mimic the site's subnet during UAT**; and it can extend coverage into
+  a zone their network misses.
+- **Default shipped (code):** `CONFIGURE_NETWORK=true` with a static `192.168.8.10/24` and no gateway (an
   isolated LAN). Set `CONFIGURE_NETWORK=false` to leave their network alone.
+  **Expected shipping mode after the direction change:** `CONFIGURE_NETWORK=true` with *their* subnet and
+  *our given* address — i.e. a static address on a network we do not own.
+  ⚠️ **This puts a previously optional code path onto the shipping path.** Generated netplan has **never
+  been applied on hardware** (both real installs used `CONFIGURE_NETWORK=false`), and if the site gives us
+  no wired port it is the completely unproven **`wifis:`** branch that runs — executed by MSF, not us.
+  **Test both branches before the MSF session** (progress §8 item 5).
 - **Lands in:** `deploy/.env` (`STATIC_IP`, `NET_IFACE`, `NET_PREFIX`, `GATEWAY_IP`, `DNS_SERVERS`,
   `CONFIGURE_NETWORK`, `SITE_WIFI_*`) → `setup.sh` generates `/etc/netplan/60-buendia.yaml`.
 - **Answer:** _(pending — "the site already has Wi-Fi" is so far a note to re-confirm, not an answer)_
 
-### B5. MSF's tablet system image — what does it contain and permit? — ⬜ **can invalidate the whole install path**
+### B5. MSF's tablet system image — what does it contain and permit? — 🟡 **can invalidate the whole install path**
 
 - **Context / decision taken:** MSF will supply the tablets with **their own system image**, reused
   from previous projects, and the Buendia APK is installed **by scanning the QR code after the server
@@ -253,7 +305,7 @@
   the worst case, the provisioning route itself.
 - **Answer:** _(pending)_
 
-### A10. Auto-logout idle timeout — ⬜ *(we changed the shipped default — confirm it)*
+### A10. Auto-logout idle timeout — 🟡 *(we changed the shipped default — confirm it)*
 
 - **Need:** how long a tablet may sit idle before the app signs the clinician out back to the
   provider picker — separately for a tablet on battery and one on a charger.
@@ -270,7 +322,7 @@
   into the APK by `deploy/apk/build-apk.sh`. Requires a rebuild + reinstall to change.
 - **Answer:** _(pending)_
 
-### A11. Tablet data-at-rest protection & screen-lock PIN — ⬜ **staging-blocking, cheap**
+### A11. Tablet data-at-rest protection & screen-lock PIN — 🟡 **staging-blocking, cheap**
 
 - **Need:** confirmation that every pilot tablet will have **device encryption on** and a
   **mandatory screen-lock PIN**, and whether the PIN is shared across tablets or per device (see
@@ -287,7 +339,7 @@
 - **Lands in:** the staging/provisioning checklist (WS-6), not a config file.
 - **Answer:** _(pending)_
 
-### B3. Tablet count & device policy — ⬜
+### B3. Tablet count & device policy — 🟡
 
 - **Need:** how many CrossCall T4/T5 tablets, and the device policy: screen-lock PIN (shared or per
   device?), who may install apps, whether tablets leave the site.
@@ -334,7 +386,7 @@
 - **Lands in:** the staging checklist / Site runbook (WS-6), `deploy/apk/README.md`.
 - **Answer:** _(pending)_
 
-### B6. If we use the site's existing Wi-Fi: the IP space — ⬜ **the consequences here are not obvious**
+### B6. If we use the site's existing Wi-Fi: the IP space — 🟡 **the consequences here are not obvious**
 
 - **Need, precisely:**
   1. the **subnet and mask** the tablets get (e.g. `192.168.0.0/24`) and the **gateway**;
@@ -384,12 +436,38 @@
 - **Default shipped:** `ENABLE_REMOTE_SUPPORT=false` in `deploy/.env`; Tailscale installed, not authed.
 - **Answer:** _(pending)_
 
-### C2. Data retention & handover — ⬜
+### C2. Data retention & handover — 🟡
 
 - **Need:** what happens to the data at the end of the pilot: retained on the box, exported to MSF,
   wiped? Who owns it, and is a backup allowed to leave the site?
 - **Why:** determines the backup/export design and the decommissioning step of the site runbook.
 - **Default shipped:** local snapshot backups only, nothing leaves the box.
+- **Answer:** _(pending)_
+
+---
+
+## D. Hardware
+
+### D1. The server machine — repurpose or buy? — 🟡 *(spec delivered 2026-07-30)*
+
+- **Need:** either a machine MSF already has that passes the checklist, or a decision on which option to
+  purchase. Plus the **site environment** (building vs dusty tent), which is the one input that could
+  overturn our recommendation.
+- **Full specification:** `docs/FIELD-PILOT-SERVER-SPEC.md`, written to be forwarded to whoever holds
+  MSF's hardware. It went to MSF with the outgoing request.
+- **Why it is here** and not only in plan §8: it is now an **asked** item awaiting an answer, so it needs
+  answer-tracking alongside the rest. The *procurement* decision stays a programme matter (plan §8).
+- **What we recommend:** a **repurposed or refurbished business laptop**, not a mini-PC — the battery is a
+  built-in UPS against the pilot's main data-loss risk, the screen is what tablets scan the install QR
+  from, and it is the shape validated twice on hardware. A 5–8 year old Core i5 is entirely adequate.
+- **Hard rule to restate every time this is discussed:** **Intel or AMD only.** `mysql:5.6` is amd64-only
+  and `setup.sh` hard-fails on anything else, which rules out **Snapdragon X / "Copilot+" laptops and
+  Apple Silicon Macs** — a large share of current retail stock. Also required: 8 GB RAM (16 preferred), a
+  real SSD (**not eMMC**), a **working RTC/CMOS battery** (an offline site cannot correct a wrong clock and
+  patient timestamps depend on it), and a healthy main battery.
+- **Default shipped:** none — no machine is chosen. `setup.sh` refuses non-x86_64.
+- **Lands in:** no config file; it gates the UPS/graceful-shutdown work still open in `setup.sh`
+  (on a laptop that is UPower battery thresholds; on a mini-PC it needs an external UPS wired up).
 - **Answer:** _(pending)_
 
 ---
@@ -411,3 +489,16 @@ Worth putting in front of MSF once, because they shape acceptable answers:
    code changes to an unmaintained codebase and are out of pilot scope unless explicitly funded.
 5. **The package is never blocked on these answers** — it boots and is clinically usable with the defaults
    above. Each answer swaps out one default, mostly in a single small SQL file.
+6. **Several of these are *expected* to be settled at the MSF user test, not before it** (added
+   2026-07-30). There are two levels of test — technical at SolDevelo, **user/UAT at MSF Switzerland** —
+   and the UAT is *for* eliciting changes to the clinical configuration. So split this list by cost:
+   - **What UAT can change freely, live, with no rebuild and no tablet action:** **A1** facility name,
+     **A2/A3** the zone tree, its order and the default zone, **A4** provider accounts, **A7** the forms
+     and chart content. Chase these, but a "we'll decide when we see it" answer is perfectly workable.
+   - ⚠️ **What must be settled BEFORE the shipping APK is built:** **B1** the server address, **A5** the
+     password, **A10** the idle timeouts. These are baked into the APK, so changing them later means a
+     rebuild plus a reinstall on every tablet, or a guided Settings visit per tablet in the field. **These
+     are the ones to push on.**
+   - **Two rules for the UAT itself** (plan §2.1): every accepted change must be **folded back into the
+     seed** or a reinstall silently reverts it, and the **UAT test data must be wiped** before the kit
+     ships.
