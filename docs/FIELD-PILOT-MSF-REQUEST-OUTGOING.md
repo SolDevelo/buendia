@@ -34,7 +34,13 @@ quick.
 - **MSF supplies the tablets**, carrying MSF's own system image reused from previous projects. The
   Buendia app is installed onto them **by scanning a QR code** once the server is running. (This is why
   **B5** below is the most important question in this document.)
-- **The site already has a Wi-Fi network**, so we expect to *not* ship a router — subject to **B2**/**B6**.
+- **We understand the site already has a Wi-Fi network**, and we would prefer to reuse it rather than ship
+  our own — but this is our reading of a conversation, not something confirmed. **Please correct us if
+  wrong**, and see **B2/B6**, where both options are laid out.
+- **Two levels of testing:** SolDevelo tests the package technically; **MSF Switzerland installs the
+  actual server that ships and runs the user test / UAT**, adjusting the configuration in the process.
+  Changes to forms and to the zone list are expected at that point and are cheap to make — see the note
+  under A2/A3 and A7.
 - **Server hardware:** SolDevelo specifies it, MSF sources it. **See D1 below and the accompanying
   document `FIELD-PILOT-SERVER-SPEC.md`** — if MSF has a suitable laptop to repurpose, that is the
   preferred outcome.
@@ -83,9 +89,51 @@ download.
 
 ---
 
-## B6 + B2. The site network, and one reserved IP address for the server 🖥️
+## B2 + B6. The network — two options, and we would like your view 🖥️
 
-If we use the site's existing Wi-Fi, we need the following **before staging**:
+The tablets and the server have to sit on **one shared network**. Nothing needs the Internet for clinical
+work. There are two ways to provide that network, and **we would like your opinion before we commit**,
+because the facts that decide it are yours.
+
+### Option 1 — reuse the site's existing Wi-Fi ⭐ our current preference
+
+**Why we lean this way:**
+- **Coverage is the hardest thing to fix remotely, and your network already solves it.** Your Wi-Fi was
+  presumably designed to cover the site; a single access point we ship might not reach a far tent, and
+  neither we nor anyone on site could do much about it.
+- **Fewer devices** to supply, power, keep spares of and explain — which serves the "no maintenance" goal.
+- **If that network has Internet, two problems solve themselves:** the tablets keep their clocks correct
+  automatically (which matters — see A9/B5, the time recorded against a patient comes from the tablet),
+  and we can provide remote support instead of being blind.
+- **We have already tested exactly this arrangement.** Our validation runs put the server on an existing
+  office network we don't administer, at a fixed address we were given, with the app built for that
+  address — and it worked first time. So this is not an experimental setup for us.
+
+**What it costs:** it depends on you giving us one correct, stable address, and on your network not
+having certain settings (below). Both are straightforward, but they need a person who administers that
+network to confirm them — we cannot test any of it from Switzerland.
+
+### Option 2 — we bring our own small access point
+
+Fully self-contained: we supply an access point, the tablets join it, we control everything and nothing
+depends on your network. **We will include one in the kit as a backup regardless of your answer**, since
+it is also our recovery path.
+
+**What it costs:** **range.** One small access point covers roughly 10–15 m in the open and degrades
+quickly through walls — fine for one hall, questionable across a spread-out compound. We would be
+guessing at your site's geometry, and if we guess wrong the fix (repositioning, or adding a second unit)
+has to happen on site.
+
+### 👉 What we would like from you
+
+**Which option, in your view?** And two facts that decide it:
+
+1. **Does the site actually have Wi-Fi?** Our understanding that it does comes from conversation rather
+   than confirmation. If it doesn't, Option 2 is the only choice and we need to talk about coverage.
+2. **Does that Wi-Fi have Internet access** (even intermittent)? This decides whether tablet clocks stay
+   correct on their own and whether remote support is possible at all.
+
+### If Option 1 — what we need, precisely, before the kit ships
 
 1. **The subnet and mask** the tablets get (e.g. `192.168.0.0/24`), and the **gateway**.
 2. **The DHCP pool range**, so we can take an address outside it.
@@ -118,13 +166,24 @@ be tested on your actual network — it cannot be assumed.**
 **A DHCP address is not good enough on its own.** If the server's address changes, every tablet
 silently loses the server.
 
-**If a fixed address in your IP space cannot be arranged, we should ship our own small router.** That is
-the only arrangement where one app build works anywhere, because then we control the addressing. We had
-planned to drop the router since you have Wi-Fi — but the router is not only about coverage, it is also
-about owning the address space. We're happy either way; we just need to know which.
+**If a fixed address in your space cannot be arranged, we fall back to Option 2** — our own access point,
+where we own the addressing. We would rather not, because then coverage becomes our problem, but it is a
+working answer and the equipment travels with the kit anyway.
 
-**What we do today:** we assume our own isolated network at `192.168.8.10`. We can also leave your
-network entirely untouched.
+### ⏱️ Why this one is the most time-critical answer on the list
+
+The server's address is **built into the tablet app**, and **the user test in Switzerland happens on a
+different network from the site**. So we need the site's address *before* we build the app version that
+ships — otherwise either the app is rebuilt and reinstalled on every tablet after the user test, or
+somebody changes a setting on each tablet after arrival at the site (which works, but is a per-tablet job
+in the field, including any tablet inside a contamination zone).
+
+There is a neat way around this if we know the address in time: we configure the backup access point in
+Switzerland to imitate the site's address range, so the user test runs against the **final** address and
+nothing needs touching afterwards. That only works if the address is settled before the user test.
+
+**What we do today:** our default is our own network at `192.168.8.10`. We can equally leave your network
+untouched and take an address you give us — that is Option 1, and it is what we expect to do.
 
 ---
 
@@ -362,7 +421,8 @@ These shape which answers are practical, so they're better said once, up front.
 |---|------|-----|-------------------|-------------|
 | **B5** | **Tablet image: what does it permit?** ⭐ | 🖥️📋 | assumes browser install is allowed | |
 | **B5⭐** | **One tablet with your image, before staging** | 📋 | — | |
-| **B6/B2** | Subnet, gateway, DHCP pool, **one reserved server IP**; client isolation checked? | 🖥️ | our own network `192.168.8.10` | |
+| **B2/B6** | **Which network option?** Does the site have Wi-Fi, and does it have Internet? | 🖥️ | we prefer reusing yours | |
+| **B6** | If reusing yours: subnet, gateway, DHCP pool, **one reserved server IP**; client isolation checked? | 🖥️ | our own network `192.168.8.10` | |
 | **B1** | Server address + short site name | 🖥️📋 | `192.168.8.10`, `pilot` | |
 | **D1** | **Server machine — repurpose one, or buy?** (see spec doc) | 📋🖥️ | we recommend a refurbished business **laptop**; Intel/AMD only | |
 | **C1** | Data-protection sign-off (remote support + export) | ⚖️ | remote support **off** | |

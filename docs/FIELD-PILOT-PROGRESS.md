@@ -9,8 +9,11 @@ notebook was installed from a USB stick — the second time from the 36 KB deplo
 clone — smoke-tested through the tablet, rebooted, wiped and reinstalled. Images are public on Docker Hub;
 the tablet APK payload ships from a private GitHub release. The branch is now **pushed** to
 `soldevelo/drc-pilot`, and the two MSF-facing documents are written and ready to send
-(`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`). **Next: send those, then WS-6
-runbooks.**_
+(`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`).
+**⚠️ Five direction changes landed on 2026-07-30** — end goal restated, two levels of test, MSF installs
+the shipping server, the user test will change the seed, and the network default inverted to reusing the
+site's Wi-Fi. See the DIRECTION CHANGES block in §2. **Next: send the MSF docs, test the remote tunnel
+locally, then WS-6.**_
 
 ---
 
@@ -178,6 +181,71 @@ tablet**, and is now in the seed.
   started; it gates a real `setup.sh` run.
 - **Site architecture** (tents in a field vs a building with a triage yard/hall) — asked, **no answer
   yet**. It drives Wi-Fi coverage, power and the zone tree.
+
+### ⚠️ DIRECTION CHANGES — 2026-07-30 (PW). Read before touching the plan.
+
+Five things changed or were made explicit. `FIELD-PILOT-DEPLOYMENT-PLAN.md` has been updated for all of
+them (Parties, §2.1, §3.3, §3.4, §3.5, §8); the older text it replaced is marked as superseded there.
+
+1. **The end goal, stated plainly.** One DRC site. A **no-maintenance** package. **Pilot-like, not
+   perfect.** Initial setup and tests at **MSF Switzerland** (parts done at SolDevelo first), then shipped
+   **"ready to go"**. Two consequences worth keeping in mind on every decision: **no engineer is ever on
+   site**, and **anything untestable in Switzerland ships unvalidated**.
+2. **There are TWO levels of test, not one.** **Technical at SolDevelo** (does it work — this is what has
+   been done twice) and **user/UAT at MSF Switzerland** (do clinicians accept it). They fail differently:
+   a kit that passes the technical test can still be rejected because a form asks the wrong question.
+3. **MSF installs the actual shipping server themselves**, from our deployment package — not us. Their
+   reasoning: they need a running system to adjust the configuration and to run their own UAT, so it is
+   convenient for them to prepare the real box too. **Open to change if we give a compelling reason**, but
+   it is a *good* arrangement — it is the only way the install path gets proven in someone else's hands.
+   **What it demands of us: `bootstrap.sh` / `setup.sh` are customer-grade deliverables.** Any confusing
+   message MSF hits is a defect in our work, not user error.
+4. **The user test WILL request changes to the forms and the location tree — that is its purpose.** So the
+   seed must be cheap to re-edit, repeatedly, in a room with clinicians. Plan §2.1 now carries the cost
+   hierarchy; the short version:
+   - **Free and live** (no rebuild, no tablet action): forms/profile via the Profile Manager page; zone
+     names, order, structure and default zone via re-applying `20-buendia-site.sql` + `?clear-cache`;
+     facility name; provider accounts.
+   - ⚠️ **APK rebuild + reinstall on every tablet:** server address, baked login defaults, idle timeouts.
+     **So B1/A5/A10 must be settled BEFORE the shipping APK; A1–A4/A7 are what UAT is FOR.**
+   - **Two rules that are easy to get wrong:** every accepted change must be **folded back into the seed**
+     before shipping (else a reinstall silently reverts it — working guideline #9), and the **UAT test data
+     must be wiped** before the kit ships (junk patients must not reach a live clinical system;
+     re-verify with `--write` afterwards).
+5. **The network default is INVERTED: reuse the site's Wi-Fi, don't ship our own AP.** Previously the
+   shipped autonomous router was the default. Full trade-off table in plan §3.3. PW's reasoning, which is
+   sound: coverage is the risk we can neither measure nor fix from Switzerland, whereas the addressing
+   risk has a workaround on arrival — **and this exact arrangement is already validated**, since the
+   2026-07-29/30 runs put the server on an existing office network we don't administer, at a given static
+   address (`192.168.0.250`), with the APK built for it. That is not an experiment; it is what we ran
+   twice. **MSF is being asked to choose, with both options explained**, because "the site has Wi-Fi" is
+   our inference from a conversation, not a confirmed fact.
+   - **Keep a small AP in the kit regardless.** It is the recovery path if their network isolates clients
+     or doesn't exist, *and* it is how MSF CH can mimic the site's subnet during UAT so one APK works in
+     both places.
+   - **Two consequences that were buried and are now explicit in the plan:**
+     - **Tablet clock discipline changes.** Plan §3.4's DNS-interception trick needs a DNS resolver we
+       control — unavailable on their Wi-Fi. If their network *has internet*, this is better than our
+       workaround (Android's normal time sync just works). If it does **not**, tablet clocks are
+       unmitigated, and since the encounter timestamp is client-supplied, drift becomes wrong clinical
+       data. Hence the new question: does their Wi-Fi have internet?
+     - **Remote support needs that same internet path.** On a fully isolated AP of our own, the tunnel is
+       *impossible*, not merely disabled.
+   - ⏱️ **This is the most schedule-critical answer on the MSF list.** The address is baked into the APK
+     and UAT runs on a different network from the site — see the sequencing trap in plan §3.3.
+
+### ⚠️ The remote connection has NEVER been tested (recorded 2026-07-30, PW)
+
+`ENABLE_REMOTE_SUPPORT=false`, Tailscale is not authenticated, and nothing has been proven to dial out or
+carry a session. Treat plan §3.5 as design intent, not delivered capability. Two clarifications now in
+the plan:
+
+- **C1 sign-off gates *enabling it at the site*, not *testing it*.** Building and proving the tunnel is
+  not blocked; only pointing it at a box holding real patient data is.
+- **How it gets tested (PW's plan, no MSF dependency):** put this workstation on a *different* internet
+  connection from the test notebook — a **mobile hotspot** — so the two are genuinely on separate
+  networks, then confirm the tunnel establishes and carries an SSH session. A faithful rehearsal of the
+  site case at zero cost.
 
 ### Decisions taken internally (2026-07-29, PW)
 
@@ -686,8 +754,8 @@ card prints a blank line to fill in by hand.
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA withdrawn** as unachievable on v1.0 (§4) — updates are a documented manual re-install, and the plan's acceptance criterion was revised accordingly |
-| WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started |
-| WS-7 | Remote-support tunnel + data export | ⬜ not started (gated on data-protection) |
+| WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
+| WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. Correction 2026-07-30: **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. Note it is **impossible** (not merely disabled) if the site network gives no internet path — linked to the §3.3 decision |
 
 ---
 
@@ -738,8 +806,13 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. What
-remains is documentation, MSF's answers, and two real gaps (backup, hardware).**
+**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. What remains is
+MSF's answers, documentation, and three real gaps (backup, the untested remote tunnel, the untested
+netplan branch).**
+
+⚠️ **Read the DIRECTION CHANGES block in §2 first (2026-07-30).** The staging model, the number of test
+levels, who installs the shipping server, and the network default all changed; the priorities below assume
+those changes.
 
 1. **WS-6 — the three runbooks** (plan §WS-6, ~2–3 days). This is now largely *transcription*: the
    procedure has been executed twice end to end, and every gotcha is in §4.
@@ -770,12 +843,31 @@ remains is documentation, MSF's answers, and two real gaps (backup, hardware).**
    **UPS/graceful-shutdown TODO** at `setup.sh:186` — on a laptop this is UPower battery thresholds,
    which is much simpler than wiring Network UPS Tools to an external UPS — and gives a box on which
    the netplan path can be tested without disturbing anything.
-5. **Test the untested branch:** `CONFIGURE_NETWORK=true` — generated netplan, and especially the
-   `wifis:` block — has **never been applied on hardware**. Both real installs used
-   `CONFIGURE_NETWORK=false`.
+5. ⬆️ **Test `CONFIGURE_NETWORK=true` — this got MORE important on 2026-07-30, not less.** Generated
+   netplan, and especially the **`wifis:` block**, has **never been applied on hardware** (both real
+   installs used `CONFIGURE_NETWORK=false`). With the new default of *reusing the site's Wi-Fi at a static
+   address we are given*, this branch moves **onto the shipping path**: the server takes a fixed address on
+   a network it does not own, which is exactly what netplan generation does — and if the site gives us
+   no wired port, it is the unproven `wifis:` branch that runs. Worse, MSF executes this step, not us.
+   **Test both branches before the MSF session.**
 6. **Optional, cheap:** publish `buendia-deploy-<ver>.tar.gz` as a release asset on the public repo so
    `bootstrap.sh` can fetch it via `BUNDLE_URL` with no USB.
-7. **WS-7 — remote-support tunnel + data export**, once **C1** signs off.
+7. ⬆️ **Test the remote-support tunnel LOCALLY — newly unblocked, do it early.** It has never been tested
+   (see the block above). **C1 gates enabling it at the site, not testing it**, so this needs no MSF
+   input: put this box on a **mobile hotspot** so it and the test notebook are on genuinely separate
+   internet connections, then prove the tunnel establishes and carries an SSH session. Cheap, and it
+   retires the kit's largest remaining unproven claim. It also gives us a way to apply UAT change requests
+   remotely during the MSF session.
+   - ⚠️ Note the dependency the plan now records: **remote support needs an internet path at the site**,
+     which the §3.3 network choice controls. On a fully isolated AP of our own it is impossible, not just
+     disabled — so this and the network decision are linked.
+8. **WS-6 runbooks — but the audience changed** (see direction change 3). The install guide is now a
+   document **MSF executes**, so it must assume no Buendia knowledge and have a pass/fail at every step.
+   Add a piece that did not exist before: a **UAT change-capture + fold-back procedure** (how a "move this
+   field" request becomes a live change, then a seed change, then a re-verified kit), plus the
+   **wipe-test-data-before-shipping** step.
+9. **Multi-tablet sync retest** — still not done with the packaged build, and it can now only happen at the
+   MSF session, on their tablets. Put it in the UAT script rather than treating it as our task.
 
 Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
 (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —

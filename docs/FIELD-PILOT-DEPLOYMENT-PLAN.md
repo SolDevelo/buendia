@@ -4,23 +4,34 @@
 **Goal:** the leanest path to a *working* Buendia system on-site — on the users' tablets, against an on-site server.
 **Companion document:** `docs/TECHNICAL-REVIEW.md` (bug numbers below, e.g. "bug 9", refer to its bug list).
 
-SolDevelo's scope: **select and procure the hardware, build the software, and stage/test/pack a ready-to-run kit**, plus the runbooks and a secure remote-support channel. **MSF deploys the kit on-site** (power-on + verify) and operates it; SolDevelo does not travel to site (see Parties). The system is an **autonomous kit** — independent of MSF's existing LIME EMR / OpenMRS 3 infrastructure and field-IT teams (the agreed approach; a LIME-compatible app is the deferred long-term alternative).
+SolDevelo's scope: **build the software, specify the hardware, and produce a kit that MSF stages and tests in Switzerland**, plus the runbooks and a secure remote-support channel. **MSF supplies the tablets, stages the kit in Switzerland, and deploys it on-site**; SolDevelo does not travel to site (see Parties). The system is an **autonomous kit** — independent of MSF's existing LIME EMR / OpenMRS 3 infrastructure and field-IT teams (the agreed approach; a LIME-compatible app is the deferred long-term alternative).
+
+**End goal (stated 2026-07-30):** a Buendia system deployed at **one** DRC site; a **no-maintenance** package; **pilot-like, not perfect**; **initial setup and tests at MSF Switzerland** (with parts done at SolDevelo first); then shipped to the site **"ready to go"**. Two consequences run through everything below:
+
+1. **No engineer is ever on site.** Anything that can only be diagnosed or fixed in person is a design defect, not a support matter.
+2. **Anything that cannot be tested at MSF Switzerland ships unvalidated.** This is the sharpest design filter in this plan — it is what decides the network topology in §3.3.
 
 ---
 
 ## Parties & responsibilities
 
+⚠️ **Revised 2026-07-30.** This table previously had SolDevelo procuring the tablets and staging the kit on its own premises. Both changed: **MSF supplies the tablets** with their own system image (decided 2026-07-29), and **staging/testing happens at MSF Switzerland**.
+
 | Party | Role | Responsibilities |
 |---|---|---|
-| **SolDevelo** | Technical + procurement + staging | **Selects and procures** the hardware (server, tablets, router, power kit). Builds the **deployment bundle** (server container stack, seed data/config, signed APK) and the reproducible build. **Stages, tests, and packs** the ready-to-run kit. Writes the **runbooks**. Provides a **secure remote-support channel** and a **hypercare** support window (scope TBD, §8). Advises on everything technical. Does not travel to site. |
-| **MSF** | Deployment + domain knowledge | Provides the **site specifics** (facility, ward/bed structure, clinician accounts), the **clinical content**, and **data-protection sign-off**. **Receives the staged kit and deploys it on-site** (power-on + verify), then operates it. Owns the field environment and IPC. (Alternatively may supply reset standard laptops as the server base — §8.) |
-| **Users** | Operation | Clinicians and staff at the site who use the system for patient care. The on-site experience (power-on, login, data entry) is designed around them. |
+| **SolDevelo** | Build + specify + prove + support | Builds the **deployment bundle** (server container stack, seed data/config, signed APK, install USB) and the reproducible build. **Specifies** the hardware (`FIELD-PILOT-SERVER-SPEC.md`) and the network kit, and suggests models. **Tests the package to destruction on its own hardware** — this is the technical test, and it is what has been done twice. Writes the **runbooks**. Provides the **secure remote-support channel** and a **hypercare** window (scope TBD, §8). Supports the MSF-CH session remotely or in person. Does not travel to site. |
+| **MSF Switzerland** | Procurement + install + user test | **Supplies the tablets** (their own system image — see B5 in `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`) and sources the server (may repurpose an existing laptop — §3.1). **Installs the actual shipping server themselves**, from our deployment package (decided — see below). **Runs the user test / UAT**, adjusts the configuration in the process, then labels, packs and ships to the site. Provides the **site specifics**, the **clinical content**, and **data-protection sign-off**. |
+| **MSF at site** | Deployment + operation | Unpack, connect power, power on, verify "green", use. Owns the field environment and IPC. Nothing is built or configured here. |
+| **Users** | Operation | Clinicians and staff at the site. The on-site experience (power-on, login, data entry) is designed around them. |
 
 Consequences for this plan:
-- **SolDevelo operates the Staging Area** (its own premises: internet + technical staff): procures the hardware, installs the bundle, configures, tests, and packs the kit. MSF receives a working kit and only deploys it.
-- The Site Area runbook targets MSF's non-technical staff (power-on + verify + recover); the Staging Area setup guide is SolDevelo's own procedure (and the basis for a rebuild).
-- The open items in §8 are MSF inputs (site specifics, clinical content, data-protection sign-off); SolDevelo owns hardware selection, build, staging, and support.
-- SolDevelo selects specific hardware models (§3.1/§3.3); the bundle and runbooks stay model-agnostic within the §3 specs so a model can be substituted without rework.
+- **MSF Switzerland installs the actual shipping server, not us** (decided; MSF's reasoning: they must have a running system in order to adjust the configuration and to run their own UAT, so it is convenient for them to prepare the real box too). **This is open to change if we give a compelling reason** — but on balance it is a *good* arrangement and we should keep it: it is the only way the install path gets proven in someone else's hands, which is exactly the property the deliverable needs. What it demands of us is that `bootstrap.sh` / `setup.sh` be **customer-grade** — unambiguous prompts, failure messages a non-Buendia person can act on, and a pass/fail at every step (`buendia-verify.sh` provides it). Treat any confusing message found during the MSF session as a defect in our deliverable, not user error.
+- **So SolDevelo's own install runs are a rehearsal of someone else's procedure**, which is a different standard from "it works on my machine". The two hardware installs already done are exactly this rehearsal; keep doing them after any change to the install path.
+- **The staging guide (WS-6a) is a document someone else executes**, not an internal note. It must assume no Buendia knowledge.
+- **The tablets never pass through SolDevelo.** So `adb install` at staging is not our step, real-tablet validation of the *shipping* build happens at MSF CH, and the T4/T5 unknowns in §7 are retired only at that session. This is why **B5** (what their image permits) is the highest-priority open question.
+- **The site's own network cannot be tested in Switzerland.** See §3.3 — this is the decisive argument for shipping our own network rather than reusing the site's Wi-Fi.
+- SolDevelo specifies hardware (§3.1/§3.3); the bundle and runbooks stay model-agnostic within the §3 specs so a model can be substituted without rework.
+- **A joint staging session** (SolDevelo present, remote or in person) is the single highest-value event in the schedule: it is the only point where our software, MSF's tablets and the real network kit are in one room. Treat it as a scheduled milestone, not an afterthought.
 
 ---
 
@@ -51,16 +62,41 @@ Not required for "done" (deferred to §7): hardening of the narrow *same-patient
 
 **Out of scope (deferred — see §7):** the `buendia-*` Debian appliance rebuild and Raspberry-Pi/SBC form factor (also what a server-hosted Wi-Fi AP would require — the pilot uses a standalone router instead, §3.3); Python 3 port of profile-apply; same-patient simultaneous-write conflict hardening (ordinary multi-tablet sync is in scope; only the concurrent-conflict edge case is deferred); anything in TECHNICAL-REVIEW §4.
 
-### 2.1 Installation model — two environments
+### 2.1 Installation model — three phases, and two levels of test
 
-Two environments, split by who does the work:
+⚠️ **Revised 2026-07-30.** Previously two environments (SolDevelo staging → site). There are now **three phases**, and critically **two distinct levels of test** with different purposes and different audiences.
 
-- **Staging Area (SolDevelo)** — SolDevelo's premises (internet + technical staff). SolDevelo procures the hardware, builds and installs the software on it, configures it (static-IP netplan, unattended hardening, clocks, encryption, the secure remote-support channel), installs and configures the signed APK on every tablet, runs the full quick test (the §1 round-trip on a T4 and T5), then powers off, pairs, labels, and packs the ready-to-run kit (server + tablets + router + cables + UPS/power banks).
-- **Site Area (MSF)** — the field hospital. **No Internet, non-technical staff.** Work: unpack, connect the power chain, power on, verify "green," use. Adding or replacing a tablet = join Wi-Fi + scan QR (WS-5). Nothing is built or configured here.
+| Phase | Where | Test level | Purpose |
+|---|---|---|---|
+| **1. Build & technical test** | SolDevelo | **Technical** | Does it work at all? Build the images, seed, APK and install USB; install onto **our own test hardware**; prove the stack is *usable*, not merely up (`buendia-verify.sh`). ✅ **Executed twice on real hardware (2026-07-29/30).** |
+| **2. Install + user test** | **MSF Switzerland** | **User / acceptance** | **MSF installs the actual shipping server** from our package, then: do clinicians accept it? MSF's own tablets, MSF's people, the real clinical workflow. **This phase is expected to generate change requests** — see below. Ends with the kit labelled, packed and shipped. |
+| **3. Site deployment** | DRC site | none | Unpack, power on, verify "green", use. **Nothing is built or configured here.** |
 
-Everything technical happens at SolDevelo; the Site Area only powers on a kit that already works. The Site Area runbook is therefore a power-on + verify + recover guide, with a fallback re-install appendix (the from-USB path) for the rare case where the kit must be rebuilt — done by SolDevelo (or, with remote support, guided remotely), never cold in the field.
+Phase 1 proves the engineering; phase 2 proves the product. They fail in different ways and must not be conflated: a kit that passes phase 1 can still be rejected in phase 2 because a form asks the wrong question.
 
-The reproducible build (WS-3) solves the broken-toolchain problems (dead Bintray/JCenter mirrors, Java-7 pinning) once. Because SolDevelo fixes the exact server model, it can also ship the server as a **pre-imaged disk** rather than a script-configured install if that proves more reliable — an implementation choice within SolDevelo's staging.
+#### The user test will change the seed — and that is the point
+
+**Expect requests to change the forms and the location tree during the MSF user test.** That is the intended output of putting clinicians in front of it, not a sign something went wrong. The plan must therefore make that loop *cheap*, because it will run several times in a session.
+
+**What is cheap to change, and what is not** — this hierarchy decides what must be settled *before* phase 2 versus what phase 2 is *for*:
+
+| Change | Cost | Mechanism |
+|---|---|---|
+| **Forms, questions, chart layout** (profile) | **Live, no rebuild, no tablet action** | Upload + activate via the Profile Manager admin page. Tablets pick it up on sync. |
+| **Location tree** — zone names, order, structure, default zone | **Live, no rebuild, no tablet action** | Re-apply `20-buendia-site.sql` (idempotent, keyed on uuid) then any endpoint with `?clear-cache`. Renames are safe on a running server. |
+| **Facility name, provider/clinician accounts** | **Live, no rebuild, no tablet action** | Same SQL path. |
+| **Server password** | Server-side live, **but a guided Settings step on every tablet** | `create-openmrs-user.sh`; each tablet then needs its stored password updated. |
+| **Server address, baked login defaults, idle timeouts, `requireWifi`** | ⚠️ **APK rebuild + reinstall on every tablet** | Baked at build time by `build-apk.sh`. The Android toolchain is not at MSF CH. |
+
+**The scheduling consequence, and it is the useful one:** the APK-affecting decisions (**B1** address, **A5** password, **A10** timeouts) must be settled **before** the shipping APK is built for phase 2 — whereas the clinical items (**A1** facility name, **A2/A3** zones, **A4** accounts, **A7** forms) are exactly what phase 2 exists to settle, and cost nothing to change there. Split the config-request list along that line when chasing answers.
+
+**Two rules for phase 2, both easy to get wrong:**
+1. **Every accepted change must be folded back into the seed before shipping**, not left applied only to the running server — otherwise a reinstall at the site silently reverts it, and the fix exists nowhere but one disk. This is working guideline #9 ("no manual setup steps in the package"). The `pilot-site-config` skill is the apply path; `build-seed.sh` / the DB image rebuild persists a profile change.
+2. **Wipe the user-test data before the kit ships.** A user test creates junk patients, encounters and orders; the site must start from an empty record, and test patients in a live clinical system are a genuine hazard. Re-verify after wiping (`buendia-verify.sh --write` proves admission still works on the clean DB).
+
+**Freeze the UUIDs, not the names.** Restructuring the location tree after tablets have synced orphans already-admitted patients, so phase 2 is the last safe moment to change the tree's *shape*. Renaming stays safe indefinitely.
+
+The reproducible build (WS-3) solves the broken-toolchain problems (dead Bintray/JCenter mirrors, Java-7 pinning) once, so a change accepted in phase 2 can be rebuilt and re-verified the same day.
 
 ---
 
@@ -122,22 +158,55 @@ Build implications:
 
 ### 3.3 Network & power
 
-The pilot does not run the server as a Wi-Fi access point. Topology:
+The pilot does not run the server as a Wi-Fi access point.
 
-- One off-the-shelf Wi-Fi router at the site. The server connects by Ethernet; tablets join the router's SSID.
-- The network is predetermined by the bundle; neither staging nor the site needs to inspect or choose an IP. One address (e.g. `192.168.8.10`) is fixed and shipped three ways:
-  1. A static-IP netplan config for the server's wired interface is applied by the bundle's setup script at the Staging Area.
-  2. The router config is pre-set (SSID, password, matching subnet) and shipped paired with the server; a DHCP reservation for the server's MAC is the belt-and-suspenders backup.
-  3. The APK is built with the same IP baked in (`-Pserver=192.168.8.10`) plus `-PrequireWifi=true`.
+⚠️ **Direction changed 2026-07-30. The default is now to REUSE the site's existing Wi-Fi**, with our own access point kept in the kit as the fallback. Previously the shipped autonomous router was the default. **MSF is being asked to choose between the two** (see B2/B6 in `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`), because the deciding facts are theirs, not ours.
 
-  Result: power on the router, power on the server, and the tablets already address the server — no command line, no IP lookup.
-- No Internet is required at the site for clinical use, first install, or app updates. (Occasional internet, when available, is used only for the opt-in remote-support channel — §3.5.)
-- Optionally the kit may join **available area Wi-Fi** instead of using its own router; the autonomous shipped-router is the default, since joining a shared network reintroduces a dependency and a wider security surface. SolDevelo selects and procures the router (§8).
-- UPS on the server; router on a power bank (§7 power chain).
+#### The two options, honestly stated
 
-**Router specification.** A mini/travel router: low power (USB-powered, can run from a power bank); dual-band; able to operate as a plain access point and as a mesh node (for the coverage fallback); and supporting **custom local DNS overrides** (OpenWrt/GL.iNet-class dnsmasq), required for the local-NTP-via-DNS-interception in §3.4. SolDevelo selects and procures the specific model (§8). Wi-Fi throughput is never the bottleneck — clinical sync traffic is kilobytes of JSON every 10 s, easily handled for 5–10 tablets. **Coverage of the ward is the constraint.**
+Each carries one major issue, and they are different *kinds* of risk.
 
-Coverage characteristics of a single small router:
+| | **A. Reuse the site's Wi-Fi** ← current default | **B. Ship our own AP** |
+|---|---|---|
+| **Coverage** | ✅ Presumed solved — their network was designed to cover the site | ⚠️ **The main worry.** One AP may not reach across zones; needs a coverage walk and possibly extra nodes |
+| **Addressing** | ⚠️ **The main worry.** Needs a fixed, reachable address in *their* subnet, agreed with whoever runs it | ✅ Ours by construction; the APK's baked address is right automatically |
+| **Silent failure modes** | ⚠️ Client isolation, captive portal, APs on different subnets — fatal, invisible, and not fixable by us | ✅ None; we configure the AP |
+| **Testable before shipping** | ⚠️ Not on the real network — only on a stand-in | ✅ The staging network *is* the production network |
+| **Tablet clock discipline** | Depends on their Wi-Fi having internet (then Android's normal time sync just works) | Needs our DNS-intercept trick (§3.4) |
+| **Remote support (§3.5)** | ✅ Works if their network has internet | ❌ Impossible on an isolated AP — no uplink, no tunnel |
+| **Kit size / power** | ✅ Fewer devices to supply, power and keep spares of | One more box, one more power draw, one more failure point |
+
+**Why A is the default despite being the less testable one:**
+
+1. **Coverage is the risk we can neither measure nor fix from Switzerland.** If our single AP under-reaches a far tent, nobody on site can solve it and we cannot even find out until clinicians complain. Their network's coverage is at least *designed* for the site's geometry. This inverts the usual "prefer the testable option" rule, because the untestable-but-likely-fine risk (their addressing) has a *workaround on arrival*, while an AP that physically cannot reach a zone does not.
+2. **The path is already proven, in exactly this shape.** The 2026-07-29/30 hardware validation *was* this configuration: a server placed on an existing, someone-else's-DHCP office network at a chosen static address (`192.168.0.250`), an APK built for that address, deployed — and the tablet just worked. So "put the server on a network we don't own, at an address we were given" is **not** a new or unvalidated arrangement; it is the one we have run twice.
+3. **It reduces what we ship.** Fewer devices to supply, power, spare and document — which serves the no-maintenance goal.
+4. **It is what makes remote support and tablet time-sync possible at all**, both of which need an internet path (§3.4, §3.5).
+
+**What A actually requires — and it is organisational, not technical.** The whole risk reduces to *getting one correct address*. Someone who owns the site network must either reserve a static address for the server, or tell us the subnet and one address that is genuinely free (e.g. "we are `192.168.0.0/22`, take `192.168.0.255`"). The server's installer then asks for that address at setup time. That is a coordination task, not an engineering one — which is why B6 asks for it in precise terms rather than as "an IP".
+
+**What must still be asked, because it is silent and fatal:** whether their network isolates clients from each other. On such a network tablets associate perfectly and cannot reach the server at all, with no visible cause and no fix available to us. Same for a captive portal, and for different APs putting clients on different subnets. **This cannot be assumed and cannot be discovered from Switzerland** — it must be asked, and ideally tested on their network before the kit ships.
+
+**Keep the fallback in the kit regardless.** A small AP travels with the kit whatever MSF answers, because it is the only recovery if their network turns out to isolate clients, or if there is no site Wi-Fi after all (a real possibility — "the site has Wi-Fi" is currently our inference from a conversation, not a confirmed fact). It costs little and converts a pilot-ending failure into a documented fallback.
+
+#### Sequencing trap: the address is baked into the APK, and UAT happens on a different network
+
+The tablet APK bakes in the server's address (§3.3/WS-4), and the **user test happens at MSF Switzerland**, whose network is not the site's. So the tablets that pass UAT are pointed at an MSF-CH address, and at the site that address is wrong. Three ways out, in order of preference:
+
+1. **Mimic the site subnet at MSF CH using the fallback AP** — configure it with the site's subnet and give the server the site's agreed address. UAT then runs against the *final* address, one APK works in both places, and nothing is reinstalled. This is the cleanest option and is a second reason to have the AP in the kit. **Requires the site address to be known before UAT.**
+2. **Rebuild the APK after UAT** with the site address and re-install on every tablet by QR before packing. Cheap at MSF CH (a QR scan per tablet); requires the address before the kit ships.
+3. **Accept a guided Settings change per tablet at the site** — the address is a runtime-editable preference, so this works, but it is N tablet-visits by non-technical staff, including any tablet inside a contamination zone, and each tablet cannot sync until it is done. **The fallback, not the plan.**
+
+**Consequence for the schedule: B6 (their subnet + our address) gates the kit shipping, and ideally gates UAT.** It is the single most schedule-critical configuration answer.
+
+- No Internet is required at the site for **clinical use** or first install. Internet, where their network provides it, is used only for the opt-in remote-support channel (§3.5) and to let tablets keep their clocks right (§3.4).
+- UPS on the server; the fallback AP on a power bank if it is used (§7 power chain).
+
+**Fallback AP specification** (was "Router specification" — the role changed with the 2026-07-30 direction change, the spec did not). A mini/travel router: low power (USB-powered, can run from a power bank); dual-band; able to operate as a plain access point and as a mesh node; and supporting **custom local DNS overrides** (OpenWrt/GL.iNet-class dnsmasq) so the §3.4 NTP interception is available if we do end up running our own network. SolDevelo selects and procures the specific model (§8). Wi-Fi throughput is never the bottleneck — clinical sync traffic is kilobytes of JSON every 10 s, easily handled for 5–10 tablets. **Coverage is the constraint.**
+
+**This device earns its place three times over even if the site's Wi-Fi is used:** (a) it is the recovery path if their network isolates clients or turns out not to exist; (b) it is how MSF CH can **mimic the site's subnet during UAT** so one APK works in both places (§3.3 sequencing trap); and (c) it extends coverage into a zone their network misses. Buy it regardless of MSF's answer on B2/B6.
+
+Coverage characteristics of a single small router — **relevant both to the fallback AP and to judging whether the site's own coverage is credible** (an office network covering an admin building is not evidence that it reaches a triage tent 80 m away; B6 asks for coverage over the actual zones for this reason):
 - Range vs. walls: small antennas and low transmit power give solid coverage to ~10–15 m line-of-sight, degrading quickly through walls.
 - 2.4 GHz penetrates walls better than 5 GHz and is the preferred band for a spread-out ward (range over speed).
 - Drywall / wood / glass: typically holds through 1–2 interior walls.
@@ -163,7 +232,13 @@ The site is offline by default; the system must stay correct unattended and rema
 
 **Time / clock.** Buendia's sync and clinical timestamps are time-sensitive (the sensitivity behind bug 1), and the client stamps the encounter time from the **tablet** clock, so both server and tablet clocks must stay correct without Internet NTP — what the original appliance's `setclock`/`ntpserver`/`pushclock` packages handled.
 - **Server (time authority):** its hardware clock is set to UTC at staging and it runs a local NTP service (chrony) for the LAN. Offline it relies on its RTC. The server, not the router, is the authority — travel routers usually have no RTC and lose time when powered off.
-- **Tablets — disciplined to the local server via DNS interception.** Android ignores DHCP NTP (option 42), but with "automatic date & time" on it periodically makes an SNTP query to a hardcoded NTP hostname (`time.android.com` / `*.pool.ntp.org`). The router's DNS (dnsmasq) maps those hostnames to the server's static IP, so the tablet's "phone-home" SNTP lands on the local server and syncs — no root, no per-device NTP setting, no Internet. (SNTP is plain UDP, so unlike intercepting an HTTPS host there is no certificate problem.) Requirements:
+⚠️ **The tablet half of this design assumed we own the router — re-examine it against the 2026-07-30 network direction change (§3.3).** The DNS-interception trick below requires control of the DNS resolver the tablets use. **On the site's own Wi-Fi we do not have that**, so the mechanism is unavailable and tablet clocks need a different answer. Which answer depends on one fact we must ask for (**B6**): *does the site's Wi-Fi have internet?*
+
+- **If their Wi-Fi has internet** — the problem disappears, and better than our workaround would have solved it: Android's normal automatic date & time works, tablets stay correct indefinitely with no trick at all. **This is a genuine advantage of reusing their network** and one of the reasons it is now the default.
+- **If their Wi-Fi has no internet** — we have no way to discipline the tablets. Then: set every clock at staging as the baseline, accept slow RTC drift between visits, and add a clock check to the site runbook's power-on routine. Drift is a months-scale risk on healthy hardware, but it is unmitigated, and **the encounter timestamp comes from the tablet** (`JsonEncounter.time` is client-supplied), so drift becomes wrong clinical data. If this is the answer, reconsider running our own AP purely to regain the intercept — or ask whether MSF's tablet image has its own time source (**B5 q8**).
+- **If we run our own AP** (fallback option B) — the intercept below applies as originally designed.
+
+- **Tablets — disciplined to the local server via DNS interception** *(available only when we control the network — see above)*. Android ignores DHCP NTP (option 42), but with "automatic date & time" on it periodically makes an SNTP query to a hardcoded NTP hostname (`time.android.com` / `*.pool.ntp.org`). The router's DNS (dnsmasq) maps those hostnames to the server's static IP, so the tablet's "phone-home" SNTP lands on the local server and syncs — no root, no per-device NTP setting, no Internet. (SNTP is plain UDP, so unlike intercepting an HTTPS host there is no certificate problem.) Requirements:
   - The router must support custom local DNS overrides (OpenWrt/GL.iNet-class `dnsmasq address=/…/192.168.8.10`) and be the tablets' DNS resolver (DHCP option 6) — a router requirement (§3.3/§8).
   - Confirm the device's actual NTP hostname at staging (`adb shell settings get global ntp_server`) and map that name plus the common ones (a `pool.ntp.org` wildcard covers most).
   - Set each tablet's **Private DNS to Off** at staging, so the router resolver is actually used.
@@ -180,6 +255,16 @@ The site is offline by default; the system must stay correct unattended and rema
 ### 3.5 Remote support & data extraction
 
 The site is offline for clinical use, but internet is expected intermittently. Two capabilities ride on that occasional connectivity. **Both are patient-data-touching and require MSF data-protection sign-off (§8) before they are enabled.**
+
+> ### ⚠️ Status 2026-07-30: NOT BUILT AND NOT TESTED
+>
+> **The remote connection has never been tested.** Nothing in the deployed stack has been proven to dial out or accept a remote session; `ENABLE_REMOTE_SUPPORT=false` and Tailscale is not authenticated. Treat every claim in this section as *design intent*, not delivered capability.
+>
+> **Two things this section previously left implicit:**
+> 1. **It needs an internet path at the site, which the §3.3 decision controls.** On the site's Wi-Fi (the new default) there probably is one — this is an argument *for* reusing their network. On a fully isolated AP of our own there is none, and remote support is then **impossible**, not merely disabled. A pilot with no engineer on site and no remote access is diagnosable only by the offline USB dump (§3.4) and a phone call.
+> 2. **Sign-off gates *enabling it at the site*, not *testing it*.** Building and proving the tunnel is not blocked on C1 — only pointing it at a box holding real patient data is. So it can and should be proven now.
+>
+> **How it gets tested (planned, PW):** locally, without waiting for MSF — put this workstation on a *different* internet connection (mobile hotspot) from the test notebook, so the two are genuinely on separate networks, and confirm the tunnel establishes and carries an SSH session. That is a faithful rehearsal of the site case at zero cost, and it retires the "untested" status before anything ships.
 
 **Remote support channel (decided: Tailscale + SSH to start).** Skilled staff cannot be guaranteed on-site, so the kit includes an **opt-in secure tunnel**, **server-initiated** (dials out — no inbound ports, works behind the router's NAT with nothing configured at site), **dormant when offline**, connecting to a SolDevelo endpoint only when internet is present. Support is via **SSH** (terminal + a forwarded port to the OpenMRS web UI) — the server is headless, so **no remote *desktop* is needed**; "remote desktop, no VPN" is the mental model, SSH is the right tool. Transport starts with **Tailscale** (zero site-side config, NAT-traversing; it is technically a WireGuard mesh VPN, but nothing is configured at site — the honest framing to MSF is "the server dials out to us, no inbound access, no VPN client for you to manage"). Its coordination plane is a third-party service (cannot read the end-to-end-encrypted traffic, but in the path), so the **data-protection sign-off may push to self-hosted WireGuard/Headscale** — the plan is written around "server-initiated dial-out + SSH" so the transport can be swapped without rework. Properties: authenticated, encrypted, server-initiated, controllable, auditable, switch-off-able; **ships disabled until sign-off**. It is a **support side-channel only** — clinical operation never depends on it. When there is no connectivity, the offline `buendia-diagnostics` USB dump (§3.4) is the fallback.
 
@@ -363,7 +448,8 @@ The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, gracef
 
 ### Decided
 - **Autonomous kit** (not integrated with MSF's LIME EMR / OpenMRS 3 infra or field-IT) — confirmed by MSF as the agreed approach; a LIME-compatible app is the deferred long-term alternative.
-- **Roles:** SolDevelo **selects, procures, builds, stages, tests, and packs** the kit and provides remote support; **MSF deploys it on-site** (power-on + verify) and operates it. SolDevelo does not travel.
+- **Roles (revised 2026-07-30):** SolDevelo **builds the package, specifies the hardware, and proves it on its own hardware (technical test)**, and provides remote support; **MSF supplies the tablets, installs the actual shipping server from our package, and runs the user test / UAT in Switzerland**, then ships to the site and operates it. SolDevelo does not travel to site. *(Superseded: SolDevelo procuring the tablets and staging the kit on its own premises.)*
+- **Two levels of test (2026-07-30):** **technical** at SolDevelo (does it work) and **user/UAT** at MSF Switzerland (do clinicians accept it). The user test is *expected* to produce form and location-tree change requests; §2.1 records what is cheap to change then and what must be frozen before it.
 - **Remote support + data export:** an opt-in, server-initiated secure tunnel (dormant offline) — **Tailscale + SSH to start** (dial-out; SSH, no remote desktop needed on a headless server; swappable to self-hosted WireGuard/Headscale at sign-off) — carrying a `DataExportServlet` CSV export; USB export as the offline fallback (§3.5). **Enabled only after MSF data-protection sign-off** (open below).
 - **Tablet data-at-rest: device-level encryption + a mandatory screen lock**, not app-level. v1.0 has no working app-level DB encryption (plain Android SQLite, not SQLCipher; the `ENCRYPTION_PASSWORD` flag is inert), and the pilot does not re-introduce SQLCipher (would reverse the bug-8 cleanup and break the v1.0 freeze). Protection = Android FBE/FDE (active once a screen lock is set) + mandatory PIN/lock + physical custody; the local DB is only a cache (§3.2, §7).
 - **Signing keystore custody:** the APK signing keystore + passwords are SolDevelo's to retain and back up (§7) — redundant, access-controlled, for the life of the pilot.
@@ -381,8 +467,10 @@ The §3.4 offline-resilience items (server NTP + DNS-intercept time sync, gracef
 
 **MSF decisions:**
 5. **Data-protection sign-off** for the remote-support tunnel and the data export (§3.5) — the "discuss with Iona / Nan Hsin" thread; gates WS-7 being enabled.
-6. **Server base:** SolDevelo-procured mini-PC (default) vs. MSF supplying reset standard laptops.
-7. **Area Wi-Fi vs. shipped router** (§3.3) — default is the shipped autonomous router.
+6. **Server base — spec delivered 2026-07-30, machine still to be chosen.** `FIELD-PILOT-SERVER-SPEC.md` is the deliverable; it **recommends a repurposed or refurbished business laptop** over a mini-PC (battery = built-in UPS; screen is what the tablet scans the install QR from; it is the shape validated twice). MSF sources it and may repurpose an existing machine. Asked as **D1**. Hard rule recorded there: **Intel/AMD only** — this now excludes Snapdragon X "Copilot+" laptops and Apple Silicon Macs, a large share of current retail stock.
+7. **Site's existing Wi-Fi vs. our own AP — DEFAULT INVERTED 2026-07-30 (§3.3).** The default is now to **reuse the site's Wi-Fi**; our own AP stays in the kit as the fallback and as the UAT subnet-mimic device. Rationale, trade-off table and the sequencing trap are in §3.3. **MSF is being asked to choose** (B2/B6) with both options explained, because the deciding facts are theirs. Note that "the site has Wi-Fi" is currently *our inference from a conversation*, not a confirmed fact — if it is wrong, option B is the only choice and coverage becomes the live risk.
+   - **The one thing that decides it in practice:** whether they will give us a fixed, reachable address in their subnet, and whether their network isolates clients. The first is a coordination task; the second is silent and fatal.
+   - **Schedule impact:** this answer gates the shipping APK and therefore the kit — see the §3.3 sequencing trap. It is the most schedule-critical config answer.
 
 **SolDevelo decisions:**
 8. **Hypercare support window** — whether/how SolDevelo provides an intensive early-pilot support period (commercial/staffing scope; MSF asked for it).
