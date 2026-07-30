@@ -144,19 +144,54 @@ The best value by a wide margin, and it meets the spec comfortably.
 - **Why this class:** business laptops nearly always have a **real Ethernet port**, they are extremely
   well supported by Linux, spare parts and batteries are easy to get, and they are built for years of
   daily handling.
+- **Why it beats a new budget laptop, specifically:** an ex-corporate machine gives you the two things
+  the cheap new tier makes you pay extra for — **an Ethernet port and upgradeable (not soldered) RAM** —
+  plus a proper SSD and a sturdier chassis, usually for less money. A **5–8 year old Core i5 is entirely
+  adequate**; this workload does not reward a newer processor.
 - **Buy a new battery with it if the listing doesn't confirm battery health** — on a refurbished
   machine that is the part most likely to be tired, and here the battery is the power protection.
 
-### Option B — New entry-level business laptop
+### Option B — New, cheapest machine that meets the spec
 
-If procurement rules require new hardware with a warranty. All of these are x86 and meet the spec:
+For when procurement rules require new hardware with a warranty.
 
-- **Lenovo ThinkPad E14** (Intel Core Ultra 5, 16 GB) — available at Digitec
-- **HP ProBook 4 G1i** (Intel Core Ultra 5 225U, 16 GB, 512 GB SSD) — available at Digitec
-- **Dell Latitude** 5000-series equivalents
+> **⚠️ Corrected 2026-07-30.** An earlier version of this document suggested a ThinkPad E14 and an HP
+> ProBook with Core Ultra 5 processors. That was **bad advice**: those are ~CHF 900–1200 machines, several
+> times more capable than this workload needs, and the E14 is **no longer in production** (the current E16
+> is around USD 1000). Don't buy from that tier.
 
-These are considerably more powerful than the pilot needs; the reason to choose one is warranty and
-supply, not performance.
+**The honest guidance: buy the cheapest new laptop that has an Ethernet port and 16 GB of RAM.** Nothing
+about this workload rewards a faster processor. The software was designed in 2016 for much weaker
+hardware, and our own validation ran on an old notebook.
+
+**Spend money on these three things, in this order — and on nothing else:**
+
+1. **An Ethernet port (RJ45).** This is the spec item that actually costs money in a cheap laptop, because
+   thin consumer models drop it. It is also the one worth paying for: a server should be wired. (A
+   USB-Ethernet adapter for ~CHF 20–30 is a legitimate alternative and cheaper than moving up a tier.)
+2. **16 GB RAM**, not 8. Not for performance — because **cheap laptops often solder the RAM**, so 8 GB is
+   permanent, and 8 GB is exactly our minimum with no headroom.
+3. **A real SSD (NVMe/SATA), 256 GB.** ⚠️ **Avoid eMMC storage**, common in the very cheapest tier: it is
+   slow and has poor write endurance, which is the wrong trade for a machine running a database
+   continuously. 512 GB is a waste of money here.
+
+**Do not pay for:** a fast CPU (an Intel N-series, Core i3 or Ryzen 3 is ample), a good screen, a
+discrete GPU, or a light chassis. The machine sits on a table.
+
+**Where to look** — product *families* rather than specific models, since individual SKUs go out of
+production (which is exactly how the E14 recommendation went stale):
+
+| Family | Why it's in the list |
+|---|---|
+| **HP 250 / 255 G-series** (15.6") | The cheap-business staple, and it usually keeps the **RJ45 port**. A 16 GB configuration was listed at Digitec around **CHF 850** — still above what's needed, so look for a lower CPU/storage trim. |
+| **Lenovo V15** (15.6") | Same tier and role; check the RJ45 and RAM on the specific trim. |
+| **Asus ExpertBook B1** (15.6") | Business build with a good port selection including Ethernet. |
+| **Acer Extensa 15** | Usually the cheapest of the four; verify storage is SSD and not eMMC. |
+
+**⚠️ Prices and availability not verified.** The CHF 850 figure above is a single data point from a Digitec
+listing and is not a quote; everything else in this table is a product family, not a priced offer. **MSF
+procurement should price the tier**, applying the three criteria above. Expect a suitable new machine to
+land well below the CHF 900–1200 business tier — and note that **Option A beats all of this on value**.
 
 ### Option C — Semi-rugged laptop
 

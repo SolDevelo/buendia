@@ -220,10 +220,14 @@ that to whoever holds MSF's hardware. In short:
   these, and a large share of current retail stock is now ARM.
 - Also required: **8 GB RAM**, **128 GB+ SSD**, a **working internal clock battery** (an offline site has
   no way to correct a wrong clock, and patient timestamps depend on it), and a **healthy main battery**.
-- **If buying:** we suggest a **refurbished business laptop** (ThinkPad / Latitude / EliteBook, Core i5+,
-  16 GB, 256 GB SSD) — available refurbished and secondhand from Digitec in Switzerland. New and
-  semi-rugged options, and a fanless mini-PC alternative for a permanently dusty installation, are all
-  costed out in the spec document.
+- **If buying:** we suggest a **refurbished business laptop** (ThinkPad / Latitude / EliteBook, Core i5,
+  16 GB, 256 GB SSD) — available refurbished and secondhand from Digitec in Switzerland. **A 5–8 year old
+  machine is entirely adequate**; this software was designed in 2016 for far weaker hardware, and nothing
+  about it rewards a fast processor. If new hardware is required, buy the **cheapest laptop that has an
+  Ethernet port and 16 GB of RAM** — not a current business model, which is several times more machine
+  than this needs. The spec document lists the product families to look in, and the three things worth
+  paying for. **We have deliberately not quoted prices** — please price the tier through your own
+  procurement.
 
 **What we need from you:** (a) do you have a machine that passes the checklist in the spec — and if so,
 its processor/RAM/disk; (b) if not, which purchase option; (c) **is the site a building or a dusty
