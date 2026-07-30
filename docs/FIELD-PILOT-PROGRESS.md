@@ -381,9 +381,12 @@ Notes from that run:
 - **Multi-tablet not re-tested with the packaged build** — two devices syncing bidirectionally was
   confirmed in an earlier ad-hoc demo, not with this APK.
 - **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
-- **In-app OTA updates** — **dropped, not deferred**: broken in the v1.0 client (§4). The `:9001`
-  server now runs in compose, but it is for *first install* (QR) and to satisfy the client's health
-  check; updating a tablet is a manual re-install.
+- **In-app OTA updates — DEFERRED, NOT DROPPED (reclassified 2026-07-30, PW).** It was part of the
+  default solution; it was then found not to work in the v1.0 client, so it is out of the *pilot* scope —
+  but it stays on the backlog to revisit **at the end, low priority, liveable-without**. Do not describe
+  it as abandoned. Meanwhile `:9001` serves *first install* (QR) and satisfies the client's health check,
+  and updating a tablet is a documented manual re-install. **What it would actually take is scoped in
+  plan §7** (three concrete blockers, one of them unbounded) — read that before committing to it.
 - **Site-specific data** — the pilot-start location tree + default account are now **baked in**
   (`seed/initdb/20-buendia-site.sql`). Still open: the *real* ward/bed layout and the per-clinician
   provider accounts, both pending MSF input (see `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`). Tailor that one
@@ -627,7 +630,10 @@ card prints a blank line to fill in by hand.
   `buendia-pkgserver-index-apks` needs to generate the `buendia-client.json` index the app fetches
   (`PackageServer.MODULE_NAME = "buendia-client"`). A git sha in the name is misparsed as the version
   and the file is skipped, so the sha goes in the `.buildinfo.txt` instead.
-- **In-app OTA updates are broken on v1.0 — don't plan on them (WS-5).** `UpdateManager.java:150-158`
+- **In-app OTA updates are broken on v1.0 — don't plan on them for the pilot (WS-5).** *(Deferred, not
+  dropped — see plan §7 for the scoped backlog entry, verified against the source 2026-07-30. Note the
+  author's own comment says the download "starts but Android never reports completion", so blocker 3 is
+  open-ended; the recommended fix is to bypass `DownloadManager` rather than debug it.)* `UpdateManager.java:150-158`
   short-circuits the download with `if (2 > 1)` and instead opens `http://<server>/client` (port
   **80**, which the stack doesn't serve); and `installUpdate()` passes Android a raw `file://` Uri,
   which throws `FileUriExposedException` at `targetSdkVersion 24`. There is no `FileProvider` and no
@@ -753,7 +759,7 @@ card prints a blank line to fill in by hand.
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull` |
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
-| WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA withdrawn** as unachievable on v1.0 (§4) — updates are a documented manual re-install, and the plan's acceptance criterion was revised accordingly |
+| WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. Correction 2026-07-30: **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. Note it is **impossible** (not merely disabled) if the site network gives no internet path — linked to the §3.3 decision |
 

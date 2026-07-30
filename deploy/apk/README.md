@@ -92,19 +92,32 @@ A release build installs as `org.projectbuendia.client` ("Buendia"); a debug bui
 as `org.projectbuendia.client.dev` ("Buendia dev"). They coexist, so **remove the debug app
 from pilot tablets** to avoid clinicians opening the wrong one.
 
-## In-app OTA updates do not work (WS-5 constraint)
+## In-app OTA updates do not work (WS-5 constraint — deferred, not dropped)
 
-Don't plan on the in-app updater. On the v1.0 client:
+Don't plan on the in-app updater for the pilot. On the v1.0 client:
 
 - `UpdateManager.java:150-158` short-circuits the download with `if (2 > 1)` and instead
   opens `http://<server>/client` in a browser — port **80**, which the pilot stack doesn't serve.
 - `UpdateManager.installUpdate()` hands Android a raw `file://` Uri; at `targetSdkVersion 24`
   that throws `FileUriExposedException`. There is no `FileProvider` and no
-  `REQUEST_INSTALL_PACKAGES` permission.
+  `REQUEST_INSTALL_PACKAGES` permission (verified absent from all of `app/src/`, 2026-07-30).
 
 So APK updates during the pilot are **manual** (adb over USB, or copy the file and tap).
-Making OTA work needs a client code change: a `FileProvider` + `content://` Uri,
-`REQUEST_INSTALL_PACKAGES`, and removing the short circuit.
+
+**Fixing it is a deferred backlog item, not an abandoned one** — see `docs/FIELD-PILOT-DEPLOYMENT-PLAN.md`
+§7 for the full scoping. Two things to know before estimating it, because this README used to
+under-describe the work:
+
+- ⚠️ **The short circuit is not the bug, it is a workaround for one.** The author's own comment reads
+  *"2019-09-18 — For some reason, this starts the download but Android never reports completion. So, for
+  now, send the user to the /client webpage instead."* So simply deleting `if (2 > 1)` restores a download
+  that never completes. **Recommended: bypass `DownloadManager` entirely** — fetch the APK with Volley or
+  `HttpURLConnection` into app-internal storage — rather than debugging a 2019 completion-notification
+  problem.
+- **Even fixed, it cannot install silently.** A sideloaded app still raises Android's package-installer
+  confirmation per update, and needs "install unknown apps" granted to *this app*. Silent updates require
+  device-owner/MDM — which is what config request **B5 q1** asks MSF about, and would make this work
+  unnecessary.
 
 Separately, the app health-checks `http://<server>:9001/dists/stable/Release` and shows a
 "check package server configuration" snackbar when it 404s. Running a minimal static server

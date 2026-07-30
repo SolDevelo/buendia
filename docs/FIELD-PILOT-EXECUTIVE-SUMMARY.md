@@ -5,8 +5,8 @@
 > **⚠️ This document was rewritten on 2026-07-30.** It previously described the pilot as not-yet-started
 > ("when the work is greenlit"), promised over-the-air app updates, and had SolDevelo procuring the
 > tablets and staging the kit. All three are out of date: **the software is built and twice validated on
-> real hardware**, OTA updates were withdrawn as unachievable on this client, and MSF supplies the
-> tablets and installs the shipping server.
+> real hardware**, in-app OTA updates don't work on this client and are **deferred to a post-pilot
+> backlog item** (not dropped), and MSF supplies the tablets and installs the shipping server.
 
 ## What this is
 
@@ -47,8 +47,9 @@ back unattended), wiped, and reinstalled from the deployment bundle with the sam
   (OpenMRS + database) ships as pre-built containers. **A laptop is recommended** — its battery is a
   built-in UPS against power cuts, and its screen is what tablets scan the install QR from.
 - **Tablets:** the existing Buendia app, frozen at the working baseline. Installed over local Wi-Fi by
-  scanning a QR code. **App updates are a manual re-install** — the in-app update mechanism is broken in
-  this version of the client and was withdrawn from scope rather than rebuilt.
+  scanning a QR code. **App updates are a manual re-install for the pilot** — the in-app auto-update
+  mechanism is broken in this version of the client, so fixing it was **deferred rather than dropped**: it
+  remains a low-priority item to revisit after the pilot, and the pilot is designed not to need it.
 - **Network:** the current plan is to **reuse the site's existing Wi-Fi**, with a small access point kept
   in the kit as a fallback. This is an open question with MSF — see below.
 - **Built for the field:** runs unattended (survives lid-close, power cuts and self-reboots), can't fill
