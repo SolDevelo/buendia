@@ -107,7 +107,8 @@ tablet**, and is now in the seed.
 - **Claude Code skills** — `.claude/skills/` (committed, so they travel with the repo):
   `pilot-stack` (reattach/fresh/throwaway/teardown + the `down -v` guard), `pilot-verify`,
   `pilot-build-kit` (A→Z cold rebuild + the decide-before-you-build ordering), `pilot-site-config`
-  (apply an MSF config answer + the cost hierarchy), `pilot-checkpoint` (this close-out routine).
+  (apply an MSF config answer + the cost hierarchy), `pilot-checkpoint` (this close-out routine), `pilot-usb` (stage an install USB + the
+  one-bundle/one-payload and address-match traps).
   They carry procedure and guards only, and point here for the facts, to avoid drifting from §4.
 - **Client `drc-pilot` branch** — `SolDevelo/buendia-client` now has a `drc-pilot` branch matching
   this superproject branch, and `.gitmodules` records `branch = drc-pilot`. Pilot client code
@@ -236,6 +237,12 @@ Independently verified **from a different machine** (this box, over the WiFi), n
 | Obs | `buendia_concept_placement` + datetime, `2026-07-29T14:59:27Z` |
 | Order | created `15:01:01Z` — the treatment path works |
 | Reachability | `:9000` REST and `:9001` install path both answer across the LAN |
+
+**Unattended restart confirmed (2026-07-29):** the notebook was rebooted — Docker came up on boot,
+the stack restarted on its own (`restart: unless-stopped` on all three services), and **the tablet
+reconnected and worked** with no intervention. That is the behaviour a site needs after a power cut.
+The box was then wiped (containers, volumes, images, network and `/opt/buendia`) and is a clean
+target again.
 
 Notes from that run:
 - **`CONFIGURE_NETWORK=false`** was used, so netplan was *not* exercised; the box got its address by
