@@ -4,8 +4,10 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-07-30. **WS-1..WS-5 COMPLETE and twice validated on real hardware.** A bare Ubuntu 24
-notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
+_Last updated: 2026-08-10 — **the network is ours** (see the block below); all pilot docs realigned to that
+single path and the new `FIELD-PILOT-NETWORK-SPEC.md` added. **WS-1..WS-5 COMPLETE and twice validated on
+real hardware** (the local stack is currently **stopped** — see *State of things RIGHT NOW*). A bare Ubuntu
+24 notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
 clone — smoke-tested through the tablet, rebooted, wiped and reinstalled. Images are public on Docker Hub;
 the tablet APK payload ships from a private GitHub release. The branch is now **pushed** to
 `soldevelo/drc-pilot`.
@@ -13,16 +15,33 @@ the tablet APK payload ships from a private GitHub release. The branch is now **
 **✉️ The configuration questions were SENT to MSF on 2026-07-30 — we are now waiting for answers**
 (`FIELD-PILOT-MSF-REQUEST-OUTGOING.md` + `FIELD-PILOT-SERVER-SPEC.md`). Every item in the canonical
 `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` is marked 🟡 awaiting; log answers **there**, not in the extract.
+**The outgoing document was revised on 2026-08-10** to ask for less (network questions withdrawn) and now
+travels with a third attachment, `FIELD-PILOT-NETWORK-SPEC.md` — **it needs re-sending**.
 
-**⚠️ Five direction changes landed on 2026-07-30** — end goal restated, two levels of test, MSF installs
-the shipping server, the user test will change the seed, and the network default inverted to reusing the
-site's Wi-Fi. See the DIRECTION CHANGES block in §2 before touching the plan.
+**⚠️ Direction changes to know before touching the plan** — end goal restated, two levels of test, MSF
+installs the shipping server, the user test will change the seed, and **the network is ours**. See the
+DIRECTION CHANGES block in §2.
+
+**🌐 THE NETWORK IS OURS (settled 2026-08-10, PW): we ship our own router; no site network is used.**
+`192.168.8.0/24`, router `.1`, server cabled at `.10`, one SSID everywhere — so the server's address is the
+same at SolDevelo, at MSF CH during UAT and at the site. Equipment spec: **`FIELD-PILOT-NETWORK-SPEC.md`**
+(item **D2**), a router *family* with three coverage tiers because the site layout that picks the tier is
+still unknown. What follows from it: **B1's address is fixed** and needs nothing from MSF; **B2 is a
+site-*layout* ask**, not a networking one; the APK is built once and no tablet is ever repointed; the §3.4
+DNS clock-intercept is guaranteed by procurement (hard requirement 2 of the spec); **coverage is now our
+top technical risk**, accepted deliberately. And: **"our own router" does not mean "no internet"** — the
+WAN port optionally takes a cable, an existing site Wi-Fi joined as a client, or a cellular SIM, so remote
+support and native tablet time-sync stay available while an uplink that fails costs nothing. §2 item 5 and
+plan §3.3.
 
 **➡️ NEXT SESSION: don't wait on MSF — three things need nothing from them.** In order:
 **(1)** test the remote-support tunnel locally over a mobile hotspot (never tested; C1 does *not* gate
-testing it); **(2)** test `CONFIGURE_NETWORK=true`, both the `ethernets:` and the unproven `wifis:`
-branch — this moved onto the shipping path with the network change, and **MSF runs that step, not us**;
-**(3)** build the backup mechanism, which is still the largest technical gap. Then WS-6 runbooks._
+testing it); **(2)** test `CONFIGURE_NETWORK=true` on the **`ethernets:`** branch — still never applied on
+hardware, and **MSF runs that step, not us**. *(The unproven `wifis:` branch left the shipping path on
+2026-08-10: the server now plugs into our own router with a cable. Test it only if time is free.)*;
+**(3)** build the backup mechanism, which is still the largest technical gap. Then WS-6 runbooks.
+**Also newly buyable:** the baseline network hardware (head router + one node + spare + power bank) —
+needed for staging regardless of any MSF answer._
 
 ---
 
@@ -40,7 +59,7 @@ OpenMRS 3 infrastructure (MSF confirmed this approach).
 
 ---
 
-## 2. Current state (2026-07-29)
+## 2. Current state (hardware validation 2026-07-29/30; docs and network design 2026-08-10)
 
 **MILESTONE: the complete kit was rebuilt from scratch and passed an end-to-end smoke test on a real
 tablet — including first install by QR code.** This is the first run where *nothing* was done by hand:
@@ -183,13 +202,16 @@ tablet**, and is now in the seed.
   shape of **B4**, but the image's contents are unknown to us and the QR path has hard prerequisites
   (sideload permission, a browser + scanner, no MDM install block) — see the new **B5**, and ask for
   **one tablet with that image** before staging.
-- **The site already has a Wi-Fi network** → we probably **skip the router**, and instead need a free
-  address on their subnet that tablets can reach. This removes procurement but adds real risk
-  (client isolation, DHCP we don't control) — see the rewritten **B2**.
+- **A site Wi-Fi network may exist, but we do not use it** (settled — DIRECTION CHANGES item 5). At most it
+  becomes an optional *uplink* to our own router. Its addressing and client-isolation behaviour are
+  therefore not our risk, and no network settings are asked of MSF.
 - **Server hardware is SolDevelo's call** — we produce the specification and suggest models. Not
   started; it gates a real `setup.sh` run.
-- **Site architecture** (tents in a field vs a building with a triage yard/hall) — asked, **no answer
-  yet**. It drives Wi-Fi coverage, power and the zone tree.
+- **Site architecture** (tents in a field vs a building with a triage yard/hall) — asked, **no answer yet**,
+  and now **the top open input**: it sizes the network equipment (coverage is our risk), settles the D1
+  laptop-vs-fanless question, and drives power and the zone tree. Asked in precise form as **B2**
+  (distances in metres, **wall material**, power/mounting at candidate AP spots, contamination boundaries,
+  outdoor spans); full list in `FIELD-PILOT-NETWORK-SPEC.md`.
 
 ### ⚠️ DIRECTION CHANGES — 2026-07-30 (PW). Read before touching the plan.
 
@@ -221,27 +243,35 @@ them (Parties, §2.1, §3.3, §3.4, §3.5, §8); the older text it replaced is m
      before shipping (else a reinstall silently reverts it — working guideline #9), and the **UAT test data
      must be wiped** before the kit ships (junk patients must not reach a live clinical system;
      re-verify with `--write` afterwards).
-5. **The network default is INVERTED: reuse the site's Wi-Fi, don't ship our own AP.** Previously the
-   shipped autonomous router was the default. Full trade-off table in plan §3.3. PW's reasoning, which is
-   sound: coverage is the risk we can neither measure nor fix from Switzerland, whereas the addressing
-   risk has a workaround on arrival — **and this exact arrangement is already validated**, since the
-   2026-07-29/30 runs put the server on an existing office network we don't administer, at a given static
-   address (`192.168.0.250`), with the APK built for it. That is not an experiment; it is what we ran
-   twice. **MSF is being asked to choose, with both options explained**, because "the site has Wi-Fi" is
-   our inference from a conversation, not a confirmed fact.
-   - **Keep a small AP in the kit regardless.** It is the recovery path if their network isolates clients
-     or doesn't exist, *and* it is how MSF CH can mimic the site's subnet during UAT so one APK works in
-     both places.
-   - **Two consequences that were buried and are now explicit in the plan:**
-     - **Tablet clock discipline changes.** Plan §3.4's DNS-interception trick needs a DNS resolver we
-       control — unavailable on their Wi-Fi. If their network *has internet*, this is better than our
-       workaround (Android's normal time sync just works). If it does **not**, tablet clocks are
-       unmitigated, and since the encounter timestamp is client-supplied, drift becomes wrong clinical
-       data. Hence the new question: does their Wi-Fi have internet?
-     - **Remote support needs that same internet path.** On a fully isolated AP of our own, the tunnel is
-       *impossible*, not merely disabled.
-   - ⏱️ **This is the most schedule-critical answer on the MSF list.** The address is baked into the APK
-     and UAT runs on a different network from the site — see the sequencing trap in plan §3.3.
+5. **The network is ours: we ship the router; no site network is used.** `192.168.8.0/24`, router `.1`,
+   server cabled at `.10`, one SSID across every access point. Plan §3.3 carries the full reasoning; the
+   short form, because it recurs for every future site:
+   - **Only our own network is testable before shipping.** "Anything untestable in Switzerland ships
+     unvalidated" is the sharpest rule in the plan, and *nothing* about someone else's network can be
+     verified from here — not coverage, not addressing, not DHCP, not client isolation. Owning it makes
+     staging a rehearsal rather than an approximation.
+   - **Owning the subnet is worth more than borrowing coverage.** It is what makes the APK's baked address
+     right everywhere: no rebuild after UAT, no per-tablet Settings visit on arrival, nothing to "mimic" at
+     staging.
+   - **Accepted cost: coverage is ours.** Taken deliberately, because coverage is measurable (walk it with
+     a tablet), incrementally fixable (add a node on the same SSID — no Buendia change) and cheap
+     (~CHF 100–190 a node). Client isolation, the alternative risk, is invisible, fatal and fixable only by
+     someone else's admin. Prefer the risk with a purchase order attached.
+   - **"Our own router" ≠ "no internet".** The WAN port is optional — an ethernet drop, an existing site
+     Wi-Fi *joined as a client* (repeater/WISP), or a cellular SIM. Tablets and server keep our subnet
+     either way, so an uplink that fails costs nothing while a working one buys Android-native tablet clock
+     sync and a **remote-support path that is otherwise impossible, not merely disabled**. **A SIM in the
+     router depends on nobody at the site** — worth pricing while doing WS-7.
+   - **Consequences already applied to the docs:** **B2** is a layout ask (spaces, distances in metres,
+     **wall material**, power/mounting at candidate AP spots, contamination boundary, outdoor spans);
+     **B1** is reduced to a site label; **D2** + `FIELD-PILOT-NETWORK-SPEC.md` carry the equipment (ten hard
+     requirements — two of which, standalone-with-no-cloud and custom local DNS, disqualify most consumer
+     mesh kits — then tier 1 single head router / tier 2 head + 1–3 nodes / tier 3 outdoor or
+     point-to-point; recommended family GL.iNet OpenWrt, alternatives Omada, UniFi, industrial Teltonika
+     with LTE). **Buy the baseline now, defer the extra nodes** (§8 item 10).
+   - **The netplan `wifis:` branch is off the shipping path** — the server is cabled to our router. Only
+     `ethernets:` must work, and it still has never run on hardware (§8 item 5). `wifis:` stays a documented
+     fallback for a thin laptop with no RJ45 and no adapter.
 
 ### ⚠️ The remote connection has NEVER been tested (recorded 2026-07-30, PW)
 
@@ -335,8 +365,9 @@ target again.
 
 Notes from that run:
 - **`CONFIGURE_NETWORK=false`** was used, so netplan was *not* exercised; the box got its address by
-  other means. The generated-netplan path (and especially the `wifis:` branch) is **still unproven on
-  hardware**.
+  other means. The generated-netplan path is **still unproven on hardware** — the `ethernets:` branch is
+  the one that must work (since 2026-08-10 the server is cabled to our own router); the `wifis:` branch is
+  no longer on the shipping path.
 - **The host clock reads UTC** — `setup.sh` does `timedatectl set-timezone "$TZ"` with `TZ=UTC`, and
   the containers + JVM match. Working as designed: the 16:59 local admission is stored `14:59:27Z`
   and the **tablet displayed it as ~16:59**, confirming the client converts to device-local. **Keep
@@ -473,19 +504,26 @@ adb install -r buendia-client-<version>.apk
 The script prints the baked-in server/user read back out of the finished APK — check that line.
 Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
-### State of things RIGHT NOW (2026-07-30, end of session)
+### State of things RIGHT NOW (2026-08-10, end of session)
 
 **Two machines are involved. Neither holds anything precious — both are reproducible.**
 
-**A. This build box** — the local stack is **running and healthy**, rebuilt cold from the baked DB image:
+⚠️ **The local stack is DOWN.** `buendia-verify.sh` at close of the 2026-08-10 session returned
+**NO-GO — nothing answered on `127.0.0.1:9000`**, and no `compose-*` containers are running. That session
+was **documentation only** — it changed no code path, ran nothing and broke nothing; the stack was simply
+left stopped after 2026-07-30. **Boot it before trusting any runtime claim below** (`pilot-stack` skill, or
+§3 *How to run it locally*); it comes back from the baked DB image in a couple of minutes and nothing
+needs rebuilding.
+
+**A. This build box** — stack **stopped**. Last known-good state, from 2026-07-30:
 
 | | |
 |---|---|
-| Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all healthy |
-| Images | `buendia-db:5.6-68e59eeb` (running), `buendia-openmrs:1.10.6-7d0f5e8e` |
+| Services | `compose-db-1`, `compose-openmrs-1`, `compose-pkgserver-1` — all healthy *(when last up)* |
+| Images | `buendia-db:5.6-68e59eeb`, `buendia-openmrs:1.10.6-7d0f5e8e` — still present locally |
 | URL | `http://192.168.0.150:9000/openmrs` — login `buendia` / `buendia` |
 | Data | **0 patients / 0 encounters / 0 obs / 0 orders**, 6 locations, 2 providers — a clean stack |
-| Verified | **`buendia-verify.sh` → GO, 16/16**, re-run at close of session 2026-07-30 |
+| Verified | **`buendia-verify.sh` → GO, 16/16** on 2026-07-30. **NO-GO on 2026-08-10 because it is stopped**, not because anything regressed |
 | `.env` | `SITE_ID=notebook-test`, `STATIC_IP`/`APK_SERVER=192.168.0.250`, images pinned by **digest** |
 
 ⚠️ `deploy/.env` is aimed at the **notebook** (`192.168.0.250`), not at this box. If you rebuild an APK
@@ -765,13 +803,13 @@ card prints a blank line to fill in by hand.
 
 | WS | What | Status |
 |----|------|--------|
-| WS-1 | Server container stack + packaging | ✅ done. Installer hardened (6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go wired in) and **validated on real hardware 2026-07-29** — bare Ubuntu 24 notebook → USB bootstrap → GO, verified remotely 13/13, tablet installed by QR. Netplan branch still unexercised (`CONFIGURE_NETWORK=false` was used) |
+| WS-1 | Server container stack + packaging | ✅ done. Installer hardened (6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go wired in) and **validated on real hardware 2026-07-29** — bare Ubuntu 24 notebook → USB bootstrap → GO, verified remotely 13/13, tablet installed by QR. Netplan branch still unexercised (`CONFIGURE_NETWORK=false` was used) — and since the network is ours, only the **`ethernets:`** branch needs proving; `wifis:` is off the shipping path (§8 item 5) |
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull` |
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
-| WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. Correction 2026-07-30: **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. Note it is **impossible** (not merely disabled) if the site network gives no internet path — linked to the §3.3 decision |
+| WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. It is **impossible** (not merely disabled) with no internet path at the site — and since the router is ours, the path is an **optional uplink on it**: cable, an existing site Wi-Fi joined as a client, or **a cellular SIM, which depends on nobody at the site**. Price the SIM/LTE option while doing this |
 
 ---
 
@@ -779,9 +817,19 @@ card prints a blank line to fill in by hand.
 
 **➡️ Configuration inputs we need from MSF now live in one place:
 `docs/FIELD-PILOT-MSF-CONFIG-REQUESTS.md`** — locations tree & display order, facility name, clinician
-accounts, credentials, **UI language (French?)**, profile content, patient ID scheme, timezone, network,
-tablet count, data-protection sign-off. Each item records the default we ship, the file it lands in, and
-its status. **Keep that file up to date** as answers arrive or new questions surface.
+accounts, credentials, **UI language (French?)**, profile content, patient ID scheme, timezone, **site
+layout (B2, which sizes the Wi-Fi)**, tablet count, data-protection sign-off. Each item records the default
+we ship, the file it lands in, and its status. **Keep that file up to date** as answers arrive or new
+questions surface.
+
+**Settled, so don't reopen it:** the **network is ours** — our own router on `192.168.8.0/24`, no site
+network used (§2 DIRECTION CHANGES item 5, plan §3.3, spec `FIELD-PILOT-NETWORK-SPEC.md` = item **D2**).
+The old questions about MSF's subnet, DHCP pool, reserved address and client isolation are **deleted from
+the config list**, not merely answered. What is still open from it is **B2** (site layout → how many access
+points) and the **optional uplink** question.
+
+**Hardware to procure (SolDevelo, needs nothing from MSF):** the baseline network kit — head router + one
+coverage node + a cheap spare + an ethernet cable + a power bank, a few hundred CHF (§8 item 10).
 
 Programme/logistics decisions (hardware model, Staging Area location, hypercare scope) stay in
 plan §8. Nothing here blocks the build — the package boots and is clinically usable on defaults; each
@@ -822,22 +870,29 @@ answer swaps out one default, mostly in `deploy/seed/initdb/20-buendia-site.sql`
 
 ## 8. Suggested next steps (priority order)
 
-**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. The MSF questions
-are sent and we are waiting. What remains is three real gaps (the untested remote tunnel, the untested
-netplan branch, no backup) plus documentation.**
+**➡️ NEXT SESSION STARTS HERE — the technical kit is done and twice proven on hardware. What remains is
+three real gaps (the untested remote tunnel, the untested netplan branch, no backup), the network hardware
+to buy, and documentation. ⚠️ Two things to do before anything else: (a) the local stack is STOPPED — boot
+it if you need a runtime; (b) the MSF request was revised on 2026-08-10 and has NOT been re-sent, and the
+version MSF holds contains network questions we have since withdrawn.**
 
-⚠️ **Read the DIRECTION CHANGES block in §2 first (2026-07-30).** The staging model, the number of test
-levels, who installs the shipping server, and the network default all changed; the priorities below assume
-those changes.
+⚠️ **Read the DIRECTION CHANGES block in §2 first.** The staging model, the number of test levels, who
+installs the shipping server, and the network topology are all settled there, and the priorities below
+assume them — in particular **we ship our own router** (§2 item 5).
 
 > ### 🔢 Order to work in — the numbering below is stable, so read this for sequence
 >
-> **MSF is now the long pole, so do the things that need nothing from them.** In order:
+> **First, a five-minute job: re-send the revised MSF request** (item 2) — it asks for *less* than the
+> version they hold, and until it goes they may answer withdrawn questions.
+>
+> **Then, MSF is the long pole, so do the things that need nothing from them.** In order:
+> **item 10** (buy the baseline network hardware — it gates four separate validation claims and has a
+> delivery lead time, so order it first and work on other items while it arrives),
 > **item 7** (test the remote tunnel over a mobile hotspot — never tested, and C1 does *not* gate testing),
-> then **item 5** (test `CONFIGURE_NETWORK=true`, both branches — newly on the shipping path, and MSF
-> executes it), then **item 3** (backup — the largest technical gap), then **item 8** (WS-6 runbooks, with
-> the changed audience). **Item 2 is done** (questions sent); items **4** and **6** are done or optional.
-> Item **9** (multi-tablet retest) has moved into MSF's UAT script and is no longer ours to schedule.
+> **item 5** (test `CONFIGURE_NETWORK=true` — the `ethernets:` branch only now, and MSF executes it),
+> **item 3** (backup — the largest technical gap), then **item 8** (WS-6 runbooks, with the changed
+> audience). Items **4** and **6** are done or optional. Item **9** (multi-tablet retest) has moved into
+> MSF's UAT script and is no longer ours to schedule.
 >
 > Item numbers are referenced from other documents — **don't renumber them**, just mark them done.
 
@@ -852,20 +907,25 @@ those changes.
    - **`CLINICAL-QUICKSTART`** — add providers, upload/activate a profile, extend the location tree.
    **No pandoc on this box** (needs root) — print the Markdown from a browser, as
    `make-install-card.sh` already does.
-2. ✅✉️ **SENT TO MSF on 2026-07-30 — we are now waiting for answers. Nothing to do here but chase.**
+2. ✉️ **SENT 2026-07-30, REVISED 2026-08-10 — the revision still needs sending. Then chase.**
    All items in `FIELD-PILOT-MSF-CONFIG-REQUESTS.md` are marked **🟡 asked, awaiting answer** (none is ⬜
    any more). **When an answer arrives: log it in that canonical file** (not the outgoing extract), flip the
    item ✅, apply it via the `pilot-site-config` skill, and note it in §2 here.
-   **Which answers to chase hardest:** **B5** (their tablet image — can invalidate the QR install route),
-   **B2/B6** (the network choice + the server address — most schedule-critical, it is baked into the APK),
-   **C1** (data-protection, gates WS-7), **D1** (hardware, if anything is purchased — delivery lead time).
+   ⚠️ **The outgoing document was revised on 2026-08-10 and has NOT been re-sent.** The network questions
+   in the sent version are withdrawn (we supply the network), **B2** is now a site-layout question, and
+   `FIELD-PILOT-NETWORK-SPEC.md` joins it as a third attachment. **Send the revision** — it visibly reduces
+   what we are asking MSF for, and otherwise they will answer dead questions.
+   **Which answers to chase hardest:** **B5** (their tablet image — can invalidate the QR install route, and
+   the tablets must be able to join *our* SSID), **C1** (data-protection, gates WS-7), **D1** (hardware, if
+   anything is purchased — delivery lead time), then **B2/D2** (the site layout, which sizes the Wi-Fi
+   equipment but blocks nothing).
    **Which answers can wait:** A1/A2/A3/A4/A7 are all things the MSF user test can settle live at no cost.
    The send-ready extract was
    `docs/FIELD-PILOT-MSF-REQUEST-OUTGOING.md`, plus `docs/FIELD-PILOT-SERVER-SPEC.md` as an
-   accompanying attachment. Reordered by lead time, not by the internal A/B/C grouping: **B5** (what
-   their tablet image permits — can invalidate the QR install path outright), **B6/B2** (their IP space,
-   and why a "probably free" address is unreachable), **B1**, **D1** (hardware), **C1**
-   (data-protection, gates WS-7) come first; the clinical items follow. Each item is tagged with who at
+   accompanying attachment, joined by `FIELD-PILOT-NETWORK-SPEC.md` in the revision. Reordered by lead
+   time, not by the internal A/B/C grouping: **B5** (what their tablet image permits — can invalidate the QR
+   install path outright), **B2** (the site layout, which sizes the Wi-Fi equipment), **B1** (a site label),
+   **D1** (hardware), **C1** (data-protection, gates WS-7) come first; the clinical items follow. Each item is tagged with who at
    MSF owns it (clinical / IT / programme / data-protection) so the mail can be routed, and it ends with
    a fill-in summary table. **Remaining action is non-technical: actually send it** and log answers back
    into the canonical `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`.
@@ -878,13 +938,13 @@ those changes.
    **UPS/graceful-shutdown TODO** at `setup.sh:186` — on a laptop this is UPower battery thresholds,
    which is much simpler than wiring Network UPS Tools to an external UPS — and gives a box on which
    the netplan path can be tested without disturbing anything.
-5. ⬆️ **Test `CONFIGURE_NETWORK=true` — this got MORE important on 2026-07-30, not less.** Generated
-   netplan, and especially the **`wifis:` block**, has **never been applied on hardware** (both real
-   installs used `CONFIGURE_NETWORK=false`). With the new default of *reusing the site's Wi-Fi at a static
-   address we are given*, this branch moves **onto the shipping path**: the server takes a fixed address on
-   a network it does not own, which is exactly what netplan generation does — and if the site gives us
-   no wired port, it is the unproven `wifis:` branch that runs. Worse, MSF executes this step, not us.
-   **Test both branches before the MSF session.**
+5. ⬆️ **Test `CONFIGURE_NETWORK=true` — still required, but SIMPLER since 2026-08-10.** Generated netplan
+   has **never been applied on hardware** (both real installs used `CONFIGURE_NETWORK=false`), and it is on
+   the shipping path because the server takes a fixed address (`192.168.8.10`) — executed by MSF, not us.
+   **What changed with the own-router decision:** the server now plugs into *our* router with a cable, so
+   only the **`ethernets:`** branch has to work. The unproven **`wifis:`** branch is off the shipping path
+   (test it if time is free, don't gate on it), and the address is ours rather than one we were given.
+   **Test the `ethernets:` branch before the MSF session.**
 6. **Optional, cheap:** publish `buendia-deploy-<ver>.tar.gz` as a release asset on the public repo so
    `bootstrap.sh` can fetch it via `BUNDLE_URL` with no USB.
 7. ⬆️ **Test the remote-support tunnel LOCALLY — newly unblocked, do it early.** It has never been tested
@@ -893,9 +953,10 @@ those changes.
    internet connections, then prove the tunnel establishes and carries an SSH session. Cheap, and it
    retires the kit's largest remaining unproven claim. It also gives us a way to apply UAT change requests
    remotely during the MSF session.
-   - ⚠️ Note the dependency the plan now records: **remote support needs an internet path at the site**,
-     which the §3.3 network choice controls. On a fully isolated AP of our own it is impossible, not just
-     disabled — so this and the network decision are linked.
+   - ⚠️ Note the dependency the plan records: **remote support needs an internet path at the site.** Since
+     2026-08-10 that path is an **optional uplink on our own router** — an ethernet drop, the site's Wi-Fi
+     joined as a client, or **a cellular SIM, which depends on nobody at the site**. With no uplink at all
+     it is impossible, not merely disabled, so price the SIM/LTE option while doing this item.
 8. **WS-6 runbooks — but the audience changed** (see direction change 3). The install guide is now a
    document **MSF executes**, so it must assume no Buendia knowledge and have a pass/fail at every step.
    Add a piece that did not exist before: a **UAT change-capture + fold-back procedure** (how a "move this
@@ -903,6 +964,15 @@ those changes.
    **wipe-test-data-before-shipping** step.
 9. **Multi-tablet sync retest** — still not done with the packaged build, and it can now only happen at the
    MSF session, on their tablets. Put it in the UAT script rather than treating it as our task.
+10. 🆕 **Buy and configure the baseline network hardware** — the network is ours, so this is procurement we
+   own (spec: `docs/FIELD-PILOT-NETWORK-SPEC.md`, item **D2**). Needs nothing from MSF and fits any plausible
+   site: **head router + one coverage node + a cheap spare + an ethernet cable + a power bank**, a few
+   hundred CHF total. Defer extra nodes and the outdoor tier until the B2 layout answers arrive.
+   Then, on the desk, prove the things that are currently claims: the **DNS clock intercept** correcting a
+   deliberately-wrong tablet clock (plan §3.4 — hard requirement 2 of the spec), a **coverage walk** at the
+   site's stated distances/wall count, **router on a power bank** through a simulated cut, **config export
+   and restore**, and a **second node joining the same SSID** with a tablet roaming onto it. Export the
+   final config to the file that travels in the kit, and tape over the reset button.
 
 Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
 (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —

@@ -50,8 +50,9 @@ back unattended), wiped, and reinstalled from the deployment bundle with the sam
   scanning a QR code. **App updates are a manual re-install for the pilot** — the in-app auto-update
   mechanism is broken in this version of the client, so fixing it was **deferred rather than dropped**: it
   remains a low-priority item to revisit after the pilot, and the pilot is designed not to need it.
-- **Network:** the current plan is to **reuse the site's existing Wi-Fi**, with a small access point kept
-  in the kit as a fallback. This is an open question with MSF — see below.
+- **Network:** **we supply it** — a small router of our own on its own subnet, not a site network (see
+  below). Specification: `FIELD-PILOT-NETWORK-SPEC.md`. MSF is asked only about the site's *physical
+  layout*, which tells us how many access points to bring.
 - **Built for the field:** runs unattended (survives lid-close, power cuts and self-reboots), can't fill
   its own disk, and ships with an offline diagnostics dump plus a single go/no-go check that proves the
   system is genuinely *usable*, not merely powered on.
@@ -77,38 +78,52 @@ the shipped configuration afterwards.
 
 ## What remains
 
-1. **MSF's configuration answers** — sent as `FIELD-PILOT-MSF-REQUEST-OUTGOING.md`. The
-   time-critical ones: what their tablet system image permits (it can invalidate the QR install route),
-   the network decision below, and data-protection sign-off.
-2. **The network decision** (below) — the most schedule-critical answer, because the server's address is
-   built into the tablet app.
+1. **MSF's configuration answers** — sent as `FIELD-PILOT-MSF-REQUEST-OUTGOING.md`, revised 2026-08-10 to
+   ask for **less**. The time-critical ones: what their tablet system image permits (it can invalidate the
+   QR install route) and data-protection sign-off.
+2. **The site's physical layout** — it sizes the Wi-Fi equipment (one router, or a router plus nodes) and
+   blocks nothing: the baseline is bought and tested in the meantime. A sketch or photos answers most of
+   it, and the same answer settles whether the server should be a laptop or a sealed fanless box.
 3. **Server hardware** — specification delivered (`FIELD-PILOT-SERVER-SPEC.md`); MSF may repurpose an
-   existing laptop, which would be the cheapest and fastest outcome.
+   existing laptop, which would be the cheapest and fastest outcome. **Network hardware** is specified too
+   (`FIELD-PILOT-NETWORK-SPEC.md`) and SolDevelo procures it.
 4. **Backup** — the largest remaining technical gap. Nothing yet takes a scheduled copy of the database,
    and the site server will hold the only copy of the pilot's patient data.
 5. **Runbooks** (~2–3 days) and **proving the remote-support tunnel** (~1–2 days).
 
-## The open network decision
+## The network: ours, not the site's
 
-Tablets and server must share one network. Two options, each with one real risk:
+Tablets and server must share one local network, and nothing clinical needs the Internet. **We supply that
+network** — our own router on `192.168.8.0/24`, the server at `192.168.8.10`, one Wi-Fi name across every
+access point.
 
-| | Reuse the site's Wi-Fi *(current preference)* | Ship our own access point |
+| | Sharing an existing site network | **Our own router** |
 |---|---|---|
-| **Main risk** | Getting a fixed, reachable address in their subnet — and confirming their network doesn't isolate clients from each other (a silent, fatal setting) | **Range.** One access point may not reach every zone, and we cannot measure that from Switzerland |
-| **Coverage** | Already designed for the site | Unknown until arrival |
-| **Remote support & tablet clocks** | Work, if their network has Internet | Not possible on an isolated network |
+| **Main risk** | Obtaining a fixed, reachable address on it — and confirming it does not isolate clients from each other, a **silent and fatal** setting | **Range.** One access point may not reach every zone |
+| **Testable before shipping?** | **No** — none of it, from Switzerland | **Yes** — the staging network *is* the production network |
+| **Tablet app's server address** | Given to us; a wrong address means a per-tablet fix in the field | Ours; correct everywhere, built once |
+| **Remote support & tablet clocks** | Depend on that network having Internet | Clocks from our own server; support via an **optional** uplink to our router |
 
-The preference for reusing their Wi-Fi rests on coverage being the risk we can neither measure nor fix
-remotely — and on the fact that **this arrangement is already validated**: both hardware runs placed the
-server on an existing network we don't administer, at an address we were given, and it worked. **MSF is
-being asked to choose**, with both options explained; a fallback access point travels with the kit either
-way.
+**Why:** the pilot's sharpest rule is that nothing untestable in Switzerland may ship, since no engineer
+will be on site — and nothing about someone else's network can be tested from here. Owning it also removes
+the most schedule-critical dependency the plan had (their address, baked into the tablet app) and an entire
+class of invisible, unfixable failures.
+
+**The cost we accept:** coverage is our problem. Deliberately — coverage is *measurable* with a tablet and
+a walk, and fixable by moving or adding a ~CHF 150 access point. That is the opposite of a silent failure.
+What we need from MSF is the site's layout: distances, and what the walls are made of.
+
+**Note:** "our own network" does **not** mean "no Internet". The router's uplink is optional and can come
+from a cable, from an existing site Wi-Fi joined as a client, or from a mobile SIM — so remote support and
+native tablet time-sync stay available, while an uplink that fails costs nothing, because clinical use
+never touches it.
 
 ## Principal risks
 
 - **No backup mechanism yet** — one machine will hold the only copy of the patient data (see above).
-- **The remote-support tunnel is untested**, and on a fully isolated network it would be impossible
-  rather than merely disabled — meaning a box nobody can look inside.
+- **The remote-support tunnel is untested**, and with **no uplink at all** at the site it would be
+  impossible rather than merely disabled — a box nobody can look inside. Because the router is ours, the
+  uplink can be a mobile SIM in it, which depends on nobody at the site.
 - **MSF's tablet system image is an unknown** that could invalidate the QR install route entirely; the
   cheapest mitigation is one tablet with that image in our hands before the MSF session.
 - **An end-of-life software stack** (OpenMRS 1.10 / Java 7 / MySQL 5.6). Acceptable for a controlled

@@ -22,19 +22,33 @@
 > apply it to the named file — the `pilot-site-config` skill is the apply path — and note it in
 > `FIELD-PILOT-PROGRESS.md` §2. The outgoing extract is *derived*; don't log answers into it.
 >
-> **Priority of the answers we are waiting on**, highest first:
-> 1. **B5** — what MSF's tablet image permits. Can invalidate the QR install route outright.
-> 2. **B2/B6** — the network choice and the server's address. **Most schedule-critical**: the address is
->    baked into the tablet APK and the MSF-CH user test runs on a different network from the site.
-> 3. **C1** — data-protection sign-off. Gates WS-7 being enabled at a site.
-> 4. **D1** — the server machine, if anything is to be purchased (delivery lead time).
+> ## 🌐 The network is ours — settled, and it removed several questions
 >
-> _Last updated: 2026-07-30 (**all items marked sent**; **D1 added** — server hardware, with the spec
-> delivered as its own document; **B2/B6 rewritten** — the default inverted to *reusing* the site's Wi-Fi
-> and both options are now put to MSF; **new question added** — does the site Wi-Fi have internet, which
-> decides tablet clock discipline and whether remote support is possible at all; **A6** no longer "not yet
-> raised". Previously, 2026-07-29: B5 and B6 added, B2 rewritten, B1/A5 re-scoped to cheap-but-manual,
-> B4 shape decided.)_
+> **SolDevelo supplies the network: our own router, `192.168.8.0/24`, server at `192.168.8.10`.** No site
+> network is used. Consequences for this list, so nobody chases a dead question:
+> - **B2** asks only about the site's **physical layout**, which sizes the Wi-Fi equipment. It is not a
+>   networking question and no network settings are needed from MSF.
+> - **The server's address is ours and final** (`192.168.8.10`) — identical at SolDevelo, at MSF
+>   Switzerland during UAT and at the site. **B1** is reduced to a cosmetic site label.
+> - **"Our own router" does not mean "no internet".** The router's WAN port optionally takes an uplink
+>   (cable, the site's Wi-Fi joined as a client, or a cellular SIM), which keeps tablet clock sync and
+>   remote support available while nothing clinical depends on it. Asked as a non-blocking option in **B2**.
+> - **D2** carries the equipment specification: `docs/FIELD-PILOT-NETWORK-SPEC.md` — a *family with three
+>   coverage tiers* rather than a model, because the layout that picks the tier is the missing input.
+>   SolDevelo procures.
+>
+> **Priority of the answers we are waiting on**, highest first:
+> 1. **B5** — what MSF's tablet image permits. Can invalidate the QR install route outright, and the
+>    tablets must also be able to **join our SSID** (q6 — no longer optional now that the network is ours).
+> 2. **C1** — data-protection sign-off. Gates WS-7 being enabled at a site.
+> 3. **D1** — the server machine, if anything is to be purchased (delivery lead time).
+> 4. **D2 / B2** — the site layout, so the network equipment can be sized. Only the *extra* coverage nodes
+>    wait on this; the baseline is bought and staged regardless.
+>
+> _Last updated: 2026-08-10. The network questions that were sent on 2026-07-30 (their subnet, gateway,
+> DHCP pool, a reserved server address, VLANs, client isolation — the former item **B6**) are **withdrawn**:
+> we supply the network. **The outgoing extract has been revised accordingly and needs re-sending**, with
+> `FIELD-PILOT-NETWORK-SPEC.md` as a third attachment._
 
 **Status legend:** ⬜ not asked · 🟡 asked, awaiting answer · ✅ answered & applied
 
@@ -186,88 +200,68 @@
 
 ## B. Network & devices
 
-### B1. Server LAN address & site ID — 🟡 **blocks the shipping APK**
+### B1. Site identifier — 🟡 *(the server address is ours: `192.168.8.10`, settled)*
 
-- **Need:** the static IP the server should take on the site network, and a short site identifier.
-  If we are using the site's existing Wi-Fi (**B2**), this must be an address on **their** subnet that
-  is free or reserved for us.
-- **Why:** the server address is **baked into the tablet APK** at build time, as the default for a
-  runtime preference. Changing it later does **not** require a reinstall — the address, username and
-  password are all editable on the tablet (cog → Settings → *Buendia server* / *OpenMRS username* /
-  *OpenMRS password* → save), a guided step a non-technical person can perform. But it must be done
-  on **every** tablet, and until it is, that tablet cannot sync. So B1 and **A5** are **cheap-but-manual
-  ×N**, not blocking: still worth deciding before the shipping APK build, just not a crisis if they slip.
-- **If the address can only be known on arrival:** we cannot pre-build a zero-touch APK (the Android
-  toolchain is not on the site server), so the fallbacks are (a) walk each tablet through the Settings
-  change on site, or (b) ship our own router so we control the subnet. Neither is expensive; both cost
-  per-tablet time in the field, which is the thing worth avoiding.
+- **Need:** a short site identifier for labelling equipment, backups and diagnostics (e.g. `bunia`).
+  Cosmetic; it blocks nothing.
+- **The server address is not an MSF input.** We own the subnet (**B2**), so `192.168.8.10` is correct
+  everywhere — at SolDevelo, at MSF Switzerland during UAT, and at the site. The APK is built once with
+  that address and no tablet is ever repointed.
+- **Worth keeping in mind anyway**, because it governs **A5** and **A10** which *are* baked in: the server
+  address, username and password are all editable on the tablet (cog → Settings → *Buendia server* /
+  *OpenMRS username* / *OpenMRS password* → save), so a wrong value is recoverable by a guided step a
+  non-technical person can perform — but it must be done on **every** tablet, and until it is, that tablet
+  cannot sync. Avoid needing it.
 - **Default shipped:** `STATIC_IP=192.168.8.10`, `SITE_ID=pilot`.
 - **Lands in:** `deploy/.env` (`STATIC_IP`, `SITE_ID`) → netplan + the APK's `APK_SERVER`.
-- **Answer:** _(pending)_
+- **Answer:** _(pending — `SITE_ID` only)_
 
-### B2. Site network — 🟡 *(default INVERTED 2026-07-30: reusing their Wi-Fi is now our preference; both options put to MSF)*
+### B2. Site layout — how much Wi-Fi equipment to bring — 🟡 *(the network itself is settled: ours)*
 
-> **⚠️ Direction change 2026-07-30 — this item was rewritten.** The default *was* our own shipped
-> autonomous router, with their Wi-Fi as an option. It is now **the other way round**: reusing the site's
-> Wi-Fi is our stated preference, and our own AP is the fallback (and the UAT subnet-mimic device). Full
-> reasoning and the trade-off table are in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §3.3; the short version is that
-> **coverage is the risk we can neither measure nor fix from Switzerland**, whereas the addressing risk has
-> a workaround on arrival — **and reusing someone else's network is already validated**, since both
-> hardware runs (2026-07-29/30) put the server on an existing office network at a given static address
-> (`192.168.0.250`) with the APK built for it, and it worked first time.
+> **The network is SolDevelo's**: our own router, `192.168.8.0/24`, server cabled to it at
+> `192.168.8.10`, one SSID across every access point. **No site network is used, and no network settings
+> are needed from MSF.** Rationale in `FIELD-PILOT-DEPLOYMENT-PLAN.md` §3.3; equipment in
+> `docs/FIELD-PILOT-NETWORK-SPEC.md` (**D2**).
 >
-> **MSF has been asked to choose**, with both options explained, because "the site has Wi-Fi" is our
-> inference from a conversation and not a confirmed fact.
+> What that leaves as a genuine ask is **coverage sizing**, which depends on the site's physical layout —
+> the one thing we cannot look up. The accepted cost of owning the network is that coverage is our risk;
+> it is a fair trade because coverage is measurable, incrementally fixable and cheap, whereas nothing
+> about somebody else's network could be tested from Switzerland at all.
 
-- **⭐ NEW QUESTION (2026-07-30) — does the site's Wi-Fi have internet access, even intermittently?**
-  This is small to ask and decides two things we cannot otherwise solve:
-  1. **Tablet clock discipline.** With internet, Android's normal automatic time works and the problem
-     disappears — *better* than the workaround we had designed. Without it, we have no way to discipline
-     tablet clocks (our DNS-interception trick needs a resolver we control, which we do not have on their
-     network), and since the encounter timestamp is supplied by the tablet, drift becomes **wrong clinical
-     data**. See **A9** and **B5 q8**.
-  2. **Whether remote support is possible at all.** No internet path means the tunnel is *impossible*, not
-     merely disabled — a box nobody can look inside (**C1**, plan §3.5).
-- **Need:** if the site's existing Wi-Fi is the network we use, we need, **before staging**:
-  1. **subnet / netmask / gateway**, and a **free static address** for the server — ideally a DHCP
-     reservation on their AP or controller;
-  2. confirmation the network does **not isolate clients from each other** (see below);
-  3. whether there is a **wired port** (AP or switch) where the server will live;
-  4. SSID + passphrase, and whether the network is shared with other services or internet-facing;
-  5. coverage over the actual zones (tents/wards) — poor coverage is the most common field failure.
-     ⚠️ Ask specifically about the *zones*, not the site in general: a network covering an admin building
-     is not evidence that it reaches a triage tent 80 m away;
-  6. who administers it, and whether their IT must approve an unmanaged server holding patient data
-     on it (ties to **C1**/**C2**).
-- **⏱️ Why this is the most schedule-critical answer on the list:** the server's address is baked into the
-  tablet APK, and the **MSF-CH user test runs on a different network from the site**. Either the address is
-  known before the shipping APK is built, or the APK is rebuilt and reinstalled per tablet after UAT, or
-  somebody performs a guided Settings change on every tablet at the site. Plan §3.3 records the neat way
-  out: configure the fallback AP at MSF CH to **mimic the site's subnet**, so UAT runs against the final
-  address and nothing needs touching afterwards — which only works if the address is settled before UAT.
-- **⚠️ The silent killer — client isolation.** Many office/guest Wi-Fi networks isolate clients from
-  each other ("AP isolation" / "client isolation"). On such a network tablets associate perfectly and
-  simply **cannot reach the server at all**, with no visible cause. Same for VLAN separation and for a
-  **captive portal**, which would break the app's HTTP calls. This must be tested on *their* actual
-  network, not assumed.
-- **Server on Wi-Fi vs wired:** a server should normally be **wired** into the network. `setup.sh`
-  can put a static address on a wireless interface (it generates a netplan `wifis:` block), but that
-  needs their passphrase stored on the box and is less reliable.
-- **Contingency — now a firm decision, not a maybe: buy the AP regardless of MSF's answer.** It earns its
-  place three times over (plan §3.3): it is the recovery path if their network isolates clients or turns out
-  not to exist; it is how MSF CH can **mimic the site's subnet during UAT**; and it can extend coverage into
-  a zone their network misses.
-- **Default shipped (code):** `CONFIGURE_NETWORK=true` with a static `192.168.8.10/24` and no gateway (an
-  isolated LAN). Set `CONFIGURE_NETWORK=false` to leave their network alone.
-  **Expected shipping mode after the direction change:** `CONFIGURE_NETWORK=true` with *their* subnet and
-  *our given* address — i.e. a static address on a network we do not own.
-  ⚠️ **This puts a previously optional code path onto the shipping path.** Generated netplan has **never
-  been applied on hardware** (both real installs used `CONFIGURE_NETWORK=false`), and if the site gives us
-  no wired port it is the completely unproven **`wifis:`** branch that runs — executed by MSF, not us.
-  **Test both branches before the MSF session** (progress §8 item 5).
+- **Need from MSF — layout, not networking.** A sketch or photos answer these better than prose, and none
+  needs a technical person. Full list in `FIELD-PILOT-NETWORK-SPEC.md`:
+  1. how many separate spaces (buildings/wards/tents) tablets are used in;
+  2. a sketch/photos with rough distances — where the server sits, where the farthest tablet works;
+  3. the longest server→farthest-point distance in metres, and whether it is line of sight;
+  4. **what the walls are made of** — the single biggest factor (plastic sheeting is nearly RF-transparent;
+     concrete and metal are close to opaque);
+  5. mains power at candidate AP positions, and whether we may mount hardware on a wall/pole/ceiling;
+  6. whether a Green/Red contamination boundary is crossed (IPC constrains the answer — plan §3.3);
+  7. any outdoor span between buildings (>~30 m changes the equipment class);
+  8. environment (dust/heat/humidity), socket type and voltage — this also settles the **D1**
+     laptop-vs-fanless question;
+  9. *optional, non-blocking* — is any internet available for an uplink to our router, or should we plan a
+     cellular SIM? Nothing clinical depends on it; it buys native tablet clock sync and remote support;
+  10. tablet count (**B3**) — for node placement, not capacity.
+  **Questions 1–5 decide the tier; nothing in the pilot is blocked while they are outstanding**, since the
+  baseline tier is bought and staged either way and growing coverage is purely additive (same SSID, same
+  LAN, no Buendia change).
+- **Also needed, and it is permission rather than information:** is there any site rule or IT policy
+  against us running our own Wi-Fi and our own server on it? We assume not, but if site IT must approve it,
+  that is worth starting early (ties to **C1**).
+- **Client isolation, captive portals and per-AP subnets** — the failure modes that would have been fatal
+  and invisible on a shared network — are settled by owning the equipment. They survive only as hard
+  requirement 8 of the D2 spec, verified once at staging.
+- **Default shipped (the intended shipping mode):** `CONFIGURE_NETWORK=true`, static `192.168.8.10/24`,
+  `GATEWAY_IP=` empty (isolated LAN; set to the router's `192.168.8.1` only when an uplink is present).
+  ⚠️ **Still to verify:** generated netplan has **never been applied on hardware** (both real installs used
+  `CONFIGURE_NETWORK=false`), so the **`ethernets:`** branch must be tested before staging — MSF executes
+  that step, not us. The **`wifis:`** branch is not on the shipping path (the server is cabled to our
+  router); it remains a documented fallback for a thin laptop with no RJ45 and no adapter.
 - **Lands in:** `deploy/.env` (`STATIC_IP`, `NET_IFACE`, `NET_PREFIX`, `GATEWAY_IP`, `DNS_SERVERS`,
-  `CONFIGURE_NETWORK`, `SITE_WIFI_*`) → `setup.sh` generates `/etc/netplan/60-buendia.yaml`.
-- **Answer:** _(pending — "the site already has Wi-Fi" is so far a note to re-confirm, not an answer)_
+  `CONFIGURE_NETWORK`) → `setup.sh` generates `/etc/netplan/60-buendia.yaml`. `SITE_WIFI_*` is used only by
+  the `wifis:` fallback above.
+- **Answer:** _(pending — the layout answers)_
 
 ### B5. MSF's tablet system image — what does it contain and permit? — 🟡 **can invalidate the whole install path**
 
@@ -288,15 +282,19 @@
      warning, separate from the sideload gate, and can block installation.
   5. **Which Android version?** Our client is `minSdkVersion 19` / **`targetSdkVersion 24`**. Fine on
      current Android (14+ only blocks `targetSdk < 23`), but worth confirming before 20 tablets arrive.
-  6. **Can a user add a Wi-Fi network manually?** If not, the `WIFI:`-URI join QR on our in-zone card
-     is useless and the Wi-Fi must be pre-provisioned in the image.
+  6. **Can a user add a Wi-Fi network manually?** ⚠️ **Make-or-break, alongside q2.** The tablets must join
+     **our** SSID — we supply the network (**B2**), so it cannot already be in their image and there is no
+     "the site Wi-Fi is already configured" path. If manual Wi-Fi joining is blocked by policy, neither the
+     `WIFI:`-URI join QR on our in-zone card nor a hand-typed passphrase works, and the tablets cannot reach
+     the server at all. If it is blocked, we need their MDM to push our SSID.
   7. **Is device encryption on, and a screen lock enforced?** If the image already does this, **A11**
      is answered for free and it is no longer a staging step.
-  8. **What is the tablet's time source with no internet?** ⚠️ The sync wire format carries a
-     client-supplied encounter time (`JsonEncounter.time`), so a tablet with a wrong clock plausibly
-     writes wrong timestamps — and Android will not accept a custom NTP server without root, so our
-     chrony-on-the-server design does **not** reach the tablets. We should verify this properly rather
-     than promise anything about timestamps. Related: **A9**.
+  8. **What is the tablet's time source, and is "automatic date & time" on with Private DNS off?**
+     ⚠️ The wire format carries a client-supplied encounter time (`JsonEncounter.time`), so a wrong tablet
+     clock writes wrong clinical timestamps. Android accepts no custom NTP server without root, so we
+     discipline tablets by **answering their SNTP lookup from our own router's DNS** (plan §3.4) — which
+     needs automatic time **on** and Private DNS **off**. If the image locks either, tablet clocks are
+     unmitigated unless the router carries an internet uplink. Related: **A9**.
   9. **Locale** — is the image French? (ties to **A6**).
 - **Highest-value ask: one tablet with that exact image, in our hands before staging.** Everything
   above collapses into a 30-minute test.
@@ -350,79 +348,35 @@
 
 ---
 
-### B4. Tablet provisioning model — plain sideload, or managed (Android Enterprise)? — 🟡 *(shape decided 2026-07-29)*
+### B4. Tablet provisioning model — ✅ **settled: plain sideload, installed by QR on site**
 
-> **Decision (2026-07-29):** MSF supplies tablets carrying **their own system image** (reused from
-> previous projects) and the APK is installed **by QR code after the server is up** — i.e. option (a),
-> sideload, with the QR route as the *primary* path rather than the in-field fallback. The
-> `adb install`-at-staging recommendation below therefore no longer applies, since the tablets do not
-> pass through our hands. **This makes B5 critical**: whether QR install works at all depends on what
-> that image permits.
-
-
-- **Need:** a decision on how tablets are provisioned: (a) **plain sideload** — install the APK at
-  staging and accept Android's one-time "install unknown apps" prompt per tablet, or (b) **managed
-  device (Android Enterprise device-owner)** — factory-reset + QR enrollment into a device policy
-  controller that installs the APK **silently** and can enforce the screen lock and lock the tablet to
-  the Buendia app (kiosk).
-- **Why:** the install warning clinicians see is Android's sideload gate, and it **cannot be removed by
-  publishing to the Play Store** — Play only suppresses it for apps installed *from Play*, and the
-  site has no internet, so tablets can never reach it. (Play would also require modernizing a 2016 app
-  to a current `targetSdkVersion`, which the plan descopes, and Android has no purchasable
-  code-signing trust like Windows Authenticode, so no certificate makes a sideloaded APK "trusted".)
-  The prompt is **per install source and persists**, so with (a) it is a one-time staging step, not
-  something clinicians meet repeatedly. Option (b) removes it entirely and is the same mechanism that
-  would satisfy the screen-lock requirement in **A11**/**B3** — but it needs an EMM (self-hosted, or
-  Google's Android Management API which needs internet at enrollment time) and is a separate piece of
-  work.
-- **Recommendation for the pilot:** (a). Provision at staging over USB with `adb install`, which raises
-  **no warning at all** (there is no "unknown source"), and keep the QR install as the in-field
-  fallback — notably for a tablet inside a contamination zone that cannot come out. Revisit (b) only if
-  MSF wants managed fleet control.
+- **The shape:** MSF supplies tablets carrying **their own system image**, and the Buendia APK is installed
+  **by scanning the QR code from our package server once the server is up**. Sideload is the route and the
+  QR is the *primary* path, not a fallback, because the tablets never pass through our hands. **This is what
+  makes B5 critical** — whether it works at all depends on what that image permits (q2 install-unknown-apps,
+  q3 browser + scanner, q6 joining our SSID).
+- **The install warning is unavoidable, and it is a one-time step.** It is Android's sideload gate, and
+  publishing to the Play Store would *not* remove it: Play only suppresses the prompt for apps installed
+  *from* Play, and the tablets have no internet path to it. (It would also mean modernising a 2016 app to a
+  current `targetSdkVersion`, which the plan descopes; and Android has no purchasable code-signing trust
+  like Windows Authenticode, so no certificate makes a sideloaded APK "trusted".) The prompt is **per
+  install source and persists**, so clinicians do not meet it repeatedly.
+- **The alternative we are not doing, and when to revisit it:** a **managed device** (Android Enterprise
+  device-owner) would install the APK silently, enforce the screen lock (**A11**) and could lock the tablet
+  to the Buendia app. It needs an EMM and is separate work — but if **B5 q1** comes back "yes, the devices
+  are MDM-managed", it becomes the *better* route rather than a bigger one: their MDM can push our APK, and
+  our SSID, with no prompt at all. Worth asking who administers it.
+- **`adb install` at staging is not available to us** — it raises no warning whatsoever, but it needs the
+  tablets in hand. Keep it in the runbook only for any tablet that does reach us.
 - **To check on the actual hardware:** whether CrossCall T4/T5 ship Google Play Services / Play Protect
   (which adds its own "unsafe app" scan warning, separately from the sideload gate) and whether Play
-  Protect should be turned off at staging.
-- **Default shipped:** plain sideload; QR install documented, `adb install` recommended at staging.
+  Protect should be turned off before the tablets ship.
+- **Default shipped:** plain sideload; QR install is the documented route (`deploy/pkgserver/` + the in-zone
+  card).
 - **Lands in:** the staging checklist / Site runbook (WS-6), `deploy/apk/README.md`.
-- **Answer:** _(pending)_
+- **Answer:** ✅ settled — the remaining risk is tracked in **B5**.
 
-### B6. If we use the site's existing Wi-Fi: the IP space — 🟡 **the consequences here are not obvious**
-
-- **Need, precisely:**
-  1. the **subnet and mask** the tablets get (e.g. `192.168.0.0/24`) and the **gateway**;
-  2. the **DHCP pool range**, so we can take an address *outside* it;
-  3. **one address reserved for the server** — either a static address outside the pool, or a DHCP
-     reservation against the server's MAC;
-  4. whether tablets and the server will **always land on the same subnet** — i.e. one flat L2
-     network, not several APs on different subnets/VLANs;
-  5. whether the network isolates clients from each other (see **B2** — this one is fatal and silent).
-
-- **Why this is not just "pick a free IP":** an IP has to be **routable from the tablet**, not merely
-  unused. A tablet on `192.168.0.42/24` treats only `192.168.0.*` as local; ask it for an address
-  outside that range and it hands the packet to the gateway, which has no route to it and drops it.
-  So a "probably free anywhere" address such as `192.168.200.1` is **completely unreachable** from a
-  tablet on a `192.168.0.0/24` network, however free it is. **The server must sit in the same subnet
-  as the tablets.**
-
-- **Consequences to state to MSF:**
-  - **The server address becomes a per-site value.** It is baked into the APK as the default for a
-    runtime preference, so a wrong value is fixable by a guided Settings change on each tablet
-    (**B1**) — but that is N tablet-visits, in the field.
-  - **A DHCP address is not good enough on its own.** If the server's lease changes, every tablet
-    silently loses the server. We need a reservation or a static address outside the pool.
-  - **Roaming across subnets breaks it.** If different APs put clients on different subnets, tablets
-    can reach the server from some places and not others — which will look like "the app is broken
-    in that ward".
-  - **If they cannot give us a fixed address in their space, we should ship our own router.** That is
-    the only arrangement where one APK works at any site without per-site tailoring, because then we
-    own the subnet. Worth weighing against the router we were planning to drop: the router is not
-    only about coverage, it is about owning the address space.
-
-- **Default shipped:** `STATIC_IP=192.168.8.10/24`, gateway unset (an isolated LAN — i.e. assumes
-  **our own** router). `setup.sh` can instead leave their network alone (`CONFIGURE_NETWORK=false`).
-- **Lands in:** `deploy/.env` — `STATIC_IP`, `NET_PREFIX`, `GATEWAY_IP`, `DNS_SERVERS`,
-  `CONFIGURE_NETWORK`, `NET_IFACE`; and the APK's `APK_SERVER` (which defaults to `STATIC_IP`).
-- **Answer:** _(pending)_
+---
 
 ## C. Governance (gates work, not just config)
 
@@ -470,6 +424,37 @@
   (on a laptop that is UPower battery thresholds; on a mini-PC it needs an external UPS wired up).
 - **Answer:** _(pending)_
 
+### D2. The network equipment — router family & coverage sizing — 🟡 *(SolDevelo specifies and procures)*
+
+- **Context:** we supply the network (**B2**), so the equipment is ours to specify and buy. **MSF is not
+  asked to provide a network** — only the site's **physical layout**, which decides how much is needed.
+- **Full specification:** `docs/FIELD-PILOT-NETWORK-SPEC.md`, written to be forwarded like the server spec.
+  It is deliberately a **family + three coverage tiers**, not a model, because the layout is unknown:
+  - **tier 1** one ward/hall, farthest tablet ≤~15 m → a single head router;
+  - **tier 2** several rooms/tents or a farther bed → head + 1–3 access-point/mesh nodes;
+  - **tier 3** an outdoor span of 30–100 m → an outdoor/PoE AP or a point-to-point bridge pair.
+  Recommended family is **GL.iNet (OpenWrt)**; alternatives (TP-Link Omada, UniFi, industrial Teltonika)
+  are listed with the conditions under which they win. Total for tiers 0–2 is a few hundred CHF.
+- **Need from MSF:** the layout answers enumerated in **B2** (spaces, distances, **wall material**, power
+  and mounting at candidate AP spots, contamination boundary, outdoor spans, environment) — plus, optional
+  and non-blocking, whether an internet uplink can be made available to our router or we should plan a
+  cellular SIM. Also worth asking: would MSF rather we used an equipment family they already standardise
+  on (fine, if it meets the ten hard requirements in the spec).
+- **The two requirements that constrain the choice** (spec requirements 1–2), because ordinary consumer
+  mesh kits fail them: it must work **fully standalone with no cloud account or internet to configure**,
+  and it must support **custom local DNS entries** and advertise itself as the tablets' resolver — which is
+  the only mechanism that keeps **tablet clocks** right at an offline site, and the tablet supplies the
+  clinical timestamp (**A9**, **B5 q8**, plan §3.4).
+- **Procurement stance:** buy the **baseline now** (head router + one node + a cheap spare + cable + power
+  bank) since it is needed for staging regardless and fits any plausible site; **defer** the extra nodes
+  and the outdoor tier until layout answers arrive — they are orderable in days and the kit works without
+  them.
+- **Default shipped:** the LAN design is fixed and final — `192.168.8.0/24`, router `.1`, server `.10`, one
+  flat L2, one SSID across all nodes. No equipment purchased yet.
+- **Lands in:** no config file (`deploy/.env` already matches). It gates the coverage-walk and clock-intercept
+  validation steps in the staging checklist (WS-6) and the router-config backup that travels in the kit.
+- **Answer:** _(pending — layout answers)_
+
 ---
 
 ## Cross-cutting technical constraints to state when asking
@@ -481,9 +466,9 @@ Worth putting in front of MSF once, because they shape acceptable answers:
    reference them, and changing a UUID orphans them. **Get A1–A3 right before go-live**, not after.
 2. **Renaming is safe; re-parenting and deleting are not.** A `name` change syncs cleanly to tablets.
 3. **No sort-order field exists** — ordering is name-based only (A3).
-3b. **The server must share a subnet with the tablets.** An address outside the tablets' subnet is
-   unreachable no matter how free it is (see **B6**). A fixed, reserved address in their IP space is
-   a hard requirement of using their Wi-Fi; if it can't be had, we bring our own router.
+3b. **The server shares one flat subnet with the tablets** — `192.168.8.10` inside the `192.168.8.0/24`
+   our own router hands out. An address outside the tablets' subnet is unreachable however free it is;
+   owning the router is what makes this a design fact rather than something to negotiate.
 4. **This is a 2016 Android app on an end-of-life server stack.** Config-shaped requests (names, accounts,
    profile content, locale, timezone) are cheap. Behaviour changes (sorting, validation, new screens) are
    code changes to an unmaintained codebase and are out of pilot scope unless explicitly funded.
@@ -495,8 +480,9 @@ Worth putting in front of MSF once, because they shape acceptable answers:
    - **What UAT can change freely, live, with no rebuild and no tablet action:** **A1** facility name,
      **A2/A3** the zone tree, its order and the default zone, **A4** provider accounts, **A7** the forms
      and chart content. Chase these, but a "we'll decide when we see it" answer is perfectly workable.
-   - ⚠️ **What must be settled BEFORE the shipping APK is built:** **B1** the server address, **A5** the
-     password, **A10** the idle timeouts. These are baked into the APK, so changing them later means a
+   - ⚠️ **What must be settled BEFORE the shipping APK is built:** **A5** the password and **A10** the idle
+     timeouts. (The server address is baked in too, but it is ours and settled — **B1**.) These are
+     baked into the APK, so changing them later means a
      rebuild plus a reinstall on every tablet, or a guided Settings visit per tablet in the field. **These
      are the ones to push on.**
    - **Two rules for the UAT itself** (plan §2.1): every accepted change must be **folded back into the

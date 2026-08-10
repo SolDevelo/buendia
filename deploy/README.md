@@ -164,13 +164,19 @@ that address baked into its APK, so a mismatch is a silent brick. The interface 
 autodetected (it is host-specific: `enp1s0`/`eno1`/…); a failed apply, or an interface that does
 not actually take the address, **fails the run** rather than warning.
 
-- **Wireless:** if the chosen interface is Wi-Fi, a `wifis:` block is generated from
-  `SITE_WIFI_SSID`/`SITE_WIFI_PASSWORD` (declaring Wi-Fi under `ethernets:` is invalid netplan).
-  A server should normally be **wired** into the site network.
-- **Someone else's network** (e.g. existing site Wi-Fi with a DHCP reservation): set
-  `CONFIGURE_NETWORK=false` so this box doesn't touch networking — then confirm by hand that the
-  server answers on `STATIC_IP`, and that the network does **not** isolate clients from each other,
-  or tablets will never reach it.
+**The shipping arrangement is `CONFIGURE_NETWORK=true` on a wired interface**: the pilot ships its own
+router (`docs/FIELD-PILOT-NETWORK-SPEC.md`), the server is cabled to it, and `STATIC_IP=192.168.8.10`
+sits inside the subnet that router hands out — so the address baked into every tablet APK is right by
+construction. `GATEWAY_IP` stays empty unless the router is given an internet uplink.
+
+- **Wireless fallback:** if the chosen interface is Wi-Fi, a `wifis:` block is generated from
+  `SITE_WIFI_SSID`/`SITE_WIFI_PASSWORD` (declaring Wi-Fi under `ethernets:` is invalid netplan). This is
+  for a thin laptop with no RJ45 and no USB-Ethernet adapter; a server should be **wired**. ⚠️ This branch
+  has never been applied on hardware.
+- **`CONFIGURE_NETWORK=false`** leaves networking untouched, for a box that already holds `STATIC_IP` by
+  other means — a dev or test machine, or a re-install onto a host someone else has already addressed.
+  You must then confirm by hand that the server really answers on `STATIC_IP`, since every tablet has
+  that address baked in.
 
 ## Reproducibility
 

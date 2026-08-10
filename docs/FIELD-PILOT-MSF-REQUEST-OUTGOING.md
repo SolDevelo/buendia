@@ -1,8 +1,16 @@
 # Buendia DRC Field Pilot — Configuration Inputs Needed from MSF
 
-**From:** SolDevelo · **Date:** 2026-07-30 · **Status of our side:** the system is built, installed and
-tested end-to-end on real hardware with a real tablet. What remains is site-specific configuration,
-which only MSF can supply.
+**From:** SolDevelo · **Date:** 2026-08-10 (supersedes the 2026-07-30 version) · **Status of our side:**
+the system is built, installed and tested end-to-end on real hardware with a real tablet. What remains is
+site-specific configuration, which only MSF can supply.
+
+> **This version asks for less than the one you received on 2026-07-30.** We have decided to **supply the
+> Wi-Fi network ourselves**, so the network-settings questions in that version — your subnet, gateway,
+> DHCP pool, a reserved address for our server, VLANs, client isolation — **are withdrawn; please
+> disregard them.** In their place, **B2** asks about the *physical layout* of the site, which is what
+> tells us how much Wi-Fi equipment to bring; a sketch or a few photos answers most of it. The accompanying
+> `FIELD-PILOT-NETWORK-SPEC.md` describes the equipment we will supply, for transparency — there is nothing
+> for you to act on in it.
 
 ---
 
@@ -12,8 +20,8 @@ The pilot package **is not blocked** by anything on this list. It boots and is c
 on our default values — a clinician can admit a patient, fill in the forms and record a treatment. Each
 answer below simply replaces one of our defaults with the right value for your site.
 
-What *is* time-sensitive is the **order** the answers arrive in. Three of them can invalidate work
-already done, so they come first. The rest can follow.
+What *is* time-sensitive is the **order** the answers arrive in. The first two can invalidate work already
+done or hold up a purchase, so they come first. The rest can follow.
 
 For each item we give: what we need, why it matters, and **what we do today if you don't answer**.
 Where we have already chosen a sensible default, the question is just *"confirm or correct"* — those are
@@ -34,9 +42,9 @@ quick.
 - **MSF supplies the tablets**, carrying MSF's own system image reused from previous projects. The
   Buendia app is installed onto them **by scanning a QR code** once the server is running. (This is why
   **B5** below is the most important question in this document.)
-- **We understand the site already has a Wi-Fi network**, and we would prefer to reuse it rather than ship
-  our own — but this is our reading of a conversation, not something confirmed. **Please correct us if
-  wrong**, and see **B2/B6**, where both options are laid out.
+- **SolDevelo supplies the Wi-Fi network** — our own router, not an existing site network. **We need no
+  network settings from you**; **B2** asks only about the site's physical layout, and
+  `FIELD-PILOT-NETWORK-SPEC.md` describes the equipment.
 - **Two levels of testing:** SolDevelo tests the package technically; **MSF Switzerland installs the
   actual server that ships and runs the user test / UAT**, adjusting the configuration in the process.
   Changes to forms and to the zone list are expected at that point and are cheap to make — see the note
@@ -70,8 +78,11 @@ we would rather know now than at staging.
    and can block installation.
 5. **Which Android version?** Ours works on current Android, but we'd like to confirm before ~20
    tablets arrive.
-6. **Can a user add a Wi-Fi network by hand?** If not, the "join Wi-Fi" QR code on our in-zone cards is
-   useless and Wi-Fi must be pre-configured in the image.
+6. **Can a user add a Wi-Fi network by hand?** ⚠️ **As make-or-break as question 2.** The tablets have to
+   join **our** Wi-Fi network, which cannot already be in your image. If adding a network by hand is
+   blocked by policy, then neither the "join Wi-Fi" QR code on our in-zone cards nor typing the password
+   works, and the tablets cannot reach the server at all — in which case we would need your MDM to push
+   our network to them.
 7. **Is device encryption on, and is a screen-lock PIN enforced?** If your image already does this,
    **A11 is answered for free** and drops off the staging checklist.
 8. **How does a tablet get the correct time and timezone with no Internet?** This matters more than it
@@ -89,116 +100,119 @@ download.
 
 ---
 
-## B2 + B6. The network — two options, and we would like your view 🖥️
+## B2. The site's layout — so we can size the Wi-Fi we bring 🖥️📋
 
-The tablets and the server have to sit on **one shared network**. Nothing needs the Internet for clinical
-work. There are two ways to provide that network, and **we would like your opinion before we commit**,
-because the facts that decide it are yours.
+**We supply the network.** The tablets and the server sit on one small local network of our own — our
+router, our addresses, our Wi-Fi name — and nothing in the clinical workflow needs the Internet. **You do
+not need to provide Wi-Fi, and we need no network settings from you.**
 
-### Option 1 — reuse the site's existing Wi-Fi ⭐ our current preference
+### Why we do it this way
 
-**Why we lean this way:**
-- **Coverage is the hardest thing to fix remotely, and your network already solves it.** Your Wi-Fi was
-  presumably designed to cover the site; a single access point we ship might not reach a far tent, and
-  neither we nor anyone on site could do much about it.
-- **Fewer devices** to supply, power, keep spares of and explain — which serves the "no maintenance" goal.
-- **If that network has Internet, two problems solve themselves:** the tablets keep their clocks correct
-  automatically (which matters — see A9/B5, the time recorded against a patient comes from the tablet),
-  and we can provide remote support instead of being blind.
-- **We have already tested exactly this arrangement.** Our validation runs put the server on an existing
-  office network we don't administer, at a fixed address we were given, with the app built for that
-  address — and it worked first time. So this is not an experimental setup for us.
+Four reasons, which are worth stating because they also explain what we *do* need from you:
 
-**What it costs:** it depends on you giving us one correct, stable address, and on your network not
-having certain settings (below). Both are straightforward, but they need a person who administers that
-network to confirm them — we cannot test any of it from Switzerland.
+1. **It is the only version we can genuinely test before it ships.** Our design rule for this pilot is
+   that nothing untested in Switzerland may travel, because there will be no engineer at the site. If the
+   network is ours, the network we test in Switzerland *is* the network the site runs — the same
+   equipment, addresses and settings.
+2. **The tablet app is then correct on arrival.** The server's address is built into the app. On our own
+   network we choose that address, it is the same everywhere, and **nobody has to change a setting on any
+   tablet after it reaches the site.**
+3. **It removes failures that would be invisible and unfixable on site.** On a shared network, one common
+   setting ("client isolation") lets tablets connect perfectly while making the server unreachable, with
+   no visible cause. A login page, or different access points on different address ranges, break it in
+   similar ways. None of that could be diagnosed from Switzerland or fixed by non-technical staff.
+4. **It keeps your network team off our critical path.** Sharing a network would need somebody who
+   administers it to reserve an address for our server and confirm several settings **before our kit could
+   ship**. Owning the network removes that dependency entirely — which is also why we are no longer asking
+   you for any of it.
 
-### Option 2 — we bring our own small access point
+**What it costs, said honestly: Wi-Fi coverage becomes our responsibility.** An existing site network
+would presumably already cover the site; ours has to be sized to it. We accept that deliberately, because
+coverage is something we can *measure* and fix incrementally and cheaply — walk the site with a tablet,
+move a unit or add one. That is the opposite of a silent failure. **But it does mean we need a few facts
+about the site's physical layout** — the questions below.
 
-Fully self-contained: we supply an access point, the tablets join it, we control everything and nothing
-depends on your network. **We will include one in the kit as a backup regardless of your answer**, since
-it is also our recovery path.
+### One clarification: "our own network" does not mean "no Internet"
 
-**What it costs:** **range.** One small access point covers roughly 10–15 m in the open and degrades
-quickly through walls — fine for one hall, questionable across a spread-out compound. We would be
-guessing at your site's geometry, and if we guess wrong the fix (repositioning, or adding a second unit)
-has to happen on site.
+These are separate things, and it is worth being clear because it affects two capabilities you may care
+about.
 
-### 👉 What we would like from you
+Our router provides the local network the tablets and server use. Its **Internet connection is optional
+and separate**, and can come from any of:
 
-**Which option, in your view?** And two facts that decide it:
+- a spare network cable from an existing connection at the site, or
+- **your existing Wi-Fi, which our router can join as an ordinary client**, or
+- a mobile/cellular SIM in the router.
 
-1. **Does the site actually have Wi-Fi?** Our understanding that it does comes from conversation rather
-   than confirmation. If it doesn't, Option 2 is the only choice and we need to talk about coverage.
-2. **Does that Wi-Fi have Internet access** (even intermittent)? This decides whether tablet clocks stay
-   correct on their own and whether remote support is possible at all.
+In every case the tablets and the server stay on our own network at our own addresses, so **an Internet
+connection that is absent, slow or broken changes nothing about clinical use.** What it adds, when
+present, is:
 
-### If Option 1 — what we need, precisely, before the kit ships
+- **Tablet clocks stay correct automatically.** This matters clinically: the time recorded against a
+  patient observation comes from the tablet. Without any Internet we keep the tablets right from our own
+  server instead, which works, but the Internet route is simpler and better.
+- **Remote support becomes possible at all.** With no Internet path anywhere at the site, we cannot look
+  inside the system even with your permission — the only channel is a USB diagnostic file and a phone
+  call.
 
-1. **The subnet and mask** the tablets get (e.g. `192.168.0.0/24`), and the **gateway**.
-2. **The DHCP pool range**, so we can take an address outside it.
-3. **One address reserved for the server** — either a static address outside the pool, or a DHCP
-   reservation against the server's MAC address.
-4. **Confirmation that tablets and the server always land on the same subnet** — one flat network, not
-   several access points on different subnets or VLANs.
-5. **Confirmation that the network does not isolate clients from each other** (see the warning below).
-6. **Is there a wired network port** where the server will live? A server should normally be wired.
-7. **SSID and passphrase**, and whether this network is shared with other services or faces the Internet.
-8. **Wi-Fi coverage across the actual zones** (tents/wards). Poor coverage is the most common cause of
-   field failure.
-9. **Who administers the network**, and must their IT approve a server holding patient data on it?
-   (Relates to C1.)
+So this is worth having if it is easy, and costs nothing if it is not. **It is not blocking anything.**
 
-### ⚠️ Two things that are easy to get wrong
+### 👉 What we need from you
 
-**"A free IP address" is not enough — it must be in the tablets' own subnet.** A tablet on
-`192.168.0.42/24` treats only `192.168.0.*` as local. Ask it to reach anything outside that range and it
-hands the packet to the gateway, which has no route and drops it. So an address like `192.168.200.1` is
-**completely unreachable from the tablets** no matter how unused it is. The server must sit in the same
-subnet as the tablets.
+**A sketch on paper, or a few photos with rough distances, answers most of this better than words.** None
+of it needs a technical person. A **full specification of the equipment we will supply is in the
+accompanying document `FIELD-PILOT-NETWORK-SPEC.md`** — you do not need to read it to answer these, it is
+there for transparency about what we are buying and why.
 
-**Client isolation is a silent killer.** Many office and guest Wi-Fi networks deliberately stop clients
-from talking to each other ("AP isolation" / "client isolation"). On such a network the tablets connect
-perfectly and simply **cannot reach the server at all, with no visible cause**. The same applies to VLAN
-separation and to a captive portal (a login page), which would break the app's connection. **This must
-be tested on your actual network — it cannot be assumed.**
+1. **How many separate spaces** (buildings, wards, tents, triage points) will tablets be used in, and
+   what is each used for?
+2. **A sketch or photos with approximate distances.** Where would the server sit, and where is the
+   farthest place a tablet must work?
+3. **The longest distance** from the server to that farthest point, in metres — and is there a clear line
+   of sight, or something in between?
+4. **What are the walls and partitions made of?** Plastic sheeting, wood, plasterboard, brick, concrete,
+   metal, shipping container? ⚠️ **This is the single biggest factor.** Plastic sheeting is almost
+   invisible to Wi-Fi; concrete and metal nearly block it.
+5. **Is there mains power** where an extra access point might need to go, and **may we mount** equipment
+   on a wall, pole or ceiling there?
+6. **Is a contamination (Green/Red zone) boundary crossed?** This changes the answer — a cable across
+   such a boundary cannot be decontaminated, so we would either cover the zone wirelessly from outside it
+   or place a dedicated unit inside it that stays there. We would welcome your IPC team's view.
+7. **Is there any outdoor span between buildings?** Beyond roughly 30 m outdoors we need different,
+   weatherproof equipment.
+8. **Environment and power:** dusty, hot, humid? What socket type and voltage is used at the site?
+9. **Optional, not blocking:** is there any Internet at the site our router could connect to (a spare
+   cable, or a Wi-Fi we could join)? Or should we plan on a mobile SIM?
+10. **How many tablets** (this is also **B3**) — for placement, not for capacity.
 
-**A DHCP address is not good enough on its own.** If the server's address changes, every tablet
-silently loses the server.
+**Questions 1–5 are the ones that matter.** They decide whether the answer is one small router or four
+units — and we buy the baseline equipment and test with it in the meantime, so **nothing waits on these.**
 
-**If a fixed address in your space cannot be arranged, we fall back to Option 2** — our own access point,
-where we own the addressing. We would rather not, because then coverage becomes our problem, but it is a
-working answer and the equipment travels with the kit anyway.
+### What we also need — permission, rather than information
 
-### ⏱️ Why this one is the most time-critical answer on the list
+Is there any site rule or IT policy against **us running our own Wi-Fi network and our own server on it**
+at the site? We assume not, since the kit is designed to be independent, but if whoever governs IT at the
+site needs to approve it, that is worth starting early. (It is related to the data-protection sign-off,
+**C1**.)
 
-The server's address is **built into the tablet app**, and **the user test in Switzerland happens on a
-different network from the site**. So we need the site's address *before* we build the app version that
-ships — otherwise either the app is rebuilt and reinstalled on every tablet after the user test, or
-somebody changes a setting on each tablet after arrival at the site (which works, but is a per-tablet job
-in the field, including any tablet inside a contamination zone).
+### For information — what the network will be
 
-There is a neat way around this if we know the address in time: we configure the backup access point in
-Switzerland to imitate the site's address range, so the user test runs against the **final** address and
-nothing needs touching afterwards. That only works if the address is settled before the user test.
+- One small Wi-Fi network, its own name and password, covering the zones where tablets are used.
+- Around 10 tablets and one server on it. Traffic is a few kilobytes every ten seconds per tablet, so
+  **speed is irrelevant here** — only coverage and reliability matter.
+- It keeps working with no Internet, through power cuts (the router can run from a power bank), and it
+  comes back by itself after one.
+- If coverage turns out to need more, we add another unit on the same network name — no change to the
+  server, the app or anything a clinician sees.
 
-**What we do today:** our default is our own network at `192.168.8.10`. We can equally leave your network
-untouched and take an address you give us — that is Option 1, and it is what we expect to do.
+## B1. A short site name 🖥️📋
 
----
-
-## B1. The server's address and a short site name 🖥️📋
-
-- **Need:** the static IP address the server will take on the site network (this is the outcome of B6),
-  and a short site identifier for labelling.
-- **Why it matters:** the server's address is **built into the tablet app** as its default setting.
-- **How bad is it if this changes later?** Not fatal, but not free. The address, username and password
-  are all **editable on the tablet** (Settings → change → save) — a guided step a non-technical person
-  can do. But it must be done on **every** tablet, including any tablet inside a contamination zone, and
-  until it is done **that tablet cannot record or sync data**. So we'd like to build the shipping app
-  with the real address in it.
-- **If the address can only be known on arrival:** we cannot pre-build a zero-touch app, and the
-  fallbacks are (a) walk each tablet through the Settings change on site, or (b) we bring our own router.
+- **What we need:** a **short site identifier** for labelling the equipment, the backups and the diagnostic
+  files (e.g. `bunia`). Cosmetic — it blocks nothing.
+- **The server's address is not something we need from you.** Because we supply the network (**B2**), the
+  server's address is ours: **`192.168.8.10`**. It is the same in Switzerland and at the site, so the tablet
+  app is built once with it and never needs repointing — including for any tablet inside a contamination
+  zone.
 - **What we do today:** `192.168.8.10`, site name `pilot`.
 
 ---
@@ -406,15 +420,12 @@ These shape which answers are practical, so they're better said once, up front.
 2. **There is no way to order zones except by name.** The system has no sort-order setting. We achieve
    the order in A3 with hidden marks in the names — which works, and is invisible to clinicians, but
    means the order is fixed at configuration time.
-3. **The server must share a subnet with the tablets.** An address outside the tablets' own subnet is
-   unreachable however free it is (see B6). A fixed, reserved address in your IP space is a hard
-   requirement of using your Wi-Fi. If it can't be arranged, we bring our own router.
-4. **This is a 2016 Android app on an end-of-life server platform.** Configuration-shaped requests —
+3. **This is a 2016 Android app on an end-of-life server platform.** Configuration-shaped requests —
    names, accounts, clinical content, language, timezone — are cheap and expected. **Behaviour**
    changes — different sorting, input validation, new screens — mean modifying an unmaintained codebase
    and are outside pilot scope unless specifically agreed and funded. If something on this list looks
    like it needs a behaviour change, flag it and we'll cost it rather than quietly absorb it.
-5. **Nothing here blocks us.** The package works on the defaults above. Each answer swaps out one
+4. **Nothing here blocks us.** The package works on the defaults above. Each answer swaps out one
    default, and most of them are a single small configuration change.
 
 ---
@@ -425,9 +436,10 @@ These shape which answers are practical, so they're better said once, up front.
 |---|------|-----|-------------------|-------------|
 | **B5** | **Tablet image: what does it permit?** ⭐ | 🖥️📋 | assumes browser install is allowed | |
 | **B5⭐** | **One tablet with your image, before staging** | 📋 | — | |
-| **B2/B6** | **Which network option?** Does the site have Wi-Fi, and does it have Internet? | 🖥️ | we prefer reusing yours | |
-| **B6** | If reusing yours: subnet, gateway, DHCP pool, **one reserved server IP**; client isolation checked? | 🖥️ | our own network `192.168.8.10` | |
-| **B1** | Server address + short site name | 🖥️📋 | `192.168.8.10`, `pilot` | |
+| **B2** | **Site layout** — spaces, distances, **wall material**, power/mounting for extra access points (a sketch or photos is ideal) | 🖥️📋 | we size for one ward and adjust | |
+| **B2** | Any rule against us running our own Wi-Fi + server at the site? | 🖥️⚖️ | we assume not | |
+| **B2** | *Optional:* any Internet our router could connect to, or should we plan a mobile SIM? | 🖥️ | assume none | |
+| **B1** | Short site name | 🖥️📋 | `pilot` | |
 | **D1** | **Server machine — repurpose one, or buy?** (see spec doc) | 📋🖥️ | we recommend a refurbished business **laptop**; Intel/AMD only | |
 | **C1** | Data-protection sign-off (remote support + export) | ⚖️ | remote support **off** | |
 | **A1** | Facility name | 🩺 | `Facility` | |
@@ -443,11 +455,14 @@ These shape which answers are practical, so they're better said once, up front.
 | **B3** | Tablet count + device policy | 📋 | — | |
 | **C2** | End-of-pilot data handling; **may a backup leave site?** | ⚖️ | nothing leaves the box | |
 
-**If you answer only three things, make them B5, B6 and C1** — those are the ones that can change what
-we build rather than just what we configure. **Add D1 if any purchasing is involved**, since that carries
-a delivery lead time on top of the decision.
+**If you answer only two things, make them B5 and C1** — those are the ones that can change what we build
+rather than just what we configure. **Add D1 and B2 if any purchasing is involved**, since both carry a
+delivery lead time on top of the decision.
 
 ---
 
-**Accompanying document:** `FIELD-PILOT-SERVER-SPEC.md` — the server hardware specification referenced
-by **D1**, written to be forwarded to whoever holds MSF's hardware.
+**Accompanying documents:**
+- `FIELD-PILOT-SERVER-SPEC.md` — the server hardware specification referenced by **D1**, written to be
+  forwarded to whoever holds MSF's hardware.
+- `FIELD-PILOT-NETWORK-SPEC.md` — the Wi-Fi equipment we will supply, referenced by **B2**. For
+  transparency; nothing in it needs a decision from MSF.

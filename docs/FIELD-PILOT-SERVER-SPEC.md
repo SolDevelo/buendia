@@ -96,8 +96,9 @@ and time are still correct.
 | A genuinely dusty tent, high heat, or the machine must be sealed away and never touched | **Fanless mini-PC + external UPS.** See the alternative below. |
 
 A laptop pulls air through a fan, so dust is its main enemy, and a laptop battery in sustained high heat
-ages badly (and a swollen battery is a safety issue, not just a fault). We need **B2 q5 / the site
-architecture question** — tents in a field vs a building — answered to settle this. If the answer is "a
+ages badly (and a swollen battery is a safety issue, not just a fault). We need the **site layout /
+environment question (B2, and `FIELD-PILOT-NETWORK-SPEC.md` question 8)** — tents in a field vs a
+building — answered to settle this. If the answer is "a
 dusty tent, permanently", tell us and we'll switch to the sealed option.
 
 Practical notes either way: run the laptop with the **lid open** for airflow (we configure it so that

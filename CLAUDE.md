@@ -22,6 +22,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/FIELD-PILOT-SERVER-SPEC.md` — the server hardware specification sent to MSF (item **D1** in the
   outgoing request). Recommends a **repurposed/refurbished business laptop** over a mini-PC; records the
   hard constraints (x86-64 only, working RTC battery, 8 GB, SSD) and Swiss purchase options.
+- `docs/FIELD-PILOT-NETWORK-SPEC.md` — the **network** specification (item **D2**), the companion to the
+  server spec. **Decided 2026-08-10: SolDevelo ships its own router; the site's existing Wi-Fi is not
+  used.** Because the site layout is unknown it specifies a *family with three coverage tiers* rather than
+  a model, plus ten hard requirements — two of which (**standalone with no cloud/internet to configure**,
+  and **custom local DNS overrides**, which is what keeps tablet clocks right offline) disqualify most
+  consumer mesh kits. Also records that **"our own router" ≠ "no internet"**: the WAN port optionally takes
+  an uplink, so remote support and native tablet time-sync stay available at no clinical risk.
 - The deployment package itself lives in `deploy/` (server container stack, seed builder, image builder,
   APK builder, package server, tools) — see `deploy/README.md`. Two sub-READMEs matter:
   `deploy/apk/README.md` (reproducible release-signed APK build; the signing-key and versioning
