@@ -19,6 +19,9 @@ services:
       - --character-set-server=utf8
       - --collation-server=utf8_general_ci
       - --skip-log-bin                  # binlog off — single-server pilot, snapshot backups (§3.1)
+      - --skip-name-resolve             # never reverse-resolve a connecting client: DNS_SERVERS points
+                                        #   at the router, so without this every app->DB connection stalls
+                                        #   while the router reboots (5.6 has no such default)
     volumes:
       - db_data:/var/lib/mysql
       # SINGLE FILE, not the directory. The baseline seed (10-buendia-base.sql) is baked into
