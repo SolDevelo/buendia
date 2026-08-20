@@ -4,7 +4,17 @@
 #   ./configure-router.sh                      # configure from ../.env
 #   ./configure-router.sh --dry-run            # print every uci command, change nothing
 #   ./configure-router.sh --server-mac AA:BB:.. # ...also pin the server's DHCP lease
+#   ./configure-router.sh --router 192.168.9.1 --move-lan   # reach it HERE, move the LAN to ROUTER_IP
 #   ./configure-router.sh --router 192.168.8.1 --key ~/.ssh/id_flint
+#
+# TWO DIFFERENT ADDRESSES, and conflating them silently mis-configures the whole LAN:
+#   ROUTER_IP (.env)  = the address the LAN is CONFIGURED to take. Every tablet APK bakes in
+#                       the server address from this subnet, so it is not negotiable per site.
+#   --router          = where the router answers RIGHT NOW (transport only). Defaults to
+#                       ROUTER_IP. A factory-reset GL.iNet is usually 192.168.8.1, but it
+#                       moves its LAN when that subnet collides with what its WAN hands it,
+#                       and a locally-bought replacement will be on something else entirely.
+# Moving the LAN drops your SSH session and this box's lease, so it needs --move-lan.
 #
 # This is the SOURCE OF TRUTH for the router's configuration. The exported backup
 # (backup-router.sh) is the fast restore path for an IDENTICAL unit; this script is what
@@ -24,14 +34,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HERE/../.env"
 
 ROUTER_IP_DEFAULT=192.168.8.1
-DRY_RUN=0; SERVER_MAC=""; SSH_KEY=""; ROUTER=""
+DRY_RUN=0; SERVER_MAC=""; SSH_KEY=""; ROUTER=""; MOVE_LAN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --router)     ROUTER="$2"; shift 2 ;;
+    --move-lan)   MOVE_LAN=1; shift ;;
     --server-mac) SERVER_MAC="$2"; shift 2 ;;
     --key)        SSH_KEY="$2"; shift 2 ;;
     --dry-run)    DRY_RUN=1; shift ;;
-    -h|--help)    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)    sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
   esac
 done
@@ -62,7 +73,11 @@ if [[ -n "$_ovr_ip" ]];      then STATIC_IP="$_ovr_ip"; fi
 if [[ -n "$_ovr_country" ]]; then ROUTER_COUNTRY="$_ovr_country"; fi
 if [[ -n "$_ovr_router" ]];  then ROUTER_IP="$_ovr_router"; fi
 
-ROUTER="${ROUTER:-${ROUTER_IP:-$ROUTER_IP_DEFAULT}}"
+# LAN_IP is what we WRITE (network.lan.ipaddr, DHCP option 6, the DNS redirect target).
+# ROUTER is only where we SSH to. They differ whenever the router is not yet on the pilot
+# address — which is the normal state of a factory-reset or replacement unit.
+LAN_IP="${ROUTER_IP:-$ROUTER_IP_DEFAULT}"
+ROUTER="${ROUTER:-$LAN_IP}"
 SERVER_IP="${STATIC_IP:-192.168.8.10}"
 SSID="${SITE_WIFI_SSID:-}"
 WIFI_KEY="${SITE_WIFI_PASSWORD:-}"
@@ -106,14 +121,29 @@ if [[ -n "$SSH_KEY" ]]; then SSH_OPTS+=(-i "$SSH_KEY"); fi
 # the trip into the remote shell intact.
 q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
-log "Router $ROUTER — server $SERVER_IP — SSID '$SSID' — country $COUNTRY"
+log "Router at $ROUTER — LAN to be $LAN_IP — server $SERVER_IP — SSID '$SSID' — country $COUNTRY"
 ssh "${SSH_OPTS[@]}" "root@$ROUTER" true 2>/dev/null \
   || die "cannot SSH to root@$ROUTER with a key. Run the first-boot wizard and install your key first (see README.md)."
+
+# A LAN move is not a normal run: it drops this session and every client's lease. Refuse it
+# unless it was asked for, rather than silently renumbering someone's network.
+if [[ "$ROUTER" != "$LAN_IP" && $MOVE_LAN -eq 0 && $DRY_RUN -eq 0 ]]; then
+  die "the router answers at $ROUTER but ROUTER_IP says the LAN should be $LAN_IP.
+       Moving the LAN drops your SSH session and every DHCP lease on it, so confirm it:
+           $0 --router $ROUTER --move-lan
+       Nothing has been changed. If instead the router is ALREADY where you want it, set
+       ROUTER_IP=$ROUTER in ../.env — but note every tablet APK bakes in a server address
+       from the ROUTER_IP subnet, so changing it means rebuilding and reinstalling the APK."
+fi
+if [[ "$ROUTER" != "$LAN_IP" ]]; then
+  warn "moving the LAN from $ROUTER to $LAN_IP — this SSH session and this box's lease WILL drop."
+  warn "That is expected. Reconnect at $LAN_IP (renew DHCP first) and re-run; the script is idempotent."
+fi
 
 PRE="SSID=$(q "$SSID") WIFI_KEY=$(q "$WIFI_KEY") SERVER_IP=$(q "$SERVER_IP") \
 COUNTRY=$(q "$COUNTRY") CH24=$(q "$CH24") CH5=$(q "$CH5") HT24=$(q "$HT24") HT5=$(q "$HT5") \
 ENCRYPTION=$(q "$ENCRYPTION") FORCE_DNS=$(q "$FORCE_DNS") LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
-ROUTER_IP=$(q "$ROUTER") DRY=$(q "$DRY_RUN")"
+ROUTER_IP=$(q "$LAN_IP") DRY=$(q "$DRY_RUN")"
 
 # shellcheck disable=SC2087
 ssh "${SSH_OPTS[@]}" "root@$ROUTER" "$PRE sh -s" <<'REMOTE'
