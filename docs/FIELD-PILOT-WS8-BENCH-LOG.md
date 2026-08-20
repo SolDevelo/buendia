@@ -15,7 +15,7 @@ tmpfs.
 |---|---|---|
 | **T1** apply from post-wizard state | ✅ PASS | 19 changes, exit 0; `verify-router.sh` **GO 34/34** |
 | **T2** second run (idempotency) | ✅ PASS | "Already correct — nothing to commit"; `uci changes` empty |
-| **T3** reboot survival — **soft half only** | ⚠️ PARTIAL | down 2 s, back 48 s, `/proc/uptime` reset to 39 s, **GO 34/34**. The cold power-pull (×2) is still outstanding |
+| **T3** reboot survival, **incl. two cold power-pulls** | ✅ PASS | see below |
 | **T4b** WAN attached | ✅ PASS | **GO 34/34 with the uplink up** — the plan's highest-value unknown |
 | Backup export | ✅ PASS | 36 KB, 101 files, mode 600, sha256 verified |
 | **T4** web-UI Save/Apply | ⬜ not run | needs a human at the browser |
@@ -23,6 +23,28 @@ tmpfs.
 | **T5/T6** restore vs script-only rebuild | ⬜ not run | needs two factory resets; do last |
 | **T7** per-band association | ⬜ not run | needs a wireless client |
 | **T9** thermal baseline | ⬜ not run | |
+
+## T3 — cold power-pulls
+
+The soft reboot passed first (down 2 s, back 48 s, uptime reset to 39 s, GO 34/34), then two real
+power-pulls with the plug out ~10 s:
+
+| Pull | Uptime before | Downtime | Uptime after | Verify | Over the air |
+|---|---|---|---|---|---|
+| 1 | 673 s | 61 s | **38 s** | GO 34/34 | `MSF-Buendia` ch 6 (2437 MHz) + ch 36 (5180 MHz), WPA2, signal 100 |
+| 2 | 73 s | 65 s | **38 s** | GO 34/34 | both bands again, ch 6 + ch 36 |
+
+`configure-router.sh` re-run after the second pull: **"Already correct — nothing to commit"**. So the
+configuration is genuinely in flash, not a first-boot artefact — which is what a second pull exists to
+distinguish.
+
+**Boot time is reproducibly 38 s to SSH** (~60 s wall-clock including the plug being out). That is the
+number for the site runbook: after mains returns, expect the network back in about a minute.
+
+The over-the-air scan is the first RF evidence in this workstream — everything before it ran over the
+cable. It confirms three things `uci` cannot: both radios actually come back, they come back on the
+**pinned non-DFS channels** rather than wandering, and the encryption really is WPA2 rather than the
+mixed mode that breaks association on older Android builds.
 
 ## What T4b settled
 
