@@ -21,7 +21,7 @@ tmpfs.
 | **T4** web-UI Save/Apply | ⬜ not run | needs a human at the browser |
 | **T4a** clock intercept, end to end | ✅ PASS | proven from traffic, not from the clock display — see below |
 | **T5** restore from backup | ✅ PASS, with three findings that change the plan | see below |
-| **T6** script-only rebuild | ⬜ next | needs one more factory reset |
+| **T6** script-only rebuild | ✅ PASS | 18 changes from factory; dump **identical** to the reference |
 | **T7** per-band association | ⬜ not run | needs a wireless client |
 | **T9** thermal baseline | ⬜ not run | |
 
@@ -206,6 +206,29 @@ the two agree again — and re-exporting after every configuration change is now
 `port-53 redirect active` passed on a router whose redirect was **absent**, because the check matched
 any `dport 53` rule and GL.iNet ships its own `dns_dispatcher` rules. Now matched by our rule's name.
 Adversarial states find these; a happy-path run never would.
+
+## T6 — rebuild from the script alone
+
+Starting state confirmed genuinely factory-fresh: vendor SSID `GL-MT6000-97e`, NTP pointing at the
+OpenWrt pool, `stubby` and `adguardhome` both **enabled at boot**, uptime 127 s.
+
+`configure-router.sh` alone, no backup involved: **18 changes**, then
+
+- `verify-router.sh` → **GO 37/37**
+- `dump-config.sh` → **byte-identical to the reference** taken from the original build
+- re-run → **idempotent no-op**
+- after a reboot: still GO 37/37, dump still identical, both SSIDs beaconing on the pinned
+  non-DFS channels 6 and 36 at WPA2
+
+So the two recovery paths converge on the same configuration — which is the WS-8 acceptance
+criterion, and after the T5 findings it is the **primary** path rather than the fallback.
+
+### Gotcha: verify immediately after configure can report a false NO-GO
+
+The first verify straight after `configure-router.sh` returned **NO-GO, 3 failed**; the same command
+moments later returned GO 37/37. dnsmasq and the firewall are still restarting when the script exits.
+The script already prints "reboot, then verify" — heed it, and do not chase a NO-GO that appears
+within a few seconds of an apply.
 
 ## What T4b settled
 
