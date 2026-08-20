@@ -276,6 +276,10 @@ if [ "$FORCE_DNS" = "true" ]; then
       uci set "firewall.$sec.dest_ip=$ROUTER_IP"
       uci set "firewall.$sec.target=DNAT"
       uci set "firewall.$sec.family=ipv4"
+      # Set explicitly rather than relying on "absent means enabled": otherwise a
+      # script-built router and a restored one differ on this key for no real reason, and
+      # the T5/T6 comparison reports a difference that means nothing.
+      uci set "firewall.$sec.enabled=1"
       changed=$((changed+1))
     fi
   else
