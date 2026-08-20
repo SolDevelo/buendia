@@ -20,7 +20,8 @@ tmpfs.
 | Backup export | ✅ PASS | 36 KB, 101 files, mode 600, sha256 verified |
 | **T4** web-UI Save/Apply | ⬜ not run | needs a human at the browser |
 | **T4a** clock intercept, end to end | ✅ PASS | proven from traffic, not from the clock display — see below |
-| **T5/T6** restore vs script-only rebuild | ⬜ not run | needs two factory resets; do last |
+| **T5** restore from backup | ✅ PASS, with three findings that change the plan | see below |
+| **T6** script-only rebuild | ⬜ next | needs one more factory reset |
 | **T7** per-band association | ⬜ not run | needs a wireless client |
 | **T9** thermal baseline | ⬜ not run | |
 
@@ -156,6 +157,55 @@ Two implementation traps hit: setting `firewall.<sec>.enabled` unconditionally r
 every run (the key is absent by default, meaning enabled), breaking idempotency; and `iptables` showed
 the rule four times until fw3 was restarted cleanly — stale rules, not duplicate config. `uci` held one
 section throughout.
+
+## T5 — restoring the backup, and three findings that change the plan
+
+### 1. There is no backup/restore in the GL.iNet web UI at all
+
+Verified on the firmware, not by hunting menus: **LuCI is not installed** (0 packages, no lua tree —
+which is why `/cgi-bin/luci` returned 403), the admin panel's JavaScript contains no reference to
+`cgi-backup`/`cgi-upload`/`cgi-download`, and its only related feature is firmware upgrade. The stock
+OpenWrt `cgi-io` binary and `sysupgrade --create-backup` exist underneath, but nothing in the shipped
+UI calls them.
+
+**Restore is therefore SSH-only** (`scp` the archive, `sysupgrade -r`, reboot — verified working).
+That contradicts `FIELD-PILOT-NETWORK-SPEC.md` requirement 6 and the plan's runbook line "if a router
+is reset, someone restores a file", which assume a web UI. **Both need correcting.** The practical
+consequence: a reset router needs a laptop with SSH and the admin password — so the backup's claimed
+advantage over the script, that it needs no engineering, **does not exist on this firmware.** Both
+recovery paths need the same access.
+
+### 2. The backup does NOT capture service enable/disable state
+
+`sysupgrade` archives `/etc/config` and the files listed in `/etc/sysupgrade.conf`. It contains **no
+`/etc/rc.d` entries**, and that is where `/etc/init.d/<svc> disable` records itself. So a restored
+router comes back with **`stubby` and `adguardhome` re-enabled at boot** — meaning encrypted DNS
+starts on the next power cycle and silently defeats the clock intercept.
+
+This is the sharpest result of the day: **the backup is not merely model-locked, it is incomplete.**
+"Restore the backup" is not sufficient recovery. The runbook must say **restore, then run the script**.
+
+The boot-state assertion added to `verify-router.sh` earlier the same day caught it: `stubby not
+running` **passed** while `stubby disabled at boot` **failed**. A verifier that only inspected the
+running state would have returned GO on a router primed to break at its next reboot.
+
+### 3. The two forms had already drifted
+
+The archive was exported at 13:45, before the `psk2+ccmp` defect was found. Restoring it faithfully
+reinstated the encryption value **the vendor UI refuses to save**, and predated the DNS redirect.
+Diff against the reference showed exactly that: stale encryption on both radios, redirect absent,
+services re-enabled.
+
+**Running `configure-router.sh` on the restored router repaired all five differences and produced a
+dump byte-identical to the reference.** That is the demonstration worth keeping: the script is the
+source of truth and the backup is an accelerator, not an equal. A fresh backup has been re-exported so
+the two agree again — and re-exporting after every configuration change is now a runbook step.
+
+### A verifier bug this exposed
+
+`port-53 redirect active` passed on a router whose redirect was **absent**, because the check matched
+any `dport 53` rule and GL.iNet ships its own `dns_dispatcher` rules. Now matched by our rule's name.
+Adversarial states find these; a happy-path run never would.
 
 ## What T4b settled
 

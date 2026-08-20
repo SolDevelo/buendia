@@ -166,7 +166,9 @@ ndns="$(echo "$GEN" | grep -c "dhcp-option=.*\b6,")"
 
 head_ "DNS redirect (running firewall)"
 if [ "$FORCE_DNS_WANT" = "true" ]; then
-  FW="$(R 'nft list ruleset 2>/dev/null | grep -iE "dport 53|buendia-dns" ; iptables -t nat -S 2>/dev/null | grep -E "dport 53"')"
+  # Match OUR rule by name, not any dport-53 rule: the vendor ships its own dns_dispatcher
+  # rules, which made this check pass on a router that had no redirect of ours at all.
+  FW="$(R 'nft list ruleset 2>/dev/null | grep -i "buendia-dns-intercept" ; iptables -t nat -S 2>/dev/null | grep "buendia-dns-intercept"')"
   if [ -n "$FW" ]; then ok "port-53 redirect active" "$(echo "$FW" | wc -l) rule(s)"
   else bad "port-53 redirect active" "no dport-53 rule in the running firewall"; fi
 else
