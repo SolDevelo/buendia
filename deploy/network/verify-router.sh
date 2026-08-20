@@ -135,8 +135,10 @@ for svc in stubby adguardhome https-dns-proxy; do
     ok "$svc not running"
   fi
 done
-# The generated config, not uci: this is what dnsmasq is actually serving.
-GEN="$(R 'cat /var/etc/dnsmasq.conf.* /tmp/etc/dnsmasq.conf.* 2>/dev/null')"
+# The generated config, not uci: this is what dnsmasq is actually serving. Read the file
+# the RUNNING process was started with (-C), rather than globbing: on OpenWrt /var is a
+# symlink to /tmp, so globbing both paths reads the same file twice and doubles every count.
+GEN="$(R 'f=$(ps w | grep "[d]nsmasq -C" | sed -n "s/.* -C \([^ ]*\).*/\1/p" | head -1); [ -n "$f" ] && cat "$f"')"
 for host in time.android.com time.google.com ntp.org; do
   if echo "$GEN" | grep -q "address=/$host/$SERVER_IP"; then
     ok "override present: $host" "-> $SERVER_IP"
