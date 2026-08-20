@@ -19,7 +19,7 @@ tmpfs.
 | **T4b** WAN attached | ✅ PASS | **GO 34/34 with the uplink up** — the plan's highest-value unknown |
 | Backup export | ✅ PASS | 36 KB, 101 files, mode 600, sha256 verified |
 | **T4** web-UI Save/Apply | ⬜ not run | needs a human at the browser |
-| **T4a** clock intercept with a tablet | ⬜ not run | needs the tablet + dev box temporarily at `.10` |
+| **T4a** clock intercept, end to end | ✅ PASS | proven from traffic, not from the clock display — see below |
 | **T5/T6** restore vs script-only rebuild | ⬜ not run | needs two factory resets; do last |
 | **T7** per-band association | ⬜ not run | needs a wireless client |
 | **T9** thermal baseline | ⬜ not run | |
@@ -94,6 +94,68 @@ use our resolver, this is real hardening for the exact failure the plan flags un
 Prefer implementing it as a **plain OpenWrt firewall redirect** (lan, udp+tcp dport 53 → the router)
 rather than by setting the vendor key: same effect, portable to the Beryl AX and to a non-GL.iNet
 replacement, and reviewable in the script instead of hidden in a vendor layer.
+
+## T4a — the clock intercept, proven end to end
+
+Rig: dev box given `192.168.8.10` as a second address on the LAN, running **chrony with the shipped
+`buendia-ntp.conf`** (not a hand-rolled substitute). Tablet: Redmi Pad Pro, airplane mode + Wi-Fi, no
+SIM. **Router WAN unplugged** — so `192.168.8.10` was the only reachable time source in existence.
+
+Evidence, from the router's dnsmasq query log and chrony:
+
+```
+15:13:31  192.168.8.156  query[A] time.android.com  ->  config time.android.com is 192.168.8.10
+15:13:31  192.168.8.156  query[A] time.google.com   ->  config time.google.com  is 192.168.8.10
+
+chronyc clients:   192.168.8.156   NTP: 4 packets
+                   192.168.8.1     NTP: 5 packets
+```
+
+The tablet's clock corrected at that moment. Corroboration: those two names are the **only** ones of
+267 queries that were not retried with a `.lan` suffix, because they are the only ones that resolved
+first time — everything else was REFUSED, there being no upstream.
+
+### The test method was wrong first, and the wrong version passed
+
+The obvious procedure — turn "set time automatically" off, set a wrong date, turn it back on — **passes
+on a tablet with no network at all.** Android re-applies a *cached* network-time suggestion; nothing is
+sent. We reproduced exactly that: correct date restored with Wi-Fi off.
+
+A reboot invalidates the cache. The valid sequence is: automatic OFF and clock wrong → **reboot** →
+join Wi-Fi → automatic ON. Then the clock stays wrong until the network comes up, and corrects when it
+does.
+
+**The clock display is not evidence.** It moved for a reason unrelated to our network. What counts is a
+DNS query for an NTP hostname answered with the server's address, plus NTP packets arriving at chrony.
+G8 in the plan must say so.
+
+### Two findings beyond the pass
+
+- **Contingency C-1 did not materialise on this build.** The tablet queried
+  `connectivitycheck.gstatic.com`, got REFUSED, and therefore knew the network had no internet — and
+  performed the NTP check anyway. One device; MSF's CrossCall build may differ, which is B5's job.
+- **The router's stale clock self-heals.** It synced from `.10` (5 NTP packets) as configured; log
+  timestamps went from `Oct 16 2025` to the correct date the moment the server appeared. The earlier
+  open question about adding a fallback internet time source is therefore **closed — no fallback
+  needed.**
+
+## Hardening: force every client onto our resolver
+
+DHCP option 6 only asks politely. A plain OpenWrt redirect (lan, tcp+udp dport 53 → the router) now
+enforces it, written portably rather than via GL.iNet's `force_dns` key.
+
+**Verified against a client that ignores option 6:** the tablet was reconfigured with a static DNS of
+`8.8.8.8`, and its queries still arrived at our dnsmasq. Combined with our dnsmasq answering
+`time.android.com` as `192.168.8.10`, the intercept holds whatever resolver a tablet is set to.
+
+Limits, so this is not over-trusted: it catches **plaintext port 53 only**. Private DNS over TLS leaves
+on `:853` and is *not* caught — that remains a per-tablet staging step. A hardcoded NTP **IP** would not
+be caught either, since no DNS is involved (contingency C-5).
+
+Two implementation traps hit: setting `firewall.<sec>.enabled` unconditionally registered a change on
+every run (the key is absent by default, meaning enabled), breaking idempotency; and `iptables` showed
+the rule four times until fw3 was restarted cleanly — stale rules, not duplicate config. `uci` held one
+section throughout.
 
 ## What T4b settled
 
