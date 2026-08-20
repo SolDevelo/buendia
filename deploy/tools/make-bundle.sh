@@ -45,6 +45,7 @@ REQUIRED=(
 OPTIONAL=(
   tools/create-openmrs-user.sh
   tools/buendia-diagnostics.sh
+  tools/buendia-netcheck.sh                 # pre-install network check; also the on-site "can't see the router" tool
   pkgserver/publish.sh
   pkgserver/make-install-card.sh
 )
