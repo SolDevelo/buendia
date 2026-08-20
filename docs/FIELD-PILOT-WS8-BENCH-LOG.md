@@ -46,6 +46,31 @@ cable. It confirms three things `uci` cannot: both radios actually come back, th
 **pinned non-DFS channels** rather than wandering, and the encryption really is WPA2 rather than the
 mixed mode that breaks association on older Android builds.
 
+## T4 — the vendor web UI, and a real defect it exposed
+
+Two findings from opening the GL.iNet UI against our applied configuration:
+
+- **The DNS page refuses a no-op apply.** It will not submit unless something changed. That is a
+  *good* property: an idle visit to that page cannot silently clobber the `address=` overrides the
+  clock intercept depends on.
+- **The Wireless page could not save at all.** It *displayed* `encryption=psk2+ccmp` and then rejected
+  the save with "incorrect parameter value". Both values are valid OpenWrt, but the vendor UI can only
+  write its own enumerated set (`WPA/WPA2-PSK`, `WPA2-PSK`, `WPA2-PSK/WPA3-SAE`).
+
+The second is a defect in what we shipped, not in the router. Our value was *sticky*, which sounds
+like a pass — but it made the Wireless page unusable for a legitimate runbook action such as rotating
+the passphrase, and the obvious escape for whoever hits that error is to pick a different encryption
+from the dropdown, which is exactly the unsupervised change we do not want.
+
+**Resolved by shipping plain `psk2`**, now `ROUTER_ENCRYPTION` in `.env` rather than hardcoded. The
+security delta is negligible here — Android negotiates CCMP regardless, TKIP appears only if a client
+asks, and the passphrase is laminated on a ward wall — while requirement 6 explicitly demands the
+configuration survive a web-UI visit. Matching what the vendor can represent is worth more than
+forbidding a cipher no pilot device will request.
+
+Re-applied as exactly 2 changes (encryption on each interface, nothing else), GO 34/34, still WPA2
+over the air on channels 6 and 36, and a re-run is a clean no-op.
+
 ## What T4b settled
 
 `stubby` ships with `trigger='wan'`, so encrypted DNS can only start once an uplink exists — meaning

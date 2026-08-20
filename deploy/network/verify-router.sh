@@ -42,6 +42,7 @@ ROUTER="${ROUTER:-${ROUTER_IP:-192.168.8.1}}"
 SERVER_IP="${STATIC_IP:-192.168.8.10}"
 SSID_WANT="${SITE_WIFI_SSID:-}"
 COUNTRY_WANT="${ROUTER_COUNTRY:-CD}"
+ENC_WANT="${ROUTER_ENCRYPTION:-psk2}"
 
 PASS=0; FAIL=0
 ok()   { printf '  \033[1;32m✓\033[0m %-42s %s\n' "$1" "${2:-}"; PASS=$((PASS+1)); }
@@ -100,7 +101,10 @@ while IFS='|' read -r iface ssid net dis enc iso; do
   [ "$net" = "lan" ] && ok "iface $iface on lan" || bad "iface $iface on lan" "network=$net"
   [ "$iso" = "0" ] || [ -z "$iso" ] && ok "iface $iface isolation off" "isolate=${iso:-unset}" \
                                     || bad "iface $iface isolation off" "isolate=$iso"
-  case "$enc" in psk2*|sae*) ok "iface $iface encrypted" "$enc" ;; *) bad "iface $iface encrypted" "$enc" ;; esac
+  # Compare to the configured value, not a loose glob: psk2+ccmp would pass a glob while
+  # being a value the vendor UI refuses to save.
+  [ "$enc" = "$ENC_WANT" ] && ok "iface $iface encryption" "$enc" \
+                           || bad "iface $iface encryption" "$enc, wanted $ENC_WANT"
   if [ -n "$seen_ssid" ] && [ "$ssid" != "$seen_ssid" ]; then multi=1; fi
   seen_ssid="$ssid"
 done <<< "$IFACES"

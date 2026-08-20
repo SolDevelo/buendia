@@ -73,6 +73,14 @@ HT24="${ROUTER_HTMODE_24:-HE20}"    # 20 MHz on 2.4: range and robustness beat t
 HT5="${ROUTER_HTMODE_5:-HE80}"
 LAN_PREFIX="${ROUTER_LAN_PREFIX:-24}"
 ROUTER_TZ="${ROUTER_TIMEZONE:-UTC}"
+# psk2 (WPA2-PSK), NOT psk2+ccmp. Both are valid OpenWrt, but the GL.iNet web UI cannot
+# WRITE psk2+ccmp — it displays the value and then rejects a save with "incorrect parameter
+# value" (verified on 4.8.3). That makes the Wireless page unusable for a legitimate change
+# like rotating the passphrase, and the obvious way out for whoever hits it is to pick a
+# different encryption from the dropdown. Matching what the vendor can represent is worth
+# more than forbidding a cipher no pilot device will request: Android negotiates CCMP
+# anyway, and the passphrase is laminated on a ward wall.
+ENCRYPTION="${ROUTER_ENCRYPTION:-psk2}"
 
 [[ -n "$SSID" ]]     || die "SITE_WIFI_SSID is not set (put it in .env, quoted)."
 [[ -n "$WIFI_KEY" ]] || die "SITE_WIFI_PASSWORD is not set (put it in .env, quoted)."
@@ -97,7 +105,7 @@ ssh "${SSH_OPTS[@]}" "root@$ROUTER" true 2>/dev/null \
 
 PRE="SSID=$(q "$SSID") WIFI_KEY=$(q "$WIFI_KEY") SERVER_IP=$(q "$SERVER_IP") \
 COUNTRY=$(q "$COUNTRY") CH24=$(q "$CH24") CH5=$(q "$CH5") HT24=$(q "$HT24") HT5=$(q "$HT5") \
-LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
+ENCRYPTION=$(q "$ENCRYPTION") LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
 ROUTER_IP=$(q "$ROUTER") DRY=$(q "$DRY_RUN")"
 
 # shellcheck disable=SC2087
@@ -163,7 +171,7 @@ for pair in "$R24 $CH24 $HT24" "$R5 $CH5 $HT5"; do
 done
 
 # ── One SSID across both bands ───────────────────────────────────────────────
-head_ "SSID '$SSID' (WPA2-PSK/CCMP, one name on both bands)"
+head_ "SSID '$SSID' ($ENCRYPTION, one name on both bands)"
 for iface in $(uci show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\1/p"); do
   dev="$(uci -q get "wireless.$iface.device" || true)"
   case "$iface" in
@@ -172,7 +180,7 @@ for iface in $(uci show wireless | sed -n "s/^wireless\.\([^.=]*\)=wifi-iface$/\
   esac
   [ "$dev" = "$R24" ] || [ "$dev" = "$R5" ] || continue
   setv "wireless.$iface.ssid"       "$SSID"
-  setv "wireless.$iface.encryption" "psk2+ccmp"   # not sae-mixed: it breaks association on
+  setv "wireless.$iface.encryption" "$ENCRYPTION"  # not sae-mixed: it breaks association on
   setv "wireless.$iface.key"        "$WIFI_KEY"   # a non-trivial set of older Android builds
   setv "wireless.$iface.network"    "lan"
   setv "wireless.$iface.mode"       "ap"
