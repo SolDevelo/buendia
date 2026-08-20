@@ -431,7 +431,7 @@
 - **Full specification:** `docs/FIELD-PILOT-NETWORK-SPEC.md`, written to be forwarded like the server spec.
   It is deliberately a **family + three coverage tiers**, not a model, because the layout is unknown:
   - **tier 1** one ward/hall, farthest tablet ≤~15 m → a single head router;
-  - **tier 2** several rooms/tents or a farther bed → head + 1–3 access-point/mesh nodes;
+  - **tier 2** several rooms/tents or a farther bed → head + 1–3 access-point nodes;
   - **tier 3** an outdoor span of 30–100 m → an outdoor/PoE AP or a point-to-point bridge pair.
   Recommended family is **GL.iNet (OpenWrt)**; alternatives (TP-Link Omada, UniFi, industrial Teltonika)
   are listed with the conditions under which they win. Total for tiers 0–2 is a few hundred CHF.
@@ -445,14 +445,18 @@
   and it must support **custom local DNS entries** and advertise itself as the tablets' resolver — which is
   the only mechanism that keeps **tablet clocks** right at an offline site, and the tablet supplies the
   clinical timestamp (**A9**, **B5 q8**, plan §3.4).
-- **Procurement stance:** buy the **baseline now** (head router + one node + a cheap spare + cable + power
-  bank) since it is needed for staging regardless and fits any plausible site; **defer** the extra nodes
-  and the outdoor tier until layout answers arrive — they are orderable in days and the kit works without
-  them.
+- **Procurement stance:** buy the **baseline now** (Flint 2 head + one Beryl AX node + a second Beryl AX as
+  bench unit and spare + cable + power bank, ~CHF 640) since it is needed for staging regardless and fits
+  any plausible site; **defer** the extra nodes and the outdoor tier until layout answers arrive — they are
+  orderable in days and the kit works without them. The spare is deliberately a full dual-band unit: the
+  ~CHF 35 single-band travel routers fail spec requirement 3, so they validate none of the wireless config
+  that ships and cannot stand in for a node.
 - **Default shipped:** the LAN design is fixed and final — `192.168.8.0/24`, router `.1`, server `.10`, one
   flat L2, one SSID across all nodes. No equipment purchased yet.
 - **Lands in:** no config file (`deploy/.env` already matches). It gates the coverage-walk and clock-intercept
-  validation steps in the staging checklist (WS-6) and the router-config backup that travels in the kit.
+  validation steps in the staging checklist (WS-6) and **WS-8**, which produces the router configuration
+  that travels in the kit — as a `uci` script *and* an exported backup, since a backup archive is tied to the
+  model it came from and would not restore onto a replacement router of a different model.
 - **Answer:** _(pending — layout answers)_
 
 ---

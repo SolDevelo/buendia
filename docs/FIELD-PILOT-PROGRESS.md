@@ -40,8 +40,11 @@ testing it); **(2)** test `CONFIGURE_NETWORK=true` on the **`ethernets:`** branc
 hardware, and **MSF runs that step, not us**. *(The unproven `wifis:` branch left the shipping path on
 2026-08-10: the server now plugs into our own router with a cable. Test it only if time is free.)*;
 **(3)** build the backup mechanism, which is still the largest technical gap. Then WS-6 runbooks.
-**Also newly buyable:** the baseline network hardware (head router + one node + spare + power bank) —
-needed for staging regardless of any MSF answer._
+**Also newly buyable:** the baseline network hardware (Flint 2 head + one Beryl AX node + a bench/spare
+unit + power bank, ~CHF 640) — needed for staging regardless of any MSF answer, and the prerequisite for
+**WS-8**, the router config script. ⬜ **Whether the bench/spare is a Beryl AX or a second Flint 2 is an
+open decision** raised by the 2026-08-12 Beryl AX check and asked internally — it blocks nothing; see
+`FIELD-PILOT-NETWORK-SPEC.md`._
 
 ---
 
@@ -810,6 +813,7 @@ card prints a blank line to fill in by hand.
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. It is **impossible** (not merely disabled) with no internet path at the site — and since the router is ours, the path is an **optional uplink on it**: cable, an existing site Wi-Fi joined as a client, or **a cellular SIM, which depends on nobody at the site**. Price the SIM/LTE option while doing this |
+| WS-8 | Router configuration as code | 🆕 ⬜ not started (added 2026-08-10, plan §4). Consequence of owning the network: the router config is a **deliverable**, and the only artefact the DNS clock intercept depends on. Ships **twice** — an idempotent OpenWrt `uci` script (source of truth; survives a firmware bump, a different model, a locally-bought replacement) **and** the exported backup (thirty-second restore for an *identical* unit; a backup archive is model-locked, which is why one file is not enough). ~0.5–1 day, needs the procured router in hand, blocks nothing but **gates staging**. Write it **discovery-based**: select radios by band (never hardcode `radio0`), touch only `lan`'s address (never the vendor bridge/switch — DSA vs swconfig), pin the firmware version (`band '2g'` vs `hwmode '11g'`). If GL.iNet: verify the state survives **a web-UI login as well as a reboot**; use plain AP mode for nodes (**the recommended models have no mesh mode at all** — AstroMesh is Flint 3 / Slate 7); and assert **encrypted DNS (DoH/DoT) is off** as well as rebinding protection — their OP24 branch forced DoH to Cloudflare regardless of the setting, which silently kills the clock intercept. Verify the intercept **from the tablet**, not from the router's config page |
 
 ---
 
@@ -828,8 +832,15 @@ The old questions about MSF's subnet, DHCP pool, reserved address and client iso
 the config list**, not merely answered. What is still open from it is **B2** (site layout → how many access
 points) and the **optional uplink** question.
 
-**Hardware to procure (SolDevelo, needs nothing from MSF):** the baseline network kit — head router + one
-coverage node + a cheap spare + an ethernet cable + a power bank, a few hundred CHF (§8 item 10).
+**Hardware to procure (SolDevelo, needs nothing from MSF):** the baseline network kit — head router
+(Flint 2) + one coverage node (Beryl AX) + **a bench unit and spare** + an ethernet
+cable + a power bank, ~CHF 640 (§8 item 10). The spare is a full dual-band unit on purpose: the ~CHF 35
+single-band travel routers (Mango class) fail hard requirement 3, so they can neither validate the
+dual-band config that ships nor stand in for a node — that option was **dropped, not left open**.
+⬜ **Open (2026-08-12, asked internally): Beryl AX or a second Flint 2 as that bench/spare?** The
+"identical to what ships" argument that killed the Mango points at a second Flint 2 (the Beryl AX differs
+in ports, power input and cooling); the counter is that a Beryl AX covers *both* head and node roles at a
+third of the price. Buying one of each is a legitimate answer. Nothing is blocked meanwhile.
 
 Programme/logistics decisions (hardware model, Staging Area location, hypercare scope) stay in
 plan §8. Nothing here blocks the build — the package boots and is clinically usable on defaults; each
@@ -964,15 +975,19 @@ assume them — in particular **we ship our own router** (§2 item 5).
    **wipe-test-data-before-shipping** step.
 9. **Multi-tablet sync retest** — still not done with the packaged build, and it can now only happen at the
    MSF session, on their tablets. Put it in the UAT script rather than treating it as our task.
-10. 🆕 **Buy and configure the baseline network hardware** — the network is ours, so this is procurement we
+10. 🆕 **Buy the baseline network hardware, then do WS-8** — the network is ours, so this is procurement we
    own (spec: `docs/FIELD-PILOT-NETWORK-SPEC.md`, item **D2**). Needs nothing from MSF and fits any plausible
-   site: **head router + one coverage node + a cheap spare + an ethernet cable + a power bank**, a few
-   hundred CHF total. Defer extra nodes and the outdoor tier until the B2 layout answers arrive.
+   site: **head router (Flint 2) + one coverage node (Beryl AX) + a bench unit and
+   spare (⬜ Beryl AX or a second Flint 2 — open, asked internally) + an ethernet cable + a power bank**,
+   ~CHF 640. Not a single-band travel router for the spare —
+   it fails hard requirement 3 and validates nothing. Defer extra nodes and the outdoor tier until the B2
+   layout answers arrive.
    Then, on the desk, prove the things that are currently claims: the **DNS clock intercept** correcting a
    deliberately-wrong tablet clock (plan §3.4 — hard requirement 2 of the spec), a **coverage walk** at the
-   site's stated distances/wall count, **router on a power bank** through a simulated cut, **config export
-   and restore**, and a **second node joining the same SSID** with a tablet roaming onto it. Export the
-   final config to the file that travels in the kit, and tape over the reset button.
+   site's stated distances/wall count, **router on a power bank** through a simulated cut, **config restore
+   by *both* paths** (backup file, then wipe again and rebuild from the WS-8 script alone — the two must
+   agree), and a **second node joining the same SSID** with a tablet roaming onto it. Ship both the script
+   and the exported backup in the kit, and tape over the reset button.
 
 Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
 (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —
