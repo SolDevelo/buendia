@@ -1,37 +1,37 @@
 #!/usr/bin/env bash
-# Buendia field pilot — pre-install network check and router discovery.
+# Buendia field pilot — check the network and fill in the one value .env cannot know.
 #
-# Answers the two questions a technician cannot answer on a bare box with no repo and no
-# engineer: "what is the router's address?" and "what do I put in NET_IFACE?"
+# Run it from the install USB before bootstrap.sh, or from /opt/buendia afterwards. It answers
+# the two questions a technician cannot answer on a bare box with no repo and no engineer:
 #
-# It DISCOVERS the router rather than assuming an address. That matters: a factory-reset
-# GL.iNet is usually 192.168.8.1 but moves its LAN when the subnet collides with what its WAN
-# is given, and any replacement router bought locally will be on something else entirely. The
-# pilot's own 192.168.8.0/24 only exists AFTER deploy/network/configure-router.sh has run.
+#   1. Where is the router?   Discovered, never assumed. The pilot's 192.168.8.0/24 only exists
+#      AFTER deploy/network/configure-router.sh has run; a factory-reset GL.iNet moves its LAN
+#      when that subnet collides with what its WAN hands it, and a replacement bought locally
+#      is on something else entirely.
+#   2. What goes in NET_IFACE?  Detected, and with --write, written into .env for you. Left
+#      empty, setup.sh autodetects by default route — which picks Wi-Fi on a laptop and
+#      generates a netplan wifis: block that is NOT the shipping path.
 #
-# Depends on nothing but bash, iproute2, ping and /sys. No ethtool, dig, curl, nc or nmcli
-# required — those are what a fresh install may lack, and a diagnostic that cannot run when
-# the network is broken is not a diagnostic. nmcli/networkctl are USED when present, because
-# the DHCP server identifier they expose is the only authoritative answer.
+#   ./buendia-netcheck.sh                 report only (default: changes nothing)
+#   ./buendia-netcheck.sh --write         also write NET_IFACE into the .env it found
+#   sudo ./buendia-netcheck.sh --renew    force a DHCP renew first
+#   sudo ./buendia-netcheck.sh --probe    no lease at all: borrow an address in each likely
+#                                         router subnet and see who answers. Finds a router
+#                                         whose DHCP is off, or one sitting in u-boot recovery.
 #
-#   ./buendia-netcheck.sh                 read-only: discover and advise
-#   sudo ./buendia-netcheck.sh --renew    also force a DHCP renew first
-#   sudo ./buendia-netcheck.sh --probe    DHCP is dead: self-assign a temporary address in each
-#                                         likely router subnet and probe it. The only way to find
-#                                         a router that hands out no lease — including one sitting
-#                                         in u-boot recovery, which serves no DHCP at all.
-#   ./buendia-netcheck.sh --expect 192.168.8.1   also check it matches the pilot addressing
+# Needs only bash, iproute2, ping and /sys. nmcli/networkctl are used when present because the
+# DHCP server identifier they expose is the only authoritative answer to question 1.
 #
-# Exit 0 = a router was found and the link looks sane. Exit 1 = something needs fixing.
+# Exit 0 = ready to install. Exit 1 = something needs fixing (the report says what).
 set -uo pipefail
 
-RENEW=0; EXPECT=""; PROBE=0
+WRITE=0; RENEW=0; PROBE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --renew)  RENEW=1; shift ;;
-    --probe)  PROBE=1; shift ;;
-    --expect) EXPECT="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --write) WRITE=1; shift ;;
+    --renew) RENEW=1; shift ;;
+    --probe) PROBE=1; shift ;;
+    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1 (try --help)" >&2; exit 1 ;;
   esac
 done
@@ -53,128 +53,112 @@ speed()       { local s; s="$(cat "/sys/class/net/$1/speed" 2>/dev/null || echo 
 cidr()        { ip -br -4 addr show "$1" 2>/dev/null | awk '{print $3}' | head -1; }
 tcp()         { timeout 2 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; }
 pingable()    { ping -c1 -W2 "$1" >/dev/null 2>&1; }
+net24()       { local ip="${1%/*}"; echo "${ip%.*}"; }
 
-# Why is there no lease? "carrier but no address" has two completely different causes that look
-# identical: the cable is in a port that serves no DHCP, or this box never asked. Distinguish
-# them, because one is a cable move and the other is a one-line setting change.
+# --- the .env this box will actually be configured from --------------------------------------
+ENVF=""; WANT_STATIC=""; WANT_ROUTER=""; ENV_IFACE=""
+for f in ./buendia.env ./.env /opt/buendia/.env; do
+  [[ -f "$f" ]] || continue
+  ENVF="$f"; break
+done
+getk() { awk -F= -v k="^$1=" '$0 ~ k {sub(/#.*/,"",$2); gsub(/[ \t"'"'"']/,"",$2); print $2; exit}' "$ENVF"; }
+if [[ -n "$ENVF" ]]; then
+  WANT_STATIC="$(getk STATIC_IP)"; WANT_ROUTER="$(getk GATEWAY_IP)"; ENV_IFACE="$(getk NET_IFACE)"
+fi
+
+# Why is there no lease? Two causes look identical and need opposite fixes: the cable is in a
+# port that serves no DHCP, or this box never asked. Distinguish them before blaming the cable.
 diagnose_no_lease() {
-  local i="$1" found=0
+  local i="$1" found=0 state prof method np
   if command -v nmcli >/dev/null 2>&1; then
-    local state prof method
     state="$(nmcli -t -g GENERAL.STATE dev show "$i" 2>/dev/null)"
     prof="$(nmcli -t -g GENERAL.CONNECTION dev show "$i" 2>/dev/null)"
-    [[ -n "$state" ]] && info "NetworkManager device state: $state"
-    case "$state" in
-      *unmanaged*)
-        found=1
-        bad "$i is UNMANAGED by NetworkManager — nothing on this box is asking for a lease"
-        advise "Something else owns the interface (netplan/systemd-networkd, or an explicit unmanaged rule)."
-        advise "Check: /etc/netplan/*.yaml and /etc/NetworkManager/conf.d/*.conf"
-        ;;
-    esac
+    [[ -n "$state" ]] && info "NetworkManager state: $state"
+    if [[ "$state" == *unmanaged* ]]; then
+      found=1; bad "$i is UNMANAGED by NetworkManager — nothing here is asking for a lease"
+      advise "Something else owns it: check /etc/netplan/*.yaml and /etc/NetworkManager/conf.d/*.conf"
+    fi
     if [[ -n "$prof" && "$prof" != "--" ]]; then
       method="$(nmcli -t -g ipv4.method con show "$prof" 2>/dev/null)"
       info "profile $prof — ipv4.method=$method"
       case "$method" in
         auto) ;;
         link-local|disabled|manual|shared)
-          found=1
-          bad "ipv4.method is $method, not auto — this box will NEVER send a DHCP request"
-          advise "THIS is why there is no lease, and no cable move will fix it. Set it to auto:"
-          advise "Fix: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\""
-          ;;
+          found=1; bad "ipv4.method is $method, not auto — this box will NEVER send a DHCP request"
+          advise "This is the fault, and no cable move fixes it. In GNOME: Settings > Network > the wired"
+          advise "connection > IPv4 > Automatic (DHCP). Or: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\"" ;;
       esac
     else
-      found=1
-      bad "$i has NO active NetworkManager profile — so no DHCP client is running on it"
+      found=1; bad "$i has no active NetworkManager profile — no DHCP client is running on it"
       advise "Bring it up: sudo nmcli dev connect $i"
     fi
   fi
-  # netplan can pin an interface to a static or link-local config, which NM then honours.
-  local np
   for np in /etc/netplan/*.yaml; do
     [[ -f "$np" ]] || continue
-    if grep -q "$i" "$np" 2>/dev/null; then
-      info "note: $i is mentioned in $np"
-      grep -qE 'dhcp4:\s*(false|no)' "$np" 2>/dev/null && {
-        found=1
-        bad "$np sets dhcp4: false for this interface — DHCP is switched off in config"
-        advise "That file is a leftover from a previous install. Move it aside and re-apply:"
-        advise "  sudo mv $np /root/ && sudo netplan apply"
-      }
+    grep -q "$i" "$np" 2>/dev/null || continue
+    info "note: $i is mentioned in $np"
+    if grep -qE 'dhcp4:[[:space:]]*(false|no)' "$np" 2>/dev/null; then
+      found=1; bad "$np sets dhcp4: false — DHCP is switched off in configuration"
+      advise "Leftover from a previous install. sudo mv $np /root/ && sudo netplan apply"
     fi
   done
   if [[ $found -eq 0 ]]; then
-    info "this box IS asking for a lease and getting no answer — so the fault is upstream:"
-    advise "Nothing on this box is blocking DHCP, so the cable is in a port that serves none."
-    advise "On the router use a port labelled LAN, never WAN. Then: sudo $0 --renew"
-    advise "If it is already a LAN port: confirm the router is powered and finished booting, then test that same port with another machine — that is what tells a dead port from a dead DHCP server."
+    info "this box IS asking and getting no answer, so the fault is on the other end of the cable:"
+    advise "Use a port labelled LAN on the router, never WAN — DHCP is served on LAN only. Then: sudo $0 --renew"
+    advise "If it already is a LAN port: confirm the router has power and has finished booting, then try that same port with another machine — that is what distinguishes a dead port from a dead DHCP server."
+    advise "No lease at all and nothing else to go on? sudo $0 --probe"
   fi
 }
 
-# When there is no lease there is nothing to discover FROM, so stop discovering and go looking:
-# borrow an address in each plausible router subnet and see who answers. Restores the interface
-# on every exit path, including Ctrl-C — leaving a stray address behind would be worse than the
-# fault being diagnosed.
+# No lease means nothing to discover FROM. Borrow an address in each plausible router subnet and
+# see who answers. Restores the interface on every exit path, Ctrl-C included.
 PROBE_ADDED=""
-probe_cleanup() {
-  [[ -n "$PROBE_ADDED" ]] || return 0
-  ip addr del "$PROBE_ADDED" dev "$PROBE_IF" 2>/dev/null
-  PROBE_ADDED=""
-}
+probe_cleanup() { [[ -n "$PROBE_ADDED" ]] && ip addr del "$PROBE_ADDED" dev "$PROBE_IF" 2>/dev/null; PROBE_ADDED=""; }
 probe_subnets() {
-  local i="$1"
-  PROBE_IF="$i"
-  trap probe_cleanup EXIT INT TERM
-  # GL.iNet ships .8.1; .1.1 is both the generic default AND where a unit in u-boot recovery
-  # sits (recovery serves NO DHCP, which presents exactly as this fault).
-  local nets="192.168.8 192.168.1 192.168.0 192.168.10 192.168.2 10.0.0 192.168.11"
-  local mine net gw hit=0
+  local i="$1" nets mine net gw hit=0 extra
+  PROBE_IF="$i"; trap probe_cleanup EXIT INT TERM
+  # .8.1 is GL.iNet's default; .1.1 is both the generic default and where a unit in u-boot
+  # recovery sits — recovery serves NO DHCP, which presents exactly as "no lease".
+  nets="192.168.8 192.168.1 192.168.0 192.168.10 192.168.2 192.168.11 10.0.0"
   mine="$(ip -br -4 addr | awk '{for(k=3;k<=NF;k++) print $k}')"
   for net in $nets; do
-    # Never touch a subnet this box is legitimately on already.
-    if grep -q "^$net\." <<<"$mine"; then info "skipping $net.0/24 — this box already has an address there"; continue; fi
+    if grep -q "^$net\." <<<"$mine"; then info "skip $net.0/24 — this box already has an address there"; continue; fi
     PROBE_ADDED="$net.222/24"
-    if ! ip addr add "$PROBE_ADDED" dev "$i" 2>/dev/null; then PROBE_ADDED=""; continue; fi
+    ip addr add "$PROBE_ADDED" dev "$i" 2>/dev/null || { PROBE_ADDED=""; continue; }
     for gw in "$net.1" "$net.254"; do
-      if ping -c1 -W1 "$gw" >/dev/null 2>&1; then
-        local extra=""
-        tcp "$gw" 80  && extra="${extra:+$extra,}http:80"
-        tcp "$gw" 443 && extra="${extra:+$extra,}https:443"
-        tcp "$gw" 22  && extra="${extra:+$extra,}ssh:22"
-        printf '  %s FOUND%s %-15s answers on %s  [%s]\n' "$G" "$N" "$gw" "$i" "${extra:-ping only}"
-        PROBE_FOUND="${PROBE_FOUND:-$gw}"; hit=1
-      fi
+      pingable "$gw" || continue
+      extra=""; tcp "$gw" 80 && extra="http:80"; tcp "$gw" 22 && extra="${extra:+$extra,}ssh:22"
+      printf '  %s FOUND%s %-15s via %s  [%s]\n' "$G" "$N" "$gw" "$i" "${extra:-ping only}"
+      PROBE_FOUND="${PROBE_FOUND:-$gw}"; hit=1
     done
     probe_cleanup
   done
   trap - EXIT INT TERM
   if [[ $hit -eq 0 ]]; then
-    bad "no router answered in any probed subnet on $i"
-    advise "Nothing is alive on the other end of this cable. In order: confirm the router has power and"
-    advise "its LEDs have settled; confirm the cable is in a LAN port; try a different port and cable;"
-    advise "then power-cycle the router (unplug 10 s) and wait two full minutes before retrying."
-    advise "A GL.iNet held in reset too long boots into u-boot recovery, which serves no DHCP at all —"
-    advise "a normal power-cycle (no reset button) is what brings it back to the wizard."
+    bad "nothing answered in any probed subnet on $i"
+    advise "Nothing is alive on the other end of this cable. Confirm power and LEDs, try another port and cable, then power-cycle the router (unplug 10 s) and wait two full minutes."
+    advise "A GL.iNet held on reset too long boots into u-boot recovery, which serves no DHCP — a plain power-cycle, no reset button, returns it to the wizard."
   else
-    advise "A router answered but gave this box no lease. Its DHCP server is off or it is in a"
-    advise "recovery/failsafe mode. Open its admin page from a box with a static address in that subnet."
+    advise "A router answered but gave no lease: its DHCP is off, or it is in a recovery mode."
   fi
 }
 
 printf '%sBuendia network check%s  (%s)\n' "$B" "$N" "$(date '+%Y-%m-%d %H:%M')"
+[[ -n "$ENVF" ]] && info "reading $ENVF — STATIC_IP=${WANT_STATIC:-unset} GATEWAY_IP=${WANT_ROUTER:-unset} NET_IFACE=${ENV_IFACE:-empty}"
 
 # ---------------------------------------------------------------------------
 hdr "Interfaces"
 WIRED=(); WIRELESS=()
-for path in /sys/class/net/*; do
-  i="$(basename "$path")"; is_real "$i" || continue
+for p in /sys/class/net/*; do
+  i="$(basename "$p")"; is_real "$i" || continue
   if is_wireless "$i"; then WIRELESS+=("$i"); else WIRED+=("$i"); fi
 done
-show() { printf '  %-9s %-12s carrier=%s %-6s %s\n' "$1" "$2" "$(carrier "$2")" "$(speed "$2")" "$(cidr "$2")"; }
-for i in "${WIRED[@]:-}";    do [[ -n "$i" ]] && show wired    "$i"; done
-for i in "${WIRELESS[@]:-}"; do [[ -n "$i" ]] && show wireless "$i"; done
-[[ ${#WIRED[@]} -eq 0 ]] && bad "no wired interface — this box needs an RJ45 port or a USB-Ethernet adapter"
+for i in "${WIRED[@]:-}" "${WIRELESS[@]:-}"; do
+  [[ -z "$i" ]] && continue
+  printf '  %-9s %-12s carrier=%s %-6s %s\n' \
+    "$(is_wireless "$i" && echo wireless || echo wired)" "$i" "$(carrier "$i")" "$(speed "$i")" "$(cidr "$i")"
+done
+[[ ${#WIRED[@]} -eq 0 ]] && bad "no wired interface — the server is cabled to the router by design"
 
 if [[ $RENEW -eq 1 ]]; then
   hdr "Forcing a DHCP renew"
@@ -183,8 +167,7 @@ if [[ $RENEW -eq 1 ]]; then
     for i in "${WIRED[@]:-}"; do
       [[ -z "$i" ]] && continue
       if command -v nmcli >/dev/null 2>&1; then
-        info "nmcli down/up $i"
-        nmcli dev disconnect "$i" >/dev/null 2>&1; nmcli dev connect "$i" >/dev/null 2>&1 || true
+        info "nmcli down/up $i"; nmcli dev disconnect "$i" >/dev/null 2>&1; nmcli dev connect "$i" >/dev/null 2>&1 || true
       else
         info "ip link down/up $i"; ip link set "$i" down; ip link set "$i" up
         command -v dhclient >/dev/null 2>&1 && dhclient -1 "$i" >/dev/null 2>&1 || true
@@ -195,56 +178,40 @@ if [[ $RENEW -eq 1 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Pick the interface to reason about: a wired one holding a routable address, else any wired
-# one with a carrier. Never a wireless one — the server is cabled to the router by design.
 hdr "Wired link"
 IFACE=""; MYCIDR=""
 for i in "${WIRED[@]:-}"; do
   [[ -z "$i" ]] && continue
-  car="$(carrier "$i")"; a="$(cidr "$i")"
-  if [[ "$car" != "1" ]]; then
+  if [[ "$(carrier "$i")" != "1" ]]; then
     bad "$i NO CARRIER — nothing electrically connected"
-    advise "Seat the cable at both ends, and use a port labelled LAN on the router, never WAN."
-    advise "If the cable is definitely in, try another port and another cable — a dead port looks identical."
+    advise "Seat the cable at both ends; use a LAN port on the router, never WAN. A dead port looks identical, so try another."
     continue
   fi
+  a="$(cidr "$i")"
   case "$a" in
-    "")
-      bad "$i link is up but has NO IPv4 address"
-      diagnose_no_lease "$i"
-      ;;
-    169.254.*)
-      bad "$i fell back to link-local $a — no DHCP lease"
-      info "169.254.x.x is assigned by this box itself. There is NO router at 169.254.x.1."
-      diagnose_no_lease "$i"
-      ;;
-    *)
-      ok "$i is up ($(speed "$i")) with $a"
-      IFACE="${IFACE:-$i}"; MYCIDR="${MYCIDR:-$a}"
-      ;;
+    "")          bad "$i is up but has NO IPv4 address"; diagnose_no_lease "$i" ;;
+    169.254.*)   bad "$i fell back to link-local $a — no DHCP lease"
+                 info "169.254.x.x is assigned by this box itself; there is no router at 169.254.x.1."
+                 diagnose_no_lease "$i" ;;
+    *)           ok "$i is up ($(speed "$i")) with $a"; IFACE="${IFACE:-$i}"; MYCIDR="${MYCIDR:-$a}" ;;
   esac
 done
 
-# ---------------------------------------------------------------------------
 if [[ $PROBE -eq 1 ]]; then
   hdr "Probing likely router subnets (temporary addresses, removed afterwards)"
-  if [[ $EUID -ne 0 ]]; then
-    bad "--probe needs root: re-run with sudo"
+  if [[ $EUID -ne 0 ]]; then bad "--probe needs root: re-run with sudo"
   else
     for i in "${WIRED[@]:-}"; do
       [[ -z "$i" ]] && continue
-      [[ "$(carrier "$i")" == "1" ]] || continue
-      probe_subnets "$i"
+      [[ "$(carrier "$i")" == "1" ]] && probe_subnets "$i"
     done
   fi
 fi
 
+# ---------------------------------------------------------------------------
 hdr "Where is the router?"
-# Four independent sources, best first. The DHCP server identifier is authoritative: whatever
-# handed out this lease IS the router. A default route can be absent (isolated LAN) or
-# deliberately suppressed (a build box pinned with ipv4.never-default), so it is not first.
 CANDS=()
-add_cand() { local ip="$1" why="$2"
+add_cand() { local ip="$1" why="$2" e
   [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
   [[ "$ip" == 0.0.0.0 ]] && return 0
   for e in "${CANDS[@]:-}"; do [[ "${e%%|*}" == "$ip" ]] && return 0; done
@@ -258,125 +225,109 @@ if [[ -n "$IFACE" ]] && command -v nmcli >/dev/null 2>&1; then
       *domain_name_servers:*)    for d in $v; do add_cand "$d" "DHCP option 6 (DNS)"; done ;;
     esac
   done < <(nmcli -f DHCP4 dev show "$IFACE" 2>/dev/null | sed 's/=/ /' | awk '{print $2, $3}')
-  g="$(nmcli -g IP4.GATEWAY dev show "$IFACE" 2>/dev/null)"; add_cand "$g" "NetworkManager gateway"
+  add_cand "$(nmcli -g IP4.GATEWAY dev show "$IFACE" 2>/dev/null)" "NetworkManager gateway"
 fi
 if [[ -n "$IFACE" ]] && command -v networkctl >/dev/null 2>&1; then
-  s="$(networkctl status "$IFACE" 2>/dev/null | awk -F': ' '/DHCP4 Server Address/{print $2}')"
-  add_cand "$s" "systemd-networkd DHCP server address"
+  add_cand "$(networkctl status "$IFACE" 2>/dev/null | awk -F': ' '/DHCP4 Server Address/{print $2}')" "systemd-networkd DHCP server"
 fi
-for lf in /var/lib/dhcp/dhclient*.leases /var/lib/NetworkManager/*.lease; do
-  [[ -f "$lf" ]] || continue
-  s="$(awk '/dhcp-server-identifier/{gsub(/;/,"");print $NF}' "$lf" 2>/dev/null | tail -1)"
-  add_cand "$s" "dhclient lease file"
+for lf in /var/lib/dhcp/dhclient*.leases; do
+  [[ -f "$lf" ]] && add_cand "$(awk '/dhcp-server-identifier/{gsub(/;/,"");print $NF}' "$lf" 2>/dev/null | tail -1)" "dhclient lease file"
 done
-g="$(ip route show default 2>/dev/null | awk '/^default/{print $3; exit}')"; add_cand "$g" "default route"
-# Heuristic last: the usual first and last host of our own /24.
-if [[ -n "$MYCIDR" ]]; then
-  net="${MYCIDR%/*}"; pre="${net%.*}"
-  add_cand "$pre.1"   "convention: first host of $pre.0/24"
-  add_cand "$pre.254" "convention: last host of $pre.0/24"
-fi
+add_cand "$(ip route show default 2>/dev/null | awk '/^default/{print $3; exit}')" "default route"
+[[ -n "$MYCIDR" ]] && { add_cand "$(net24 "$MYCIDR").1" "convention: first host of this /24"
+                        add_cand "$(net24 "$MYCIDR").254" "convention: last host of this /24"; }
 
 ROUTER="${PROBE_FOUND:-}"
-if [[ -n "$ROUTER" ]]; then
-  ok "found by probing: $ROUTER"
-fi
-if [[ ${#CANDS[@]} -eq 0 ]]; then
-  bad "no router candidate at all — there is no lease and no route to work from"
-  advise "Fix the wired link above first: without an address there is nothing to discover."
+[[ -n "$ROUTER" ]] && ok "found by probing: $ROUTER"
+if [[ ${#CANDS[@]} -eq 0 && -z "$ROUTER" ]]; then
+  bad "no candidate to test — there is no lease and no route to work from"
+  advise "Fix the wired link first: with no address there is nothing to discover."
 else
-  for e in "${CANDS[@]}"; do
-    ip="${e%%|*}"; why="${e#*|}"
-    reach=""; pingable "$ip" && reach="ping"
-    tcp "$ip" 80  && reach="${reach:+$reach,}http:80"
-    tcp "$ip" 443 && reach="${reach:+$reach,}https:443"
+  for e in "${CANDS[@]:-}"; do
+    [[ -z "$e" ]] && continue
+    ip="${e%%|*}"; why="${e#*|}"; reach=""
+    pingable "$ip" && reach="ping"
+    tcp "$ip" 80 && reach="${reach:+$reach,}http:80"
     if [[ -n "$reach" ]]; then
-      printf '  %s FOUND%s %-15s %-42s [%s]\n' "$G" "$N" "$ip" "$why" "$reach"
+      printf '  %s FOUND%s %-15s %-40s [%s]\n' "$G" "$N" "$ip" "$why" "$reach"
       ROUTER="${ROUTER:-$ip}"
     else
-      printf '  %s  --  %s %-15s %-42s [no answer]\n' "$Y" "$N" "$ip" "$why"
+      printf '  %s  --  %s %-15s %-40s [no answer]\n' "$Y" "$N" "$ip" "$why"
     fi
   done
 fi
 
 if [[ -n "$ROUTER" ]]; then
-  hdr "Router at $ROUTER"
-  ok "admin page: http://$ROUTER"
-  if tcp "$ROUTER" 22; then
-    ok "$ROUTER:22 SSH is open — configure-router.sh can reach it"
+  ok "router admin: http://$ROUTER"
+  if tcp "$ROUTER" 22; then ok "$ROUTER:22 SSH open — configure-router.sh can reach it"
   else
-    info "$ROUTER:22 SSH is closed"
-    info "On the GL.iNet head router that means the first-boot wizard is not finished (SSH stays"
-    info "shut until it is) — open http://$ROUTER, complete it, and install the build box's key."
-    info "On any other router it may simply not offer SSH, which is not a fault by itself."
+    info "$ROUTER:22 SSH closed. On the GL.iNet head router that means the first-boot wizard is"
+    info "not finished (SSH stays shut until it is) — complete it, then install the build box's key."
+    info "On another router it may simply not offer SSH, which is not a fault by itself."
+  fi
+  # Does the router's CURRENT subnet match what this box is about to be configured for?
+  if [[ -n "$WANT_STATIC" && "$(net24 "$ROUTER")" != "$(net24 "$WANT_STATIC")" ]]; then
+    info "the router is on $(net24 "$ROUTER").0/24 but STATIC_IP is $WANT_STATIC"
+    info "Expected before configure-router.sh runs — it moves the LAN onto the pilot subnet."
+    info "Do NOT change STATIC_IP to match: every tablet APK bakes in a server address from that"
+    info "subnet, so changing it means rebuilding and reinstalling the APK on every device."
   fi
 elif [[ ${#CANDS[@]} -gt 0 ]]; then
-  bad "none of the candidates answered — cannot locate the router"
-  advise "Check you are cabled to the router and not to a switch or another network."
+  bad "no candidate answered — cannot locate the router"
+  advise "Check you are cabled to the router itself, not to a switch or a different network."
 fi
 
 # ---------------------------------------------------------------------------
-if [[ -n "$EXPECT" ]]; then
-  hdr "Pilot addressing check (--expect $EXPECT)"
-  if [[ "$ROUTER" == "$EXPECT" ]]; then
-    ok "the router is already on the pilot address $EXPECT"
-  elif [[ -n "$ROUTER" ]]; then
-    info "the router is at $ROUTER, not the pilot address $EXPECT"
-    info "That is EXPECTED before configure-router.sh runs — it moves the LAN to the pilot subnet."
-    info "Afterwards this box's address changes too, and STATIC_IP must sit in the new subnet."
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-hdr "The netplan trap: which interface would setup.sh choose?"
-DEF_IF="$(ip route show default 2>/dev/null | awk '/^default/{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1); exit}')"
-if [[ -z "$DEF_IF" ]]; then
-  info "no default route (normal on an isolated LAN, or on a build box pinned ipv4.never-default)"
-elif is_wireless "$DEF_IF"; then
-  warn "the default route runs over WIRELESS ($DEF_IF)"
-  advise "With NET_IFACE empty, setup.sh autodetects by default route: it would pick $DEF_IF and generate a netplan wifis: block, which is NOT the shipping path and has never been validated on hardware."
-  advise "Turn this box's Wi-Fi OFF, or set NET_IFACE to the wired interface by hand."
-else
-  ok "the default route runs over wired $DEF_IF"
-fi
-
-# ---------------------------------------------------------------------------
-# Only meaningful once the address the server will take is known — read it from a .env if one
-# is beside us, rather than assuming the pilot value.
-STATIC_IP=""; STATIC_SRC=""
-for envf in ./buendia.env ./.env /opt/buendia/.env; do
-  [[ -f "$envf" ]] || continue
-  v="$(awk -F= '/^STATIC_IP=/{print $2}' "$envf" | awk '{print $1}' | tr -d '"'"'"'')"
-  [[ -n "$v" ]] && { STATIC_IP="$v"; STATIC_SRC="$envf"; break; }
-done
-if [[ -n "$STATIC_IP" ]]; then
-  hdr "Is the server address $STATIC_IP free?"
-  info "STATIC_IP=$STATIC_IP (read from $STATIC_SRC)"
-  MINE="$(ip -br -4 addr | awk '{for(i=3;i<=NF;i++) print $i}' | cut -d/ -f1)"
-  if grep -qx "$STATIC_IP" <<<"$MINE"; then
-    info "$STATIC_IP is held by THIS box"
-    tcp "$STATIC_IP" 9000 && ok "$STATIC_IP:9000 OpenMRS answers" || info ":9000 not answering (stack not up yet)"
-    tcp "$STATIC_IP" 9001 && ok "$STATIC_IP:9001 install page answers" || info ":9001 not answering (stack not up yet)"
-  elif pingable "$STATIC_IP"; then
-    warn "$STATIC_IP is ALREADY IN USE by another host"
+if [[ -n "$WANT_STATIC" ]]; then
+  hdr "Is the server address $WANT_STATIC free?"
+  MINE="$(ip -br -4 addr | awk '{for(k=3;k<=NF;k++) print $k}' | cut -d/ -f1)"
+  if grep -qx "$WANT_STATIC" <<<"$MINE"; then
+    info "$WANT_STATIC is held by THIS box"
+    tcp "$WANT_STATIC" 9000 && ok ":9000 OpenMRS answers" || info ":9000 not answering (stack not up yet)"
+    tcp "$WANT_STATIC" 9001 && ok ":9001 install page answers" || info ":9001 not answering (stack not up yet)"
+  elif pingable "$WANT_STATIC"; then
+    warn "$WANT_STATIC is ALREADY IN USE by another host"
     advise "Two hosts on one address is a silent fault: tablets reach whichever answers first and time sync breaks with nothing reporting it. Remove the other host before installing."
-    advise "A build box that impersonated the server for a clock test is the usual culprit — on that box: sudo ip addr del $STATIC_IP/24 dev <iface>"
+    advise "A build box that impersonated the server for a clock test is the usual culprit — there: sudo ip addr del $WANT_STATIC/24 dev <iface>"
   else
-    ok "$STATIC_IP is free"
+    ok "$WANT_STATIC is free"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+hdr "NET_IFACE"
+if [[ -z "$IFACE" ]]; then
+  warn "cannot determine the wired interface yet — fix the link above first"
+elif [[ "$ENV_IFACE" == "$IFACE" ]]; then
+  ok "$ENVF already has NET_IFACE=$IFACE"
+elif [[ $WRITE -eq 1 && -n "$ENVF" ]]; then
+  if [[ ! -w "$ENVF" ]]; then
+    bad "$ENVF is not writable — re-run with sudo, or set it by hand: NET_IFACE=$IFACE"
+  else
+    cp -p "$ENVF" "$ENVF.bak" 2>/dev/null || true
+    if grep -q '^NET_IFACE=' "$ENVF"; then
+      sed -i "s|^NET_IFACE=.*|NET_IFACE=$IFACE   # detected by buendia-netcheck.sh on $(date '+%Y-%m-%d')|" "$ENVF"
+    else
+      printf 'NET_IFACE=%s   # detected by buendia-netcheck.sh on %s\n' "$IFACE" "$(date '+%Y-%m-%d')" >> "$ENVF"
+    fi
+    ok "wrote NET_IFACE=$IFACE into $ENVF (previous kept as $(basename "$ENVF").bak)"
+    info "setup.sh no longer autodetects, so it cannot pick Wi-Fi and emit a wifis: block."
+  fi
+else
+  warn "$ENVF has NET_IFACE=${ENV_IFACE:-empty}, but the wired interface is $IFACE"
+  advise "Apply it: $0 --write   (or edit $ENVF and set NET_IFACE=$IFACE)"
+  advise "Left empty, setup.sh autodetects by default route and would pick Wi-Fi on a laptop, generating a netplan wifis: block that is not the shipping path."
 fi
 
 # ---------------------------------------------------------------------------
 hdr "Verdict"
-if [[ -n "$IFACE" ]]; then
-  printf '  Wired interface to use — put this in buendia.env before running setup.sh:\n\n'
-  printf '      %sNET_IFACE=%s%s\n\n' "$B" "$IFACE" "$N"
-fi
-[[ -n "$ROUTER" ]] && printf '  Router admin:  %shttp://%s%s\n\n' "$B" "$ROUTER" "$N"
+[[ -n "$IFACE" ]] && printf '  wired interface : %s%s%s\n' "$B" "$IFACE" "$N"
+[[ -n "$ROUTER" ]] && printf '  router admin    : %shttp://%s%s\n' "$B" "$ROUTER" "$N"
 if [[ ${#ADVICE[@]} -gt 0 ]]; then
-  printf '  What to do:\n'; for a in "${ADVICE[@]}"; do printf '    - %s\n' "$a"; done; printf '\n'
+  printf '\n  What to do:\n'; for a in "${ADVICE[@]}"; do [[ -n "$a" ]] && printf '    - %s\n' "$a"; done
 fi
+printf '\n'
 if [[ $PROBLEMS -eq 0 ]]; then
   printf '  %sREADY%s — next: sudo ./bootstrap.sh --dry-run\n' "$G" "$N"; exit 0
 fi
-printf '  %s%d problem(s) found%s — fix the above, then re-run.\n' "$R" "$PROBLEMS" "$N"; exit 1
+printf '  %s%d problem(s)%s — fix the above, then re-run.\n' "$R" "$PROBLEMS" "$N"; exit 1
