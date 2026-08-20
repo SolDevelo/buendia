@@ -1,0 +1,4 @@
+router-backup-*
+*.uci
+id_flint*
+known_hosts
