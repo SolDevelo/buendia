@@ -16,15 +16,20 @@
 #
 #   ./buendia-netcheck.sh                 read-only: discover and advise
 #   sudo ./buendia-netcheck.sh --renew    also force a DHCP renew first
+#   sudo ./buendia-netcheck.sh --probe    DHCP is dead: self-assign a temporary address in each
+#                                         likely router subnet and probe it. The only way to find
+#                                         a router that hands out no lease — including one sitting
+#                                         in u-boot recovery, which serves no DHCP at all.
 #   ./buendia-netcheck.sh --expect 192.168.8.1   also check it matches the pilot addressing
 #
 # Exit 0 = a router was found and the link looks sane. Exit 1 = something needs fixing.
 set -uo pipefail
 
-RENEW=0; EXPECT=""
+RENEW=0; EXPECT=""; PROBE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --renew)  RENEW=1; shift ;;
+    --probe)  PROBE=1; shift ;;
     --expect) EXPECT="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1 (try --help)" >&2; exit 1 ;;
@@ -37,7 +42,7 @@ ok()   { printf '  %s OK  %s %s\n' "$G" "$N" "$1"; }
 warn() { printf '  %s WARN%s %s\n' "$Y" "$N" "$1"; PROBLEMS=$((PROBLEMS+1)); }
 bad()  { printf '  %s FAIL%s %s\n' "$R" "$N" "$1"; PROBLEMS=$((PROBLEMS+1)); }
 info() { printf '       %s\n' "$1"; }
-PROBLEMS=0; ADVICE=()
+PROBLEMS=0; ADVICE=(); PROBE_FOUND=""; PROBE_IF=""
 advise() { ADVICE+=("$1"); }
 
 is_real()     { [[ -e "/sys/class/net/$1/device" ]]; }
@@ -48,6 +53,114 @@ speed()       { local s; s="$(cat "/sys/class/net/$1/speed" 2>/dev/null || echo 
 cidr()        { ip -br -4 addr show "$1" 2>/dev/null | awk '{print $3}' | head -1; }
 tcp()         { timeout 2 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; }
 pingable()    { ping -c1 -W2 "$1" >/dev/null 2>&1; }
+
+# Why is there no lease? "carrier but no address" has two completely different causes that look
+# identical: the cable is in a port that serves no DHCP, or this box never asked. Distinguish
+# them, because one is a cable move and the other is a one-line setting change.
+diagnose_no_lease() {
+  local i="$1" found=0
+  if command -v nmcli >/dev/null 2>&1; then
+    local state prof method
+    state="$(nmcli -t -g GENERAL.STATE dev show "$i" 2>/dev/null)"
+    prof="$(nmcli -t -g GENERAL.CONNECTION dev show "$i" 2>/dev/null)"
+    [[ -n "$state" ]] && info "NetworkManager device state: $state"
+    case "$state" in
+      *unmanaged*)
+        found=1
+        bad "$i is UNMANAGED by NetworkManager — nothing on this box is asking for a lease"
+        advise "Something else owns the interface (netplan/systemd-networkd, or an explicit unmanaged rule)."
+        advise "Check: /etc/netplan/*.yaml and /etc/NetworkManager/conf.d/*.conf"
+        ;;
+    esac
+    if [[ -n "$prof" && "$prof" != "--" ]]; then
+      method="$(nmcli -t -g ipv4.method con show "$prof" 2>/dev/null)"
+      info "profile $prof — ipv4.method=$method"
+      case "$method" in
+        auto) ;;
+        link-local|disabled|manual|shared)
+          found=1
+          bad "ipv4.method is $method, not auto — this box will NEVER send a DHCP request"
+          advise "THIS is why there is no lease, and no cable move will fix it. Set it to auto:"
+          advise "Fix: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\""
+          ;;
+      esac
+    else
+      found=1
+      bad "$i has NO active NetworkManager profile — so no DHCP client is running on it"
+      advise "Bring it up: sudo nmcli dev connect $i"
+    fi
+  fi
+  # netplan can pin an interface to a static or link-local config, which NM then honours.
+  local np
+  for np in /etc/netplan/*.yaml; do
+    [[ -f "$np" ]] || continue
+    if grep -q "$i" "$np" 2>/dev/null; then
+      info "note: $i is mentioned in $np"
+      grep -qE 'dhcp4:\s*(false|no)' "$np" 2>/dev/null && {
+        found=1
+        bad "$np sets dhcp4: false for this interface — DHCP is switched off in config"
+        advise "That file is a leftover from a previous install. Move it aside and re-apply:"
+        advise "  sudo mv $np /root/ && sudo netplan apply"
+      }
+    fi
+  done
+  if [[ $found -eq 0 ]]; then
+    info "this box IS asking for a lease and getting no answer — so the fault is upstream:"
+    advise "Nothing on this box is blocking DHCP, so the cable is in a port that serves none."
+    advise "On the router use a port labelled LAN, never WAN. Then: sudo $0 --renew"
+    advise "If it is already a LAN port: confirm the router is powered and finished booting, then test that same port with another machine — that is what tells a dead port from a dead DHCP server."
+  fi
+}
+
+# When there is no lease there is nothing to discover FROM, so stop discovering and go looking:
+# borrow an address in each plausible router subnet and see who answers. Restores the interface
+# on every exit path, including Ctrl-C — leaving a stray address behind would be worse than the
+# fault being diagnosed.
+PROBE_ADDED=""
+probe_cleanup() {
+  [[ -n "$PROBE_ADDED" ]] || return 0
+  ip addr del "$PROBE_ADDED" dev "$PROBE_IF" 2>/dev/null
+  PROBE_ADDED=""
+}
+probe_subnets() {
+  local i="$1"
+  PROBE_IF="$i"
+  trap probe_cleanup EXIT INT TERM
+  # GL.iNet ships .8.1; .1.1 is both the generic default AND where a unit in u-boot recovery
+  # sits (recovery serves NO DHCP, which presents exactly as this fault).
+  local nets="192.168.8 192.168.1 192.168.0 192.168.10 192.168.2 10.0.0 192.168.11"
+  local mine net gw hit=0
+  mine="$(ip -br -4 addr | awk '{for(k=3;k<=NF;k++) print $k}')"
+  for net in $nets; do
+    # Never touch a subnet this box is legitimately on already.
+    if grep -q "^$net\." <<<"$mine"; then info "skipping $net.0/24 — this box already has an address there"; continue; fi
+    PROBE_ADDED="$net.222/24"
+    if ! ip addr add "$PROBE_ADDED" dev "$i" 2>/dev/null; then PROBE_ADDED=""; continue; fi
+    for gw in "$net.1" "$net.254"; do
+      if ping -c1 -W1 "$gw" >/dev/null 2>&1; then
+        local extra=""
+        tcp "$gw" 80  && extra="${extra:+$extra,}http:80"
+        tcp "$gw" 443 && extra="${extra:+$extra,}https:443"
+        tcp "$gw" 22  && extra="${extra:+$extra,}ssh:22"
+        printf '  %s FOUND%s %-15s answers on %s  [%s]\n' "$G" "$N" "$gw" "$i" "${extra:-ping only}"
+        PROBE_FOUND="${PROBE_FOUND:-$gw}"; hit=1
+      fi
+    done
+    probe_cleanup
+  done
+  trap - EXIT INT TERM
+  if [[ $hit -eq 0 ]]; then
+    bad "no router answered in any probed subnet on $i"
+    advise "Nothing is alive on the other end of this cable. In order: confirm the router has power and"
+    advise "its LEDs have settled; confirm the cable is in a LAN port; try a different port and cable;"
+    advise "then power-cycle the router (unplug 10 s) and wait two full minutes before retrying."
+    advise "A GL.iNet held in reset too long boots into u-boot recovery, which serves no DHCP at all —"
+    advise "a normal power-cycle (no reset button) is what brings it back to the wizard."
+  else
+    advise "A router answered but gave this box no lease. Its DHCP server is off or it is in a"
+    advise "recovery/failsafe mode. Open its admin page from a box with a static address in that subnet."
+  fi
+}
 
 printf '%sBuendia network check%s  (%s)\n' "$B" "$N" "$(date '+%Y-%m-%d %H:%M')"
 
@@ -97,14 +210,13 @@ for i in "${WIRED[@]:-}"; do
   fi
   case "$a" in
     "")
-      bad "$i link is up but has NO IPv4 address — DHCP never answered"
-      advise "Usually the WAN port: a router serves DHCP on its LAN ports only. Move the cable, then: sudo $0 --renew"
+      bad "$i link is up but has NO IPv4 address"
+      diagnose_no_lease "$i"
       ;;
     169.254.*)
-      bad "$i fell back to link-local $a — the link is up but DHCP never answered"
-      advise "169.254.x.x is assigned by this box itself. There is NO router at 169.254.x.1 — do not try to browse it."
-      advise "Usually the WAN port: a router serves DHCP on its LAN ports only. Move the cable, then: sudo $0 --renew"
-      advise "If it is already in a LAN port, a freshly-reset router needs a minute or two to boot — wait and renew again."
+      bad "$i fell back to link-local $a — no DHCP lease"
+      info "169.254.x.x is assigned by this box itself. There is NO router at 169.254.x.1."
+      diagnose_no_lease "$i"
       ;;
     *)
       ok "$i is up ($(speed "$i")) with $a"
@@ -114,6 +226,19 @@ for i in "${WIRED[@]:-}"; do
 done
 
 # ---------------------------------------------------------------------------
+if [[ $PROBE -eq 1 ]]; then
+  hdr "Probing likely router subnets (temporary addresses, removed afterwards)"
+  if [[ $EUID -ne 0 ]]; then
+    bad "--probe needs root: re-run with sudo"
+  else
+    for i in "${WIRED[@]:-}"; do
+      [[ -z "$i" ]] && continue
+      [[ "$(carrier "$i")" == "1" ]] || continue
+      probe_subnets "$i"
+    done
+  fi
+fi
+
 hdr "Where is the router?"
 # Four independent sources, best first. The DHCP server identifier is authoritative: whatever
 # handed out this lease IS the router. A default route can be absent (isolated LAN) or
@@ -152,7 +277,10 @@ if [[ -n "$MYCIDR" ]]; then
   add_cand "$pre.254" "convention: last host of $pre.0/24"
 fi
 
-ROUTER=""
+ROUTER="${PROBE_FOUND:-}"
+if [[ -n "$ROUTER" ]]; then
+  ok "found by probing: $ROUTER"
+fi
 if [[ ${#CANDS[@]} -eq 0 ]]; then
   bad "no router candidate at all — there is no lease and no route to work from"
   advise "Fix the wired link above first: without an address there is nothing to discover."
