@@ -43,6 +43,7 @@ SERVER_IP="${STATIC_IP:-192.168.8.10}"
 SSID_WANT="${SITE_WIFI_SSID:-}"
 COUNTRY_WANT="${ROUTER_COUNTRY:-CD}"
 ENC_WANT="${ROUTER_ENCRYPTION:-psk2}"
+FORCE_DNS_WANT="${ROUTER_FORCE_DNS:-true}"
 
 PASS=0; FAIL=0
 ok()   { printf '  \033[1;32m✓\033[0m %-42s %s\n' "$1" "${2:-}"; PASS=$((PASS+1)); }
@@ -132,12 +133,19 @@ else
   ok "no DoT listener (:853)"
 fi
 PROCS="$(R 'ps w')"
+BOOT="$(R 'for s in stubby adguardhome https-dns-proxy; do [ -f /etc/init.d/$s ] && echo "$s $(/etc/init.d/$s enabled >/dev/null 2>&1 && echo enabled || echo disabled)"; done')"
 for svc in stubby adguardhome https-dns-proxy; do
   if echo "$PROCS" | grep -v grep | grep -qi "$svc"; then
     bad "$svc not running" "RUNNING — queries may leave over encrypted DNS"
   else
     ok "$svc not running"
   fi
+  # Running state is not enough: a web-UI save can re-ENABLE a service without starting it,
+  # and the failure then appears at the next cold boot, when nobody is watching.
+  case "$(echo "$BOOT" | grep "^$svc " | awk '{print $2}')" in
+    enabled) bad "$svc disabled at boot" "ENABLED — it will start on the next power cycle" ;;
+    disabled) ok "$svc disabled at boot" ;;
+  esac
 done
 # The generated config, not uci: this is what dnsmasq is actually serving. Read the file
 # the RUNNING process was started with (-C), rather than globbing: on OpenWrt /var is a
@@ -155,6 +163,15 @@ done
 ndns="$(echo "$GEN" | grep -c "dhcp-option=.*\b6,")"
 [ "$ndns" -le 1 ] && ok "one DNS server advertised" "$ndns dhcp-option(6) line(s)" \
                   || bad "one DNS server advertised" "$ndns — a tablet may resolve elsewhere"
+
+head_ "DNS redirect (running firewall)"
+if [ "$FORCE_DNS_WANT" = "true" ]; then
+  FW="$(R 'nft list ruleset 2>/dev/null | grep -iE "dport 53|buendia-dns" ; iptables -t nat -S 2>/dev/null | grep -E "dport 53"')"
+  if [ -n "$FW" ]; then ok "port-53 redirect active" "$(echo "$FW" | wc -l) rule(s)"
+  else bad "port-53 redirect active" "no dport-53 rule in the running firewall"; fi
+else
+  printf '  \033[1;33m·\033[0m %-42s %s\n' "port-53 redirect" "disabled by ROUTER_FORCE_DNS"
+fi
 
 # ── The intercept, answered for real ─────────────────────────────────────────
 head_ "Intercept resolves (asked of the router, from here)"

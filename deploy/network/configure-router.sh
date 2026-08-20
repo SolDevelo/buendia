@@ -81,6 +81,13 @@ ROUTER_TZ="${ROUTER_TIMEZONE:-UTC}"
 # more than forbidding a cipher no pilot device will request: Android negotiates CCMP
 # anyway, and the passphrase is laminated on a ward wall.
 ENCRYPTION="${ROUTER_ENCRYPTION:-psk2}"
+# Redirect ALL client port-53 traffic to the router, so the clock intercept still works for a
+# tablet that ignores DHCP option 6 — one with a hardcoded resolver, or an MDM-set one. Written
+# as a plain OpenWrt firewall redirect rather than GL.iNet's force_dns key: same effect, but
+# portable to the Beryl AX and to a non-GL.iNet replacement, and reviewable here instead of
+# buried in a vendor layer. NB it does NOT catch Private DNS over TLS, which leaves on :853 —
+# that stays a per-tablet staging step.
+FORCE_DNS="${ROUTER_FORCE_DNS:-true}"
 
 [[ -n "$SSID" ]]     || die "SITE_WIFI_SSID is not set (put it in .env, quoted)."
 [[ -n "$WIFI_KEY" ]] || die "SITE_WIFI_PASSWORD is not set (put it in .env, quoted)."
@@ -105,7 +112,7 @@ ssh "${SSH_OPTS[@]}" "root@$ROUTER" true 2>/dev/null \
 
 PRE="SSID=$(q "$SSID") WIFI_KEY=$(q "$WIFI_KEY") SERVER_IP=$(q "$SERVER_IP") \
 COUNTRY=$(q "$COUNTRY") CH24=$(q "$CH24") CH5=$(q "$CH5") HT24=$(q "$HT24") HT5=$(q "$HT5") \
-ENCRYPTION=$(q "$ENCRYPTION") LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
+ENCRYPTION=$(q "$ENCRYPTION") FORCE_DNS=$(q "$FORCE_DNS") LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
 ROUTER_IP=$(q "$ROUTER") DRY=$(q "$DRY_RUN")"
 
 # shellcheck disable=SC2087
@@ -247,6 +254,43 @@ for svc in stubby adguardhome https-dns-proxy; do
   changed=$((changed+1))
 done
 [ -n "$(uci -q get adguardhome.config.enabled || true)" ] && setv adguardhome.config.enabled "0"
+
+# ── Force every client onto our resolver ─────────────────────────────────────
+# The whole clock-discipline mechanism assumes tablets resolve through us. option 6 asks
+# politely; this enforces it.
+head_ "DNS redirect (force_dns=$FORCE_DNS)"
+RULE_NAME=buendia-dns-intercept
+sec="$(uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='$RULE_NAME'$/\1/p" | head -1)"
+if [ "$FORCE_DNS" = "true" ]; then
+  if [ -z "$sec" ]; then
+    if [ "$DRY" = 1 ]; then
+      echo "  [dry-run] uci add firewall redirect + name/src/proto/src_dport/dest_port/dest_ip/target"
+      changed=$((changed+1))
+    else
+      sec="$(uci add firewall redirect)"
+      uci set "firewall.$sec.name=$RULE_NAME"
+      uci set "firewall.$sec.src=lan"
+      uci set "firewall.$sec.proto=tcp udp"
+      uci set "firewall.$sec.src_dport=53"
+      uci set "firewall.$sec.dest_port=53"
+      uci set "firewall.$sec.dest_ip=$ROUTER_IP"
+      uci set "firewall.$sec.target=DNAT"
+      uci set "firewall.$sec.family=ipv4"
+      changed=$((changed+1))
+    fi
+  else
+    note "redirect already present ($sec)"
+    setv "firewall.$sec.dest_ip" "$ROUTER_IP"
+    # Only touch `enabled` if it is explicitly off. The key is ABSENT by default (meaning
+    # enabled), so setting it unconditionally would register a change on every run and make
+    # idempotency a fiction — the same trap as the vendor-service block above.
+    if [ "$(uci -q get "firewall.$sec.enabled" || true)" = "0" ]; then
+      setv "firewall.$sec.enabled" "1"
+    fi
+  fi
+else
+  if [ -n "$sec" ]; then u -q delete "firewall.$sec"; changed=$((changed+1)); else note "not configured"; fi
+fi
 
 # ── Time ─────────────────────────────────────────────────────────────────────
 # This unit has NO RTC (verified 2026-08-20), so it boots with a wrong clock after every
