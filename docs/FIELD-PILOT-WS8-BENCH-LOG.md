@@ -71,6 +71,30 @@ forbidding a cipher no pilot device will request.
 Re-applied as exactly 2 changes (encryption on each interface, nothing else), GO 34/34, still WPA2
 over the air on channels 6 and 36, and a re-run is a clean no-op.
 
+**With `psk2` in place the UI saves cleanly, and T4 then PASSED.** After saving the Wireless page and
+toggling-saving-toggling-saving the DNS page:
+
+- Verify **GO 34/34**; `configure-router.sh` re-run is a no-op.
+- `address=` overrides intact, `rebind_protection` still `0`, SSID and encryption unchanged.
+- **`stubby` and `adguardhome` are still `disabled` at boot**, not merely not running. This is the
+  check that matters: a UI save could have re-enabled a service without starting it, which would then
+  ambush the next cold boot. `verify-router.sh` only inspects the *running* state, so boot-enabled
+  state has to be asserted separately — a gap worth closing in the script.
+- The vendor layer **does** write on save: the DNS page added `gl-dns.@dns[0].force_dns='0'`, a key
+  that did not previously exist. It did not touch anything of ours, but it confirms the layer is live
+  and is the reason this test exists.
+
+### Open: should `force_dns` be ON rather than off?
+
+GL.iNet's "force DNS" installs a firewall redirect sending all client port-53 traffic to the router.
+That would make the clock intercept work even for a tablet that ignores DHCP option 6 — a device with
+a hardcoded resolver, or an MDM-set one. Since the entire clock-discipline mechanism assumes tablets
+use our resolver, this is real hardening for the exact failure the plan flags under Private DNS.
+
+Prefer implementing it as a **plain OpenWrt firewall redirect** (lan, udp+tcp dport 53 → the router)
+rather than by setting the vendor key: same effect, portable to the Beryl AX and to a non-GL.iNet
+replacement, and reviewable in the script instead of hidden in a vendor layer.
+
 ## What T4b settled
 
 `stubby` ships with `trigger='wan'`, so encrypted DNS can only start once an uplink exists — meaning
