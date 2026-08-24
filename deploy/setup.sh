@@ -760,65 +760,185 @@ wifi_uri() {
   e_pass="$(printf '%s' "${SITE_WIFI_PASSWORD:-}" | sed 's/[\\;,:"]/\\&/g')"
   printf 'WIFI:T:WPA;S:%s;P:%s;;' "$e_ssid" "$e_pass"
 }
-# Open files in the desktop's own viewer. setup.sh runs as root, but the graphical session
-# belongs to the user who typed sudo — so the viewer has to be launched as them, with their
-# DISPLAY and their runtime dir, or it fails with no window and no useful error.
-open_in_viewer() {
-  local u="${SUDO_USER:-}" uid rt disp opener f opened=1
-  [[ -n "$u" ]] || return 1
-  uid="$(id -u "$u" 2>/dev/null)" || return 1
-  rt="/run/user/$uid"; disp="${DISPLAY:-:0}"
-  for opener in xdg-open gio eog gwenview feh; do command -v "$opener" >/dev/null 2>&1 && break; opener=""; done
-  [[ -n "$opener" ]] || return 1
-  for f in "$@"; do
-    [[ -f "$f" ]] || continue
-    if [[ "$opener" == gio ]]; then
-      sudo -u "$u" DISPLAY="$disp" XDG_RUNTIME_DIR="$rt" gio open "$f" >/dev/null 2>&1 &
-    else
-      sudo -u "$u" DISPLAY="$disp" XDG_RUNTIME_DIR="$rt" "$opener" "$f" >/dev/null 2>&1 &
-    fi
-    opened=0
-  done
-  return $opened
+# Run a command as the user who typed sudo, inside THEIR graphical session.
+# Guessing DISPLAY=:0 is wrong on a second seat (this laptop is :1) and meaningless on Wayland,
+# and without DBUS_SESSION_BUS_ADDRESS xdg-open exits silently having done nothing. So the
+# session environment is read out of one of the user's own running processes instead of guessed.
+# Who owns the desktop? SUDO_USER is the obvious answer and is often absent: `sudo su -` starts
+# a LOGIN shell, which clears it, and a plain root console never had it. So fall back to asking
+# logind who is actually logged in.
+target_user() {
+  local u="${SUDO_USER:-}"
+  if [[ -n "$u" && "$u" != root ]]; then echo "$u"; return 0; fi
+  u="$(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $3}' | grep -vx root | head -1)"
+  if [[ -n "$u" ]]; then echo "$u"; return 0; fi
+  u="$(ps -o user= -C gnome-shell 2>/dev/null | grep -vx root | head -1)"
+  if [[ -n "$u" ]]; then echo "$u"; return 0; fi
+  return 1
 }
 
-# Both codes as PNG files, shown in an image viewer. Terminal QR codes were tried first and
-# tablets could not read them: the block glyphs are low-contrast and too small for a camera.
+# Put the codes somewhere a person can find them without a terminal. This matters more than the
+# viewer working: a file on the Desktop is findable by anyone, whereas /opt/buendia/qr is not.
+publish_qr_to_desktop() {
+  local u d src dest
+  u="$(target_user)" || return 1
+  local home; home="$(getent passwd "$u" | cut -d: -f6)"
+  [[ -n "$home" && -d "$home" ]] || return 1
+  for d in "$home/Desktop" "$home/Pictures" "$home"; do [[ -d "$d" ]] && break; done
+  dest="$d/Buendia-tablet-setup"; mkdir -p "$dest" || return 1
+  for src in "$@"; do [[ -f "$src" ]] && cp -f "$src" "$dest/"; done
+  chown -R "$u":"$(id -gn "$u")" "$dest" 2>/dev/null || true
+  echo "$dest"
+}
+
+run_as_user() {
+  local u uid gid pid k
+  local -a envv=()
+  u="$(target_user)" || return 1
+  uid="$(id -u "$u" 2>/dev/null)" || return 1
+  gid="$(id -g "$u" 2>/dev/null)" || return 1
+  pid="$(pgrep -u "$uid" -x systemd 2>/dev/null | head -1)"
+  [[ -n "$pid" ]] || pid="$(pgrep -u "$uid" -x gnome-shell 2>/dev/null | head -1)"
+  [[ -n "$pid" ]] || pid="$(pgrep -u "$uid" -x gnome-session-binary 2>/dev/null | head -1)"
+  if [[ -n "$pid" && -r "/proc/$pid/environ" ]]; then
+    while IFS= read -r -d '' k; do
+      case "$k" in
+        DISPLAY=*|WAYLAND_DISPLAY=*|XAUTHORITY=*|XDG_RUNTIME_DIR=*|\
+DBUS_SESSION_BUS_ADDRESS=*|XDG_SESSION_TYPE=*|XDG_CURRENT_DESKTOP=*) envv+=("$k") ;;
+      esac
+    done < "/proc/$pid/environ"
+  fi
+  [[ ${#envv[@]} -gt 0 ]] || envv=("XDG_RUNTIME_DIR=/run/user/$uid" "DISPLAY=${DISPLAY:-:0}")
+  sudo -u "$u" env "${envv[@]}" "$@" >/dev/null 2>&1 &
+  return 0
+}
+
+# Hand something to the desktop: an image, an HTML page, a URL.
+open_with_desktop() {
+  local target="$1" opener
+  for opener in xdg-open gio firefox eog; do
+    command -v "$opener" >/dev/null 2>&1 || continue
+    [[ "$opener" == gio ]] && { run_as_user gio open "$target" && return 0; continue; }
+    run_as_user "$opener" "$target" && return 0
+  done
+  return 1
+}
+
+wait_for() {            # wait_for <seconds> <description> <command...>
+  local secs="$1" what="$2"; shift 2
+  local i=0
+  printf '  waiting for %s' "$what"
+  while (( i < secs )); do
+    if "$@" >/dev/null 2>&1; then printf ' — ok (%ds)\n' "$i"; return 0; fi
+    printf '.'; sleep 3; i=$(( i + 3 ))
+  done
+  printf ' — gave up after %ds\n' "$secs"; return 1
+}
+tcp_open() { timeout 3 bash -c "exec 3<>/dev/tcp/$1/$2" 2>/dev/null; }
+
+# The router is part of the deployment, not a separate errand, so the offline step configures it.
+configure_router() {
+  local n="$HERE/network" r="${ROUTER_IP:-192.168.8.1}"
+  [[ -x "$n/configure-router.sh" ]] || { warn "router scripts are not present — skipping the router"; return 0; }
+  if [[ $DRY_RUN -eq 1 ]]; then log "Router: would wait for it, run the wizard, configure, verify and back up"; return 0; fi
+
+  log "Router: waiting for it to answer at $r"
+  # A router that was just powered on, or just factory-reset, takes a while. Waiting is not
+  # optional politeness: every previous failure here was the script arriving before the router.
+  wait_for 180 "the router to respond" ping -c1 -W2 "$r" \
+    || die "the router at $r never answered.
+       Check it has power and its lights have settled, and that the cable is in a LAN port."
+
+  # SSH closed means the first-boot wizard has not been done. That is a human step, so open it
+  # in a browser and wait, rather than failing and making the operator find the URL themselves.
+  if ! tcp_open "$r" 22; then
+    log "Router: it needs its setup wizard run once — opening it in a browser"
+    if open_with_desktop "http://$r/"; then
+      echo "  A browser window should have opened at http://$r/"
+    else
+      echo "  Open this address in a browser:  http://$r/"
+    fi
+    cat <<TXT
+
+  In that page:
+    - complete the router's short setup wizard
+    - set an ADMIN PASSWORD and keep it — you are asked for it in a moment
+    - ignore its Wi-Fi settings; Buendia sets those itself
+
+TXT
+    read -r -p "  Press Enter here once the wizard is finished... " _ </dev/tty || true
+    wait_for 120 "the router to allow SSH" tcp_open "$r" 22 \
+      || die "the router still refuses SSH on $r:22.
+       That means the setup wizard has not completed. Finish it, then run this command again."
+  fi
+
+  log "Router: giving this server access (asks for the router's admin password once)"
+  "$n/router-access.sh" || die "could not reach the router over SSH — see above."
+  log "Router: applying the Buendia configuration"
+  "$n/configure-router.sh" || die "the router configuration failed — see above."
+  log "Router: verifying"
+  if ! "$n/verify-router.sh"; then
+    warn "the router did not verify. Services can still be restarting for a minute after a change:"
+    warn "  wait a minute, then run:  sudo $HERE/network/verify-router.sh"
+  fi
+  log "Router: saving a configuration backup"
+  "$n/backup-router.sh" || warn "could not save the router backup (not fatal)"
+}
+
+# Both codes as PNGs plus the printable card, shown on screen. Terminal QR codes were tried
+# first and tablets could not read them: the block glyphs are low-contrast and too small.
+wifi_uri() {
+  local e_ssid e_pass
+  e_ssid="$(printf '%s' "${SITE_WIFI_SSID:-}" | sed 's/[\;,:"]/\\&/g')"
+  e_pass="$(printf '%s' "${SITE_WIFI_PASSWORD:-}" | sed 's/[\;,:"]/\\&/g')"
+  printf 'WIFI:T:WPA;S:%s;P:%s;;' "$e_ssid" "$e_pass"
+}
 show_tablet_qr() {
-  local qrdir="$HERE/qr"
+  local qrdir="$HERE/qr" card="$HERE/pkgserver/cards/install-card.html"
   local wifi_png="$qrdir/1-join-wifi.png" app_png="$qrdir/2-install-app.png"
   local app_url="http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk"
   mkdir -p "$qrdir"; chmod 755 "$qrdir"
 
   if ! command -v qrencode >/dev/null 2>&1; then
     echo "  qrencode is not installed, so no codes could be drawn."
-    echo "  On the tablet, open this in the browser instead: http://$STATIC_IP:${PKGSERVER_PORT:-9001}/"
+    echo "  On the tablet, open http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in the browser instead."
     return 0
   fi
   [[ -n "${SITE_WIFI_SSID:-}" ]] && qrencode -o "$wifi_png" -s 10 -m 3 "$(wifi_uri)"
   qrencode -o "$app_png" -s 10 -m 3 "$app_url"
   chmod 644 "$qrdir"/*.png 2>/dev/null || true
+  ( cd "$HERE/pkgserver" && ./make-install-card.sh >/dev/null 2>&1 ) || card=""
 
-  # The printable A5 card carries the same two codes and is the artefact meant for the ward.
-  if [[ -x "$HERE/pkgserver/make-install-card.sh" ]]; then
-    ( cd "$HERE/pkgserver" && ./make-install-card.sh >/dev/null 2>&1 ) \
-      && echo "  printable card: $HERE/pkgserver/cards/install-card.html"
-  fi
+  local pub; pub="$(publish_qr_to_desktop "$wifi_png" "$app_png" ${card:+"$card"} 2>/dev/null || true)"
 
   echo
-  if open_in_viewer "$wifi_png" "$app_png"; then
-    echo "  Two windows should now be open on screen:"
+  if [[ -n "$pub" ]]; then
+    printf '  [1mThe codes have been copied to: %s[0m
+' "$pub"
+    echo "  Open that folder from the desktop if the windows below do not appear."
+    echo
+  fi
+  if [[ -n "$card" && -f "$card" ]] && open_with_desktop "$card"; then
+    echo "  A page with both codes should now be open in the browser."
+  elif open_with_desktop "$wifi_png"; then
+    echo "  An image viewer should now be open."
   else
-    echo "  Could not open an image viewer automatically. Open these two files by hand"
-    echo "  (double-click them in the Files application):"
+    echo "  Nothing could be opened automatically — open these files from the Files application:"
   fi
-  [[ -f "$wifi_png" ]] && echo "    1. $wifi_png   — scan to JOIN THE WI-FI (${SITE_WIFI_SSID:-})"
-  echo "    2. $app_png   — scan to INSTALL THE APP"
   echo
-  echo "  Scan 1 first, then 2, then open the app and log in as buendia."
-  echo "  If the tablet's camera will not scan, open http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in"
-  echo "  the tablet's browser instead."
-  echo "  To show these again later:  xdg-open $qrdir"
+  [[ -f "$wifi_png" ]] && echo "    1. JOIN THE WI-FI (${SITE_WIFI_SSID:-}):  $wifi_png"
+  echo "    2. INSTALL THE APP:                $app_png"
+  [[ -n "$card" && -f "$card" ]] && echo "    printable card (both codes): $card"
+  cat <<TXT
+
+  On the tablet: scan 1, then scan 2, then open the app and log in as buendia.
+  Scan ONE CODE AT A TIME — cover the other with your hand, or a scanner may read the wrong
+  one and there is no way to tell which it took.
+  If the camera will not scan at all, open http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in the
+  tablet's browser instead.
+
+  To show these again later:  xdg-open $qrdir
+TXT
 }
 
 main() {

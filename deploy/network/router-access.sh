@@ -53,6 +53,22 @@ if [[ ! -f "$KEY" ]]; then
 fi
 
 SSH_BASE=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$KEY")
+
+# A factory reset gives the router a brand-new host key, and ssh then refuses to connect at all
+# ("REMOTE HOST IDENTIFICATION HAS CHANGED"). On this network that is expected, not an attack:
+# we reset the router ourselves. Detect it and drop the stale record — but only on detection,
+# never pre-emptively, because clearing it blindly would throw away the protection entirely.
+probe="$(ssh -o BatchMode=yes "${SSH_BASE[@]}" "root@$ROUTER" true 2>&1 || true)"
+if grep -qE 'REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed' <<<"$probe"; then
+  log "The router's SSH identity has changed"
+  echo "  That is what a factory reset does — the router generates a new key. Since this network"
+  echo "  is ours and the reset was deliberate, the old record is being removed."
+  for f in /root/.ssh/known_hosts "$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)/.ssh/known_hosts"; do
+    [[ -f "$f" ]] && ssh-keygen -f "$f" -R "$ROUTER" >/dev/null 2>&1 || true
+  done
+  ok "old record removed"
+fi
+
 if ssh -o BatchMode=yes "${SSH_BASE[@]}" "root@$ROUTER" true 2>/dev/null; then
   ok "already trusted — nothing to do"
 else

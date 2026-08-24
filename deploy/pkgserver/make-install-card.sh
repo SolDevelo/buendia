@@ -113,7 +113,8 @@ if ssid:
     <div class="num">1</div>
     <div class="body">
       <h2>Join the Wi-Fi</h2>
-      <p>Scan with the tablet camera &mdash; it joins automatically.</p>
+      <p>Scan with the tablet camera &mdash; it joins automatically.
+         <b>Cover the other code with your hand</b> so the scanner cannot pick the wrong one.</p>
       <dl><dt>Network</dt><dd>%s</dd><dt>Password</dt><dd>%s</dd></dl>
     </div>
     <div class="qr">%s</div>

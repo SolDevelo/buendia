@@ -93,8 +93,15 @@ diagnose_no_lease() {
             info "repairing: nmcli con mod \"$prof\" ipv4.method auto"
             if nmcli con mod "$prof" ipv4.method auto 2>/dev/null \
                && nmcli con up "$prof" >/dev/null 2>&1; then
-              sleep 4
-              local now; now="$(cidr "$i")"
+              # A lease takes as long as it takes: the router may still be booting, and the link
+              # has just been brought down and up. A fixed sleep was too short in practice.
+              local now="" w=0
+              printf '       waiting for an address'
+              while (( w < 45 )); do
+                now="$(cidr "$i")"
+                case "$now" in ""|169.254.*) printf '.'; sleep 3; w=$(( w + 3 ));; *) break;; esac
+              done
+              printf '\n
               case "$now" in
                 ""|169.254.*) advise "set ipv4.method=auto on $prof, but still no lease — see the cable/port advice above." ;;
                 *) ok "repaired: $i now holds $now"; PROBLEMS=$((PROBLEMS-2)); FIXED_NET=1; return 0 ;;

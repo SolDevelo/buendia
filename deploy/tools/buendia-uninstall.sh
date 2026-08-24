@@ -42,6 +42,16 @@ run "docker ps -aq | xargs -r docker rm -f"
 run "docker volume ls -q | xargs -r docker volume rm -f"
 run "docker system prune -af --volumes"
 
+log "Forgetting the router's SSH identity"
+# The router key lives inside /opt/buendia and goes with it, but the known_hosts records do not.
+# Leaving them means the next install against a re-reset router fails with a host-key warning
+# that looks alarming and has nothing to do with Buendia.
+ROUTER_IP_SEEN="$(awk -F= '/^ROUTER_IP=/{sub(/#.*/,"",$2); gsub(/[ \t]/,"",$2); print $2; exit}' /opt/buendia/.env 2>/dev/null || true)"
+ROUTER_IP_SEEN="${ROUTER_IP_SEEN:-192.168.8.1}"
+for f in /root/.ssh/known_hosts "$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)/.ssh/known_hosts"; do
+  [[ -f "$f" ]] && run "ssh-keygen -f '$f' -R '$ROUTER_IP_SEEN' >/dev/null 2>&1 || true"
+done
+
 log "Removing the deployment"
 run "rm -rf /opt/buendia /var/log/buendia-setup.log"
 
