@@ -244,6 +244,19 @@ host_config() {
   fi
   run_sh "systemctl enable --now chrony 2>/dev/null || systemctl enable --now chronyd || true"
 
+  # A server in a clinic with no engineer must not change itself. An unattended apt upgrade can
+  # restart Docker or pull in a new kernel with nobody there to notice, and a snap refresh does
+  # the same on its own schedule. Both are disabled deliberately; updates become a staffed,
+  # deliberate act. Nothing here needs the network, so it also holds on an offline box.
+  log "Host config: disable background updates (no unattended change in the field)"
+  run_sh "systemctl disable --now unattended-upgrades 2>/dev/null || true"
+  run_sh "systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true"
+  run_sh "systemctl mask apt-daily.service apt-daily-upgrade.service 2>/dev/null || true"
+  if command -v snap >/dev/null 2>&1; then
+    # Holds refreshes indefinitely (snapd >= 2.58); older snapd just reports an error, hence || true.
+    run_sh "snap refresh --hold 2>/dev/null || true"
+  fi
+
   # The router is configured over SSH from THIS box, during the offline step — when apt is not
   # available. So it has to be installed now. Ubuntu Desktop normally ships it; a minimal
   # Server install does not, and discovering that offline leaves the router unconfigurable.
@@ -672,14 +685,21 @@ summary() {
   log "Summary"
   cat <<TXT
   host        : $(hostname) ($(uname -m)), $(. /etc/os-release; echo "${PRETTY_NAME:-?}")
-  address     : $STATIC_IP  (baked into the tablet APK — must match)
   timezone    : $TZ   clock: $(date -Is 2>/dev/null || date)
   db image    : $DB_IMAGE
   openmrs     : $OPENMRS_IMAGE
-  web         : http://$STATIC_IP:${OPENMRS_PORT:-9000}/openmrs
-  apk install : http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk
   result      : $result
 TXT
+  # Only advertise the URLs once something is actually serving them. After --prepare nothing is
+  # running and the address has not been applied, so printing them invites the operator to test
+  # a server that cannot answer, and to read the failure as a fault.
+  if [[ "$PHASE" != "prepare" ]]; then
+    cat <<TXT
+  address     : $STATIC_IP  (baked into the tablet APK — must match)
+  web         : http://$STATIC_IP:${OPENMRS_PORT:-9000}/openmrs
+  apk install : http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk
+TXT
+  fi
   # A per-device staging record, so "which box is this and did it pass" survives the day.
   [[ $DRY_RUN -eq 1 ]] || {
     printf '%s  %s  %s  db=%s  openmrs=%s  result=%s\n' \

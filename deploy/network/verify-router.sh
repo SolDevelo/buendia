@@ -54,12 +54,20 @@ head_(){ printf '\n\033[1;36m── %s\033[0m\n' "$*"; }
 # would otherwise fail on first contact with no way to say yes. A CHANGED key still
 # fails, which is the property worth keeping.
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+# Under sudo, HOME is /root and ssh finds no key there even though it works for the invoking
+# user; BatchMode then fails and the message below blames the wizard. Nothing needs local root.
+if [ -z "$SSH_KEY" ] && [ -n "${SUDO_USER:-}" ]; then
+  _home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  for _k in "$_home"/.ssh/id_ed25519 "$_home"/.ssh/id_rsa "$_home"/.ssh/id_ecdsa; do
+    [ -f "$_k" ] && { SSH_KEY="$_k"; break; }
+  done
+fi
 [ -n "$SSH_KEY" ] && SSH_OPTS+=(-i "$SSH_KEY")
 R() { ssh "${SSH_OPTS[@]}" "root@$ROUTER" "$@" 2>/dev/null; }
 
 head_ "Router $ROUTER"
 if ! R true; then
-  bad "SSH reachable" "cannot log in as root with a key"
+  bad "SSH reachable" "cannot log in as root with a key — run ./network/router-access.sh (and not under sudo)"
   printf '\n\033[1;31mNO-GO\033[0m — router unreachable\n'; exit 1
 fi
 ok "SSH reachable" "$(R 'cat /tmp/sysinfo/model 2>/dev/null') fw $(R 'cat /etc/glversion 2>/dev/null')"

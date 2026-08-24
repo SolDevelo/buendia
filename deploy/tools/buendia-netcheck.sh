@@ -42,7 +42,7 @@ ok()   { printf '  %s OK  %s %s\n' "$G" "$N" "$1"; }
 warn() { printf '  %s WARN%s %s\n' "$Y" "$N" "$1"; PROBLEMS=$((PROBLEMS+1)); }
 bad()  { printf '  %s FAIL%s %s\n' "$R" "$N" "$1"; PROBLEMS=$((PROBLEMS+1)); }
 info() { printf '       %s\n' "$1"; }
-PROBLEMS=0; ADVICE=(); PROBE_FOUND=""; PROBE_IF=""
+PROBLEMS=0; ADVICE=(); PROBE_FOUND=""; PROBE_IF=""; FIXED_NET=0
 advise() { ADVICE+=("$1"); }
 
 is_real()     { [[ -e "/sys/class/net/$1/device" ]]; }
@@ -84,9 +84,30 @@ diagnose_no_lease() {
       case "$method" in
         auto) ;;
         link-local|disabled|manual|shared)
-          found=1; bad "ipv4.method is $method, not auto — this box will NEVER send a DHCP request"
-          advise "This is the fault, and no cable move fixes it. In GNOME: Settings > Network > the wired"
-          advise "connection > IPv4 > Automatic (DHCP). Or: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\"" ;;
+          # A fresh Ubuntu install can come up with the wired profile set to link-local, so this
+          # is not necessarily anyone's mistake — and it is one nmcli call to repair. With --write
+          # and root, just fix it: an install procedure that says "now go and change a setting in
+          # the GUI" is a step someone performs wrongly at two in the morning.
+          if [[ $WRITE -eq 1 && $EUID -eq 0 ]]; then
+            bad "ipv4.method is $method, not auto — this box would NEVER send a DHCP request"
+            info "repairing: nmcli con mod \"$prof\" ipv4.method auto"
+            if nmcli con mod "$prof" ipv4.method auto 2>/dev/null \
+               && nmcli con up "$prof" >/dev/null 2>&1; then
+              sleep 4
+              local now; now="$(cidr "$i")"
+              case "$now" in
+                ""|169.254.*) advise "set ipv4.method=auto on $prof, but still no lease — see the cable/port advice above." ;;
+                *) ok "repaired: $i now holds $now"; PROBLEMS=$((PROBLEMS-2)); FIXED_NET=1; return 0 ;;
+              esac
+            else
+              advise "could not set ipv4.method automatically. By hand: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\""
+            fi
+          else
+            found=1; bad "ipv4.method is $method, not auto — this box will NEVER send a DHCP request"
+            advise "No cable move fixes this. Re-run with --write as root and it will be repaired for you:"
+            advise "  sudo $0 --write"
+            advise "Or by hand: sudo nmcli con mod \"$prof\" ipv4.method auto && sudo nmcli con up \"$prof\""
+          fi ;;
       esac
     else
       found=1; bad "$i has no active NetworkManager profile — no DHCP client is running on it"
@@ -180,6 +201,8 @@ fi
 # ---------------------------------------------------------------------------
 hdr "Wired link"
 IFACE=""; MYCIDR=""
+# diagnose_no_lease may REPAIR the interface (ipv4.method), so the address is re-read after it
+# rather than trusted from before — otherwise a successful fix still reports "no lease".
 for i in "${WIRED[@]:-}"; do
   [[ -z "$i" ]] && continue
   if [[ "$(carrier "$i")" != "1" ]]; then
@@ -192,7 +215,12 @@ for i in "${WIRED[@]:-}"; do
     "")          bad "$i is up but has NO IPv4 address"; diagnose_no_lease "$i" ;;
     169.254.*)   bad "$i fell back to link-local $a — no DHCP lease"
                  info "169.254.x.x is assigned by this box itself; there is no router at 169.254.x.1."
-                 diagnose_no_lease "$i" ;;
+                 diagnose_no_lease "$i"
+                 a="$(cidr "$i")"          # re-read: the line above may have repaired it
+                 case "$a" in
+                   ""|169.254.*) ;;
+                   *) ok "$i now holds $a"; IFACE="${IFACE:-$i}"; MYCIDR="${MYCIDR:-$a}" ;;
+                 esac ;;
     *)           ok "$i is up ($(speed "$i")) with $a"; IFACE="${IFACE:-$i}"; MYCIDR="${MYCIDR:-$a}" ;;
   esac
 done

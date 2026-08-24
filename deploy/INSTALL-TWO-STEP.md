@@ -26,10 +26,14 @@ network settings, so it cannot break the connection it is using.
 
 1. Connect the laptop to the internet. Check that a browser can load a web page.
 
-2. Plug in the USB stick, open a terminal, and go into the `Buendia` folder on it. In the file
-   manager, right-click inside the folder and choose "Open in Terminal", or type:
+2. Plug in the USB stick and open a terminal **inside** the `Buendia` folder on it — in the file
+   manager, right-click in the folder and choose "Open in Terminal". If you prefer to type it,
+   the stick is under one of these two, depending on the Ubuntu version:
 
-       cd /media/$USER/*/Buendia
+       cd /run/media/$USER/*/Buendia     # newer Ubuntu
+       cd /media/$USER/*/Buendia         # older Ubuntu
+
+   Check you are in the right place: `ls` should list `bootstrap.sh` and `INSTALL.md`.
 
 3. Install, and download everything the server needs:
 
@@ -57,7 +61,8 @@ network settings, so it cannot break the connection it is using.
 6. Plug the Ethernet cable from the laptop into one of the router's **LAN** ports.
    **Not the WAN port** — WAN is for an incoming internet cable and hands out no addresses.
 
-7. Check the connection, and let the script record which network port you used:
+7. Check the connection. This also repairs the most common problem by itself and records which
+   network port you used, so run it with `sudo`:
 
        cd /opt/buendia
        sudo ./tools/buendia-netcheck.sh --write
@@ -65,12 +70,15 @@ network settings, so it cannot break the connection it is using.
    **Check:** it ends with `READY`. It also prints the router's address — normally
    `http://192.168.8.1`. Write that down; the next steps use it.
 
-   *If it does not say READY* it explains what is wrong. The two usual causes:
-   - **an address starting `169.254`, or "no DHCP lease"** — either the cable is in the WAN port,
-     or this laptop's IPv4 is not set to Automatic. To fix the second: Settings → Network → the
-     wired connection → IPv4 → **Automatic (DHCP)**. The script tells you which of the two it is.
+   A fresh Ubuntu install often has the wired connection set to "Link-Local Only", which means it
+   never asks for an address. **The script detects that and fixes it for you**, printing
+   `repaired:` and the address it then received.
+
+   *If it does not say READY* it explains what is wrong. The usual causes:
    - **`NO CARRIER`** — the cable is not pushed in, or that port is faulty. Try another port and
      another cable.
+   - **still no address after the repair** — the cable is almost certainly in the **WAN** port. A
+     router hands out addresses on its LAN ports only. Move it and run the same command again.
 
 8. **Set up the router**, first time only. Open the router's address from step 7 in a browser and
    complete its setup wizard:
@@ -78,32 +86,39 @@ network settings, so it cannot break the connection it is using.
    - set the Wi-Fi name and password to **exactly** the values on the sheet supplied with this
      kit. Tablets are configured for that name, so a different one leaves them unable to connect.
 
-9. Give the laptop permission to configure the router, then configure it:
+9. Give this laptop permission to configure the router. One command; it asks for the router's
+   admin password from step 8. **Do not use `sudo` for this or for step 10** — these commands
+   need no administrator rights, and under `sudo` they look for the key in the wrong place and
+   report that they cannot reach the router:
 
-       ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519    # skip if you already have a key
-       ssh-copy-id root@192.168.8.1                        # asks for the admin password from step 8
-       sudo ./network/configure-router.sh
+       ./network/router-access.sh
 
-   This applies the whole Buendia network configuration — Wi-Fi, addresses, and the time service
-   the tablet clocks depend on.
+   **Check:** it ends with `key installed and verified` (or `already trusted`).
+
+10. Configure the router:
+
+        ./network/configure-router.sh
+
+    This applies the whole Buendia network configuration — Wi-Fi name and password, addresses,
+    and the time service the tablet clocks depend on. It sets the Wi-Fi itself, so it does not
+    matter what the wizard in step 8 called it.
 
    **Check:** it ends with either a list of applied changes or `Already correct — nothing to
    commit`. Both are success.
 
-10. Restart the router and confirm it came back correctly. Wait one minute after the restart:
+11. Restart the router and confirm it came back correctly. Wait one minute after the restart:
 
-        sudo ./network/verify-router.sh
+        ./network/verify-router.sh
 
     **Check:** the last line says **`GO`**. If it says `NO-GO`, wait another minute and run it
     once more — some services are still starting for a short while after a restart. If it still
     says NO-GO, send the output.
 
-11. Save a copy of the router's configuration onto the USB stick, in case the router ever has to
-    be replaced:
+12. Save a copy of the router's configuration, in case the router ever has to be replaced:
 
-        sudo ./network/backup-router.sh
+        ./network/backup-router.sh
 
-12. Finish installing the server:
+13. Finish installing the server:
 
         sudo ./setup.sh --finish
 
@@ -125,6 +140,10 @@ network settings, so it cannot break the connection it is using.
       sudo /opt/buendia/tools/buendia-verify.sh --quick
 
   `GO` means it is working.
+
+- **Automatic updates are switched off deliberately.** A server in a clinic must not change
+  itself: an unattended upgrade can restart the software or the machine with nobody there.
+  Updates are something we do with you, not something the box does overnight.
 
 - Leave the server **switched on, plugged in, and with the lid open**. The lid is deliberately
   set not to suspend the machine, and an open lid runs cooler. Rebooting is safe: everything

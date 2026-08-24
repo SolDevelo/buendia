@@ -115,6 +115,20 @@ fi
 # would otherwise fail on first contact with no way to say yes. A CHANGED key still
 # fails, which is the property worth keeping.
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+# Under sudo, HOME is /root, so ssh looks for /root/.ssh/id_* and finds nothing — even though
+# ssh works perfectly for the invoking user. BatchMode then fails instantly and the error below
+# blames the first-boot wizard, which is the wrong diagnosis. Nothing here needs local root, so
+# borrow the real user's key rather than making them re-run.
+if [[ -z "$SSH_KEY" && -n "${SUDO_USER:-}" ]]; then
+  _home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+  for _k in "$_home"/.ssh/id_ed25519 "$_home"/.ssh/id_rsa "$_home"/.ssh/id_ecdsa; do
+    if [[ -f "$_k" ]]; then
+      SSH_KEY="$_k"
+      printf '\033[1;33mNOTE: run under sudo; using %s\047s key %s\033[0m\n' "$SUDO_USER" "$_k" >&2
+      break
+    fi
+  done
+fi
 if [[ -n "$SSH_KEY" ]]; then SSH_OPTS+=(-i "$SSH_KEY"); fi
 
 # POSIX-safe single-quoting, so a passphrase containing spaces or metacharacters survives
@@ -123,7 +137,11 @@ q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
 log "Router at $ROUTER — LAN to be $LAN_IP — server $SERVER_IP — SSID '$SSID' — country $COUNTRY"
 ssh "${SSH_OPTS[@]}" "root@$ROUTER" true 2>/dev/null \
-  || die "cannot SSH to root@$ROUTER with a key. Run the first-boot wizard and install your key first (see README.md)."
+  || die "cannot SSH to root@$ROUTER with a key.
+       Install this machine's key on the router first — one command, asks for the admin password:
+           ./network/router-access.sh
+       If ssh works for you by hand but this fails, you are probably running it under sudo: these
+       scripts need no local root, and sudo makes ssh look in /root/.ssh instead of yours."
 
 # A LAN move is not a normal run: it drops this session and every client's lease. Refuse it
 # unless it was asked for, rather than silently renumbering someone's network.

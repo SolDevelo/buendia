@@ -202,7 +202,33 @@ fi
 
 # ---------------------------------------------------------------------------
 log "Bootstrap finished (setup.sh exit: $rc)"
-if [[ $rc -eq 0 && $DRY -eq 0 ]]; then
+# After --prepare nothing is running and no address has been applied, so the reachability advice
+# below is not merely premature, it is misleading: it tells the operator to test a server that
+# cannot answer yet, and a failed curl then reads as a broken install.
+PREPARE_ONLY=0
+if [[ ${#PASSTHRU[@]} -gt 0 ]]; then
+  for a in "${PASSTHRU[@]}"; do [[ "$a" == "--prepare" ]] && PREPARE_ONLY=1; done
+fi
+if [[ $rc -eq 0 && $DRY -eq 0 && $PREPARE_ONLY -eq 1 ]]; then
+  cat <<TXT
+
+  Step 1 of 2 is done. Nothing is running yet and this box's network is unchanged — that is
+  expected.
+
+  Now, for step 2:
+    1. turn this laptop's Wi-Fi OFF
+    2. plug an ethernet cable from here into a LAN port on the Buendia router
+    3. then run:
+
+        cd /opt/buendia
+        sudo ./tools/buendia-netcheck.sh --write
+        ./network/router-access.sh          # one-time: lets this box configure the router
+        ./network/configure-router.sh
+        sudo ./setup.sh --finish
+
+  Full instructions, including what each step should print: INSTALL.md on the USB stick.
+TXT
+elif [[ $rc -eq 0 && $DRY -eq 0 ]]; then
   ip="$(grep -E "^STATIC_IP=" "$DEPLOY/.env" | cut -d= -f2 | sed "s/#.*//" | tr -d "[:space:]")"
   cat <<TXT
 
