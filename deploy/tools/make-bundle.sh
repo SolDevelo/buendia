@@ -46,6 +46,11 @@ OPTIONAL=(
   tools/create-openmrs-user.sh
   tools/buendia-diagnostics.sh
   tools/buendia-netcheck.sh                 # pre-install network check; also the on-site "can't see the router" tool
+  # The router is configured FROM THE SERVER LAPTOP: the install must need no second computer.
+  # These carry no secrets (they read ../.env); the exported backup does, and stays off the stick.
+  network/configure-router.sh
+  network/verify-router.sh
+  network/backup-router.sh
   pkgserver/publish.sh
   pkgserver/make-install-card.sh
 )

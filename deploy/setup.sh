@@ -244,6 +244,14 @@ host_config() {
   fi
   run_sh "systemctl enable --now chrony 2>/dev/null || systemctl enable --now chronyd || true"
 
+  # The router is configured over SSH from THIS box, during the offline step — when apt is not
+  # available. So it has to be installed now. Ubuntu Desktop normally ships it; a minimal
+  # Server install does not, and discovering that offline leaves the router unconfigurable.
+  if [[ "$PHASE" == "prepare" ]]; then
+    log "Host config: ssh client (needed offline, to configure the router)"
+    ensure_pkg openssh-client
+  fi
+
   # The server is the LAN time authority but has NO upstream at an offline site: its own clock
   # comes from the hardware RTC. A dead RTC battery means every encounter timestamp is wrong,
   # with no NTP to correct it — so this is a staging check, not something the script can fix.
