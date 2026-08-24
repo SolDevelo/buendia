@@ -42,19 +42,22 @@ set -euo pipefail
 # Config & args
 # ---------------------------------------------------------------------------
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MODE="online"
-PHASE="all"          # all | prepare (online, packages+images) | finish (offline, network+stack)
+# ONE documented path, two steps: prepare.sh (online) then setup.sh (offline). Running setup.sh
+# with no arguments IS the offline step — it configures the router, applies the address, starts
+# the stack and verifies. --online remains for the legacy all-in-one run used at SolDevelo.
+MODE="offline"
+PHASE="install"      # install (offline: router+network+stack) | prepare (online: packages+images) | all
 DRY_RUN=0
 DO_VERIFY=1
 for arg in "$@"; do
   case "$arg" in
-    --online)      MODE="online"  ;;
+    --online)      MODE="online"; PHASE="all" ;;
     --offline)     MODE="offline" ;;
-    --prepare)     PHASE="prepare" ;;
+    --prepare)     PHASE="prepare"; MODE="online" ;;
     # --finish implies offline: by then the box is on our router, which has no uplink. That
     # makes every network-touching step (apt, tailscale, docker pull) take its no-network
     # branch without the operator having to remember a second flag.
-    --finish)      PHASE="finish"; MODE="offline" ;;
+    --finish)      PHASE="install"; MODE="offline" ;;   # kept: older notes use this name
     --dry-run)     DRY_RUN=1 ;;
     --skip-verify) DO_VERIFY=0 ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//' ; exit 0 ;;
@@ -228,7 +231,7 @@ host_config() {
   # on whatever connection is providing the internet. Doing it here would cut the very link the
   # image pull needs. It belongs to --finish, once the cable has moved.
   if [[ "$PHASE" == "prepare" ]]; then
-    log "Networking: SKIPPED for --prepare (applied by --finish, once cabled to our router)"
+    log "Networking: not touched by the online step (applied later, once cabled to the router)"
   else
     config_network
   fi
@@ -263,6 +266,9 @@ host_config() {
   if [[ "$PHASE" == "prepare" ]]; then
     log "Host config: ssh client (needed offline, to configure the router)"
     ensure_pkg openssh-client
+    # Rendering the tablet QR codes on screen at the end of the offline step needs a generator,
+    # and apt is not available then. Small package, installed now.
+    ensure_pkg qrencode
   fi
 
   # The server is the LAN time authority but has NO upstream at an offline site: its own clock
@@ -458,6 +464,12 @@ load_images() {
     fi
     run docker pull "$DB_IMAGE"
     run docker pull "$OPENMRS_IMAGE"
+    # compose falls back to nginx:alpine-slim when PKGSERVER_IMAGE is empty, which is the default.
+    # It was never pulled here, so the OFFLINE step went looking for it and needed the internet
+    # back — exactly what splitting the install was meant to avoid. Pull it while we can.
+    if [[ -z "${PKGSERVER_IMAGE:-}" ]]; then
+      run docker pull nginx:alpine-slim
+    fi
     # NB an `[[ test ]] && cmd` as the last statement of a function returns 1 when the test is
     # false, which under `set -e` aborts the whole run — silently, right before the stack starts.
     # PKGSERVER_IMAGE is empty by default (compose falls back to nginx:alpine-slim), so that was
@@ -708,8 +720,65 @@ TXT
   }
 }
 
+# Run the network check, and let it repair what it can, before anything depends on the link.
+# It also writes NET_IFACE into .env, which is the value config_network would otherwise have to
+# guess — and guessing picks Wi-Fi on a laptop and emits an unvalidated netplan wifis: block.
+network_precheck() {
+  local nc="$HERE/tools/buendia-netcheck.sh"
+  [[ -x "$nc" ]] || return 0
+  log "Checking the connection to the router"
+  if [[ $DRY_RUN -eq 1 ]]; then ( cd "$HERE" && "$nc" ) || true; return 0; fi
+  ( cd "$HERE" && "$nc" --write ) \
+    || die "the network is not ready — see the report above, fix it, then run this again."
+  local v
+  v="$(awk -F= '/^NET_IFACE=/{sub(/#.*/,"",$2); gsub(/[ \t]/,"",$2); print $2; exit}' "$HERE/.env" 2>/dev/null || true)"
+  [[ -n "$v" ]] && { NET_IFACE="$v"; echo "  using NET_IFACE=$NET_IFACE"; }
+}
+
+# The router is part of the deployment, not a separate errand, so the offline step configures it.
+configure_router() {
+  local n="$HERE/network"
+  [[ -x "$n/configure-router.sh" ]] || { warn "router scripts are not present — skipping the router"; return 0; }
+  if [[ $DRY_RUN -eq 1 ]]; then log "Router: would install the key, configure, verify and back up"; return 0; fi
+  log "Router: giving this server access (asks for the router's admin password once)"
+  "$n/router-access.sh" || die "could not reach the router over SSH — see above."
+  log "Router: applying the Buendia configuration"
+  "$n/configure-router.sh" || die "the router configuration failed — see above."
+  log "Router: verifying"
+  if ! "$n/verify-router.sh"; then
+    warn "the router did not verify. Services can still be starting for a minute after a change:"
+    warn "  wait a minute, then run:  sudo $HERE/network/verify-router.sh"
+  fi
+  log "Router: saving a configuration backup"
+  "$n/backup-router.sh" || warn "could not save the router backup (not fatal)"
+}
+
+# Both QR codes on screen at the end, so a tablet is provisioned without typing anything.
+wifi_uri() {
+  local e_ssid e_pass
+  e_ssid="$(printf '%s' "${SITE_WIFI_SSID:-}" | sed 's/[\\;,:"]/\\&/g')"
+  e_pass="$(printf '%s' "${SITE_WIFI_PASSWORD:-}" | sed 's/[\\;,:"]/\\&/g')"
+  printf 'WIFI:T:WPA;S:%s;P:%s;;' "$e_ssid" "$e_pass"
+}
+show_tablet_qr() {
+  command -v qrencode >/dev/null 2>&1 || {
+    echo "  (qrencode is not installed, so the codes cannot be drawn here — use the printed card,"
+    echo "   or the install-qr PNG on the USB stick)"; return 0; }
+  if [[ -n "${SITE_WIFI_SSID:-}" ]]; then
+    printf '\n\033[1m  1. Scan to JOIN THE WI-FI  (%s)\033[0m\n\n' "$SITE_WIFI_SSID"
+    qrencode -t ANSIUTF8 -m 1 "$(wifi_uri)"
+  fi
+  printf '\n\033[1m  2. Scan to INSTALL THE APP  (http://%s:%s/latest.apk)\033[0m\n\n' \
+    "$STATIC_IP" "${PKGSERVER_PORT:-9001}"
+  qrencode -t ANSIUTF8 -m 1 "http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk"
+  echo
+  echo "  Scan 1 first, then 2. If the tablet's camera app does not offer to install, open"
+  echo "  http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in the tablet's browser instead."
+}
+
 main() {
   preflight
+  [[ "$PHASE" == "install" ]] && network_precheck
   host_config
   install_docker
   load_images
@@ -725,6 +794,8 @@ main() {
     return 0
   fi
 
+  [[ "$PHASE" == "install" ]] && configure_router
+
   bring_up
   remote_support
 
@@ -736,6 +807,16 @@ main() {
 
   local rc=0
   wait_for_rest || rc=1
+
+  # The seed ships a working account, but with a salt that is committed to the repository — so
+  # every deployment would otherwise share a publicly-known salt. Rotating it here also applies
+  # whatever password prepare.sh was given, and keeps the value the tablets carry authoritative.
+  if [[ $rc -eq 0 && $DRY_RUN -eq 0 && "$PHASE" != "prepare" && -x "$HERE/tools/create-openmrs-user.sh" ]]; then
+    log "Clinical login: setting the '''${APK_OPENMRS_USER:-buendia}''' password with a fresh salt"
+    "$HERE/tools/create-openmrs-user.sh" "${APK_OPENMRS_USER:-buendia}" "${APK_OPENMRS_PASSWORD:-buendia}" \
+      >/dev/null 2>&1 && echo "  ok" \
+      || warn "could not set the clinical password — the seeded default is still in place."
+  fi
   if [[ $DO_VERIFY -eq 1 && $rc -eq 0 ]]; then
     verify || rc=1
   elif [[ $DO_VERIFY -eq 0 ]]; then
@@ -744,7 +825,16 @@ main() {
 
   if [[ $rc -eq 0 ]]; then
     summary "GO"
-    log "Done. Next (manual, see STAGING-SETUP-GUIDE): tablet APK install, clock + PIN, acceptance test."
+    log "The server is ready"
+    cat <<TXT
+  Buendia (on this machine, or any browser on the Buendia Wi-Fi):
+      http://$STATIC_IP:${OPENMRS_PORT:-9000}/openmrs
+      username buendia
+  NB the address needs the /openmrs on the end — without it the page is blank.
+
+  Now set up a tablet with the two codes below.
+TXT
+    show_tablet_qr
   else
     summary "NO-GO"
     printf '\033[1;31m==> SETUP DID NOT PASS. Do not ship this box until the checks above pass.\033[0m\n' >&2

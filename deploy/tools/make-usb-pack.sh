@@ -48,9 +48,11 @@ mapfile -t payloads < <(ls -1 $payload 2>/dev/null || true)
        Build it with pkgserver/publish.sh && pkgserver/pack-www.sh."
 
 for f in "${bundles[0]}" "${bundles[0]}.sha256" "${payloads[0]}" "${payloads[0]}.sha256" \
-         "$D/tools/bootstrap.sh" "$D/tools/buendia-netcheck.sh" "$D/INSTALL-TWO-STEP.md"; do
+         "$D/prepare.sh" "$D/tools/bootstrap.sh" "$D/tools/buendia-netcheck.sh" \
+         "$D/INSTALL-TWO-STEP.md"; do
   [[ -f "$f" ]] || die "missing: $f"
 done
+install -m 0755 "$D/prepare.sh"                 "$OUT/prepare.sh"
 install -m 0755 "$D/tools/bootstrap.sh"         "$OUT/bootstrap.sh"
 install -m 0755 "$D/tools/buendia-netcheck.sh"  "$OUT/buendia-netcheck.sh"
 install -m 0644 "$D/INSTALL-TWO-STEP.md"        "$OUT/INSTALL.md"

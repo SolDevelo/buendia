@@ -21,6 +21,10 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HERE/../.env"
+# One explicit key for every caller. A ~/.ssh key is invisible to root and a root key is
+# invisible to the user, so anything depending on $HOME breaks depending on whether sudo was
+# used. router-access.sh creates this; nothing here depends on who is running.
+DEFAULT_KEY="$HERE/router_key"
 ROUTER=""; SSH_KEY=""; OUT_DIR="$HERE"
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,6 +43,7 @@ ROUTER="${ROUTER:-${ROUTER_IP:-192.168.8.1}}"
 # would otherwise fail on first contact with no way to say yes. A CHANGED key still
 # fails, which is the property worth keeping.
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+if [[ -z "$SSH_KEY" && -f "$DEFAULT_KEY" ]]; then SSH_KEY="$DEFAULT_KEY"; fi
 [[ -n "$SSH_KEY" ]] && SSH_OPTS+=(-i "$SSH_KEY")
 R() { ssh "${SSH_OPTS[@]}" "root@$ROUTER" "$@"; }
 

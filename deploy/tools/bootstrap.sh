@@ -47,7 +47,10 @@ if [[ ${#PASSTHRU[@]} -gt 0 ]]; then
 fi
 
 [[ $EUID -eq 0 || $DRY -eq 1 ]] || die "run with sudo."
-[[ -f "$HERE/buendia.env" ]] || die "buendia.env not found next to this script (expected on the USB)."
+# prepare.sh writes the answered configuration to a temporary file and points us at it, so the
+# stick itself need not be writable.
+ENV_SRC="${BUENDIA_ENV:-$HERE/buendia.env}"
+[[ -f "$ENV_SRC" ]] || die "buendia.env not found next to this script (expected on the USB)."
 
 log "Bootstrap  ->  $TARGET"
 echo "  usb dir : $HERE"
@@ -140,9 +143,9 @@ DEPLOY="$TARGET"
 # ---------------------------------------------------------------------------
 log "Installing .env from the USB"
 if [[ $DRY -eq 1 ]]; then
-  echo "  [dry-run] install -m 0600 $HERE/buendia.env $DEPLOY/.env"
+  echo "  [dry-run] install -m 0600 $ENV_SRC $DEPLOY/.env"
 else
-  install -m 0600 "$HERE/buendia.env" "$DEPLOY/.env"
+  install -m 0600 "$ENV_SRC" "$DEPLOY/.env"
   echo "  wrote $DEPLOY/.env (0600)"
 fi
 
@@ -215,18 +218,19 @@ if [[ $rc -eq 0 && $DRY -eq 0 && $PREPARE_ONLY -eq 1 ]]; then
   Step 1 of 2 is done. Nothing is running yet and this box's network is unchanged — that is
   expected.
 
-  Now, for step 2:
+  STEP 2 — do these three things:
+
     1. turn this laptop's Wi-Fi OFF
-    2. plug an ethernet cable from here into a LAN port on the Buendia router
-    3. then run:
+    2. plug an ethernet cable from this laptop into a LAN port on the Buendia router
+       (a LAN port, not the WAN port), and switch the router on
+    3. run one command:
 
-        cd /opt/buendia
-        sudo ./tools/buendia-netcheck.sh --write
-        ./network/router-access.sh          # one-time: lets this box configure the router
-        ./network/configure-router.sh
-        sudo ./setup.sh --finish
+        sudo /opt/buendia/setup.sh
 
-  Full instructions, including what each step should print: INSTALL.md on the USB stick.
+  That configures the router, gives this server its fixed address, starts Buendia, checks it
+  all, and finally shows the two QR codes for setting up a tablet.
+
+  Full instructions: INSTALL.md on the USB stick.
 TXT
 elif [[ $rc -eq 0 && $DRY -eq 0 ]]; then
   ip="$(grep -E "^STATIC_IP=" "$DEPLOY/.env" | cut -d= -f2 | sed "s/#.*//" | tr -d "[:space:]")"

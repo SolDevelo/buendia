@@ -89,6 +89,12 @@ MYSQL_DATABASE=${MYSQL_DATABASE:-openmrs}
 MYSQL_USER=${MYSQL_USER:-openmrs}
 MYSQL_PASSWORD=${APPPW}
 
+# --- The clinical login. The tablet app carries this password, so the two must agree:
+# setup.sh rotates the server account to match it (with a fresh random salt, replacing the
+# seed's committed one). Changing it later means a manual step on every tablet.
+APK_OPENMRS_USER=${APK_OPENMRS_USER:-buendia}
+APK_OPENMRS_PASSWORD=${APK_OPENMRS_PASSWORD:-buendia}
+
 APK_SOURCE=auto                   # the payload is on the stick, so nothing is downloaded
 DOCKER_VERSION=
 ENABLE_REMOTE_SUPPORT=false

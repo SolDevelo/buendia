@@ -17,6 +17,10 @@ set -uo pipefail    # NB: not -e — a failing check must be reported, not abort
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HERE/../.env"
+# One explicit key for every caller. A ~/.ssh key is invisible to root and a root key is
+# invisible to the user, so anything depending on $HOME breaks depending on whether sudo was
+# used. router-access.sh creates this; nothing here depends on who is running.
+DEFAULT_KEY="$HERE/router_key"
 ROUTER=""; SERVER=""; SSH_KEY=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -56,6 +60,7 @@ head_(){ printf '\n\033[1;36m── %s\033[0m\n' "$*"; }
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
 # Under sudo, HOME is /root and ssh finds no key there even though it works for the invoking
 # user; BatchMode then fails and the message below blames the wizard. Nothing needs local root.
+if [ -z "$SSH_KEY" ] && [ -f "$DEFAULT_KEY" ]; then SSH_KEY="$DEFAULT_KEY"; fi
 if [ -z "$SSH_KEY" ] && [ -n "${SUDO_USER:-}" ]; then
   _home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
   for _k in "$_home"/.ssh/id_ed25519 "$_home"/.ssh/id_rsa "$_home"/.ssh/id_ecdsa; do

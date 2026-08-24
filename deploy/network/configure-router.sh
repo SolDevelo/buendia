@@ -32,6 +32,10 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HERE/../.env"
+# One explicit key for every caller. A ~/.ssh key is invisible to root and a root key is
+# invisible to the user, so anything depending on $HOME breaks depending on whether sudo was
+# used. router-access.sh creates this; nothing here depends on who is running.
+DEFAULT_KEY="$HERE/router_key"
 
 ROUTER_IP_DEFAULT=192.168.8.1
 DRY_RUN=0; SERVER_MAC=""; SSH_KEY=""; ROUTER=""; MOVE_LAN=0
@@ -119,6 +123,7 @@ SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-
 # ssh works perfectly for the invoking user. BatchMode then fails instantly and the error below
 # blames the first-boot wizard, which is the wrong diagnosis. Nothing here needs local root, so
 # borrow the real user's key rather than making them re-run.
+if [[ -z "$SSH_KEY" && -f "$DEFAULT_KEY" ]]; then SSH_KEY="$DEFAULT_KEY"; fi
 if [[ -z "$SSH_KEY" && -n "${SUDO_USER:-}" ]]; then
   _home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
   for _k in "$_home"/.ssh/id_ed25519 "$_home"/.ssh/id_rsa "$_home"/.ssh/id_ecdsa; do

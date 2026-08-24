@@ -356,6 +356,6 @@ if [[ ${#ADVICE[@]} -gt 0 ]]; then
 fi
 printf '\n'
 if [[ $PROBLEMS -eq 0 ]]; then
-  printf '  %sREADY%s — next: sudo ./bootstrap.sh --dry-run\n' "$G" "$N"; exit 0
+  printf '  %sREADY%s — the network is correct.\n' "$G" "$N"; exit 0
 fi
 printf '  %s%d problem(s)%s — fix the above, then re-run.\n' "$R" "$PROBLEMS" "$N"; exit 1

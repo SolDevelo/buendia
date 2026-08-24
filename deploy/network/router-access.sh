@@ -1,82 +1,69 @@
 #!/usr/bin/env bash
-# One-time: let THIS machine configure the router over SSH.
+# Install this server's SSH key on the router, so the router can be configured from here.
 #
-#   ./network/router-access.sh            # generate a key if needed, install it on the router
-#   ./network/router-access.sh --router 192.168.8.1
+#   sudo ./network/router-access.sh
 #
-# Run it as YOUR OWN USER, not with sudo. The router scripts need no local root, and a key
-# installed under sudo lands in /root/.ssh where your later commands will not look for it.
+# Run it with sudo, like everything else in this deployment. It uses a DEDICATED key kept beside
+# these scripts — /opt/buendia/network/router_key — rather than a user's ~/.ssh key. That is the
+# whole point: a key in someone's home directory is invisible to root, and a key owned by root
+# is invisible to the user, so anything relying on $HOME breaks the moment sudo is or is not
+# used. An explicit path is the same for every caller.
 #
-# It asks for the router's admin password once — the one set in the first-boot wizard. After
-# this, configure-router.sh and verify-router.sh work without prompting, which is what lets them
-# be idempotent and scriptable.
+# It asks for the router's admin password once — the one set in the router's setup wizard.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HERE/../.env"
+KEY="$HERE/router_key"
 ROUTER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --router) ROUTER="$2"; shift 2 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --key)    KEY="$2"; shift 2 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
-ok()   { printf '\033[1;32m%s\033[0m\n' "$*"; }
-die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
+log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
+ok()  { printf '\033[1;32m  %s\033[0m\n' "$*"; }
+die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
-if [[ -n "${SUDO_USER:-}" || $EUID -eq 0 ]]; then
-  die "do not run this with sudo.
-       The key must belong to the user who will run configure-router.sh. Under sudo it would be
-       written to /root/.ssh, and the later commands would not find it — which presents as
-       'cannot SSH to the router' even though ssh works fine for you by hand.
-       Re-run as yourself:  ./network/router-access.sh"
-fi
+[[ $EUID -eq 0 ]] || die "run this with sudo: sudo $0"
 if [[ -z "$ROUTER" && -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
   set -a; . "$ENV_FILE"; set +a
   ROUTER="${ROUTER_IP:-}"
 fi
 ROUTER="${ROUTER:-192.168.8.1}"
-command -v ssh >/dev/null || die "the ssh client is missing. Install it during the ONLINE step:
-       sudo apt-get install -y openssh-client   (setup.sh --prepare does this for you)"
+command -v ssh >/dev/null || die "the ssh client is missing — it is installed by prepare.sh, while online."
 
-log "Router access -> root@$ROUTER"
+log "Router access -> root@$ROUTER  (key: $KEY)"
 
-# Is SSH even open? Closed means the first-boot wizard has not been completed, and no key can be
-# installed until it is. Saying so here saves a confusing password prompt that cannot succeed.
+# Port 22 closed means the router's setup wizard has not been completed; no key can be installed
+# until it is. Checking first turns a doomed password prompt into a clear instruction.
 if ! timeout 5 bash -c "exec 3<>/dev/tcp/$ROUTER/22" 2>/dev/null; then
   die "nothing is listening on $ROUTER:22.
-       The router's first-boot wizard has not been completed — SSH stays shut until it is.
-       Open http://$ROUTER in a browser, finish the wizard, set the admin password, then re-run."
+       The router's setup wizard has not been completed yet — SSH stays closed until it is.
+       Open http://$ROUTER in a browser, complete the wizard, set the admin password, re-run this."
 fi
-ok "  $ROUTER:22 is open"
+ok "$ROUTER:22 is open"
 
-KEY="$HOME/.ssh/id_ed25519"
-if compgen -G "$HOME/.ssh/id_*" >/dev/null; then
-  KEY="$(ls -1 "$HOME"/.ssh/id_*.pub 2>/dev/null | head -1 || true)"; KEY="${KEY%.pub}"
-  [[ -n "$KEY" ]] || KEY="$HOME/.ssh/id_ed25519"
-fi
 if [[ ! -f "$KEY" ]]; then
-  log "Creating an SSH key (no passphrase — this must work unattended)"
-  ssh-keygen -t ed25519 -N "" -f "$KEY" -C "buendia-server-$(hostname)"
+  log "Creating the router key"
+  ssh-keygen -t ed25519 -N "" -f "$KEY" -C "buendia-server" >/dev/null
+  chmod 600 "$KEY"; ok "created $KEY"
 fi
-echo "  using key: $KEY"
 
-# Already trusted? Then this is a no-op and needs no password.
-if ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
-       -i "$KEY" "root@$ROUTER" true 2>/dev/null; then
+SSH_BASE=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$KEY")
+if ssh -o BatchMode=yes "${SSH_BASE[@]}" "root@$ROUTER" true 2>/dev/null; then
   ok "already trusted — nothing to do"
 else
   log "Installing the key on the router"
-  echo "  Enter the router's ADMIN password (the one you set in the first-boot wizard)."
+  echo "  Enter the router's ADMIN password (from its setup wizard) when asked."
+  echo "  That is the password for the router's web page, NOT the Wi-Fi passphrase."
+  echo
   ssh-copy-id -i "$KEY.pub" -o StrictHostKeyChecking=accept-new "root@$ROUTER" \
-    || die "could not install the key. If the password was refused, it is the wizard's admin
+    || die "the key could not be installed. If the password was refused it is the router's admin
        password that is wanted, not the Wi-Fi passphrase."
-  ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$KEY" "root@$ROUTER" true 2>/dev/null \
-    || die "the key was copied but key-only login still fails. Check the router allows SSH keys."
+  ssh -o BatchMode=yes "${SSH_BASE[@]}" "root@$ROUTER" true 2>/dev/null \
+    || die "the key copied but key-only login still fails. Check the router permits SSH keys."
   ok "key installed and verified"
 fi
-
-echo
-echo "Next:  ./network/configure-router.sh        (no sudo — it needs no local root)"
