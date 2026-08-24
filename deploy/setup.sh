@@ -760,20 +760,65 @@ wifi_uri() {
   e_pass="$(printf '%s' "${SITE_WIFI_PASSWORD:-}" | sed 's/[\\;,:"]/\\&/g')"
   printf 'WIFI:T:WPA;S:%s;P:%s;;' "$e_ssid" "$e_pass"
 }
+# Open files in the desktop's own viewer. setup.sh runs as root, but the graphical session
+# belongs to the user who typed sudo — so the viewer has to be launched as them, with their
+# DISPLAY and their runtime dir, or it fails with no window and no useful error.
+open_in_viewer() {
+  local u="${SUDO_USER:-}" uid rt disp opener f opened=1
+  [[ -n "$u" ]] || return 1
+  uid="$(id -u "$u" 2>/dev/null)" || return 1
+  rt="/run/user/$uid"; disp="${DISPLAY:-:0}"
+  for opener in xdg-open gio eog gwenview feh; do command -v "$opener" >/dev/null 2>&1 && break; opener=""; done
+  [[ -n "$opener" ]] || return 1
+  for f in "$@"; do
+    [[ -f "$f" ]] || continue
+    if [[ "$opener" == gio ]]; then
+      sudo -u "$u" DISPLAY="$disp" XDG_RUNTIME_DIR="$rt" gio open "$f" >/dev/null 2>&1 &
+    else
+      sudo -u "$u" DISPLAY="$disp" XDG_RUNTIME_DIR="$rt" "$opener" "$f" >/dev/null 2>&1 &
+    fi
+    opened=0
+  done
+  return $opened
+}
+
+# Both codes as PNG files, shown in an image viewer. Terminal QR codes were tried first and
+# tablets could not read them: the block glyphs are low-contrast and too small for a camera.
 show_tablet_qr() {
-  command -v qrencode >/dev/null 2>&1 || {
-    echo "  (qrencode is not installed, so the codes cannot be drawn here — use the printed card,"
-    echo "   or the install-qr PNG on the USB stick)"; return 0; }
-  if [[ -n "${SITE_WIFI_SSID:-}" ]]; then
-    printf '\n\033[1m  1. Scan to JOIN THE WI-FI  (%s)\033[0m\n\n' "$SITE_WIFI_SSID"
-    qrencode -t ANSIUTF8 -m 1 "$(wifi_uri)"
+  local qrdir="$HERE/qr"
+  local wifi_png="$qrdir/1-join-wifi.png" app_png="$qrdir/2-install-app.png"
+  local app_url="http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk"
+  mkdir -p "$qrdir"; chmod 755 "$qrdir"
+
+  if ! command -v qrencode >/dev/null 2>&1; then
+    echo "  qrencode is not installed, so no codes could be drawn."
+    echo "  On the tablet, open this in the browser instead: http://$STATIC_IP:${PKGSERVER_PORT:-9001}/"
+    return 0
   fi
-  printf '\n\033[1m  2. Scan to INSTALL THE APP  (http://%s:%s/latest.apk)\033[0m\n\n' \
-    "$STATIC_IP" "${PKGSERVER_PORT:-9001}"
-  qrencode -t ANSIUTF8 -m 1 "http://$STATIC_IP:${PKGSERVER_PORT:-9001}/latest.apk"
+  [[ -n "${SITE_WIFI_SSID:-}" ]] && qrencode -o "$wifi_png" -s 10 -m 3 "$(wifi_uri)"
+  qrencode -o "$app_png" -s 10 -m 3 "$app_url"
+  chmod 644 "$qrdir"/*.png 2>/dev/null || true
+
+  # The printable A5 card carries the same two codes and is the artefact meant for the ward.
+  if [[ -x "$HERE/pkgserver/make-install-card.sh" ]]; then
+    ( cd "$HERE/pkgserver" && ./make-install-card.sh >/dev/null 2>&1 ) \
+      && echo "  printable card: $HERE/pkgserver/cards/install-card.html"
+  fi
+
   echo
-  echo "  Scan 1 first, then 2. If the tablet's camera app does not offer to install, open"
-  echo "  http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in the tablet's browser instead."
+  if open_in_viewer "$wifi_png" "$app_png"; then
+    echo "  Two windows should now be open on screen:"
+  else
+    echo "  Could not open an image viewer automatically. Open these two files by hand"
+    echo "  (double-click them in the Files application):"
+  fi
+  [[ -f "$wifi_png" ]] && echo "    1. $wifi_png   — scan to JOIN THE WI-FI (${SITE_WIFI_SSID:-})"
+  echo "    2. $app_png   — scan to INSTALL THE APP"
+  echo
+  echo "  Scan 1 first, then 2, then open the app and log in as buendia."
+  echo "  If the tablet's camera will not scan, open http://$STATIC_IP:${PKGSERVER_PORT:-9001}/ in"
+  echo "  the tablet's browser instead."
+  echo "  To show these again later:  xdg-open $qrdir"
 }
 
 main() {

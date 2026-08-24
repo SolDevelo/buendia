@@ -54,14 +54,22 @@ fi
 python3 - "$OUT_DIR" "$APK_URL" "$SSID" "$WIFI_PASS" <<'PY'
 import sys, os
 out_dir, apk_url, ssid, wifi_pass = sys.argv[1:5]
+# Either generator is fine. A deployed server has qrencode (installed by prepare.sh) and no
+# pip, so requiring segno made this script unusable exactly where the card is needed.
 try:
     import segno
+    def save(data, name):
+        segno.make(data, micro=False, error='m').save(
+            os.path.join(out_dir, name), scale=10, border=2)
 except ImportError:
-    sys.exit("ERROR: need a QR generator: python3 -m pip install --user segno")
-
-def save(data, name):
-    segno.make(data, micro=False, error='m').save(
-        os.path.join(out_dir, name), scale=10, border=2)
+    import shutil, subprocess
+    _qr = shutil.which('qrencode')
+    if not _qr:
+        sys.exit("ERROR: need a QR generator: apt-get install -y qrencode "
+                 "(or python3 -m pip install --user segno)")
+    def save(data, name):
+        subprocess.run([_qr, '-o', os.path.join(out_dir, name), '-s', '10', '-m', '2', data],
+                       check=True)
 
 save(apk_url, 'install-qr.png')
 
