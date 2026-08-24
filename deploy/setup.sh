@@ -7,6 +7,17 @@
 #
 #   sudo ./setup.sh              # --online (default): pull images from Docker Hub
 #   sudo ./setup.sh --offline    # no internet: load images from bundled images/*.tar
+#
+# TWO-STEP INSTALL, for a site whose internet is not the network the server runs on (MSF's
+# restricted Wi-Fi, a phone hotspot, an office drop). Run these in order, moving the cable
+# in between:
+#   1. sudo ./setup.sh --prepare   ONLINE, connected to the internet. Installs Docker and
+#                                  chrony and pulls the images. Touches NO networking and
+#                                  starts nothing, so it cannot fight the connection it is
+#                                  using, and can be run anywhere with internet.
+#   2. sudo ./setup.sh --finish    OFFLINE, now cabled to OUR router. Applies the static
+#                                  address, starts the stack and runs the go/no-go. Needs no
+#                                  internet: the images are already in the local image store.
 #   sudo ./setup.sh --dry-run    # print every change without making one (test the run first)
 #   sudo ./setup.sh --skip-verify        # stop after starting the stack, don't run the go/no-go
 #
@@ -32,12 +43,18 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE="online"
+PHASE="all"          # all | prepare (online, packages+images) | finish (offline, network+stack)
 DRY_RUN=0
 DO_VERIFY=1
 for arg in "$@"; do
   case "$arg" in
     --online)      MODE="online"  ;;
     --offline)     MODE="offline" ;;
+    --prepare)     PHASE="prepare" ;;
+    # --finish implies offline: by then the box is on our router, which has no uplink. That
+    # makes every network-touching step (apt, tailscale, docker pull) take its no-network
+    # branch without the operator having to remember a second flag.
+    --finish)      PHASE="finish"; MODE="offline" ;;
     --dry-run)     DRY_RUN=1 ;;
     --skip-verify) DO_VERIFY=0 ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//' ; exit 0 ;;
@@ -130,10 +147,54 @@ apt_refresh() {
   APT_REFRESHED=1
 }
 
+DEBS_INSTALLED=0
+# Install the whole bundled .deb set with no network. TWO PHASES, deliberately: a single
+# `dpkg -i` pass processes alphabetically and leaves packages unconfigured whenever a
+# dependency happens to sort later. And the usual `|| apt-get -f install -y` fallback is worse
+# than useless offline — it resolves the breakage by REMOVING packages (observed on a test
+# target: it removed openssh-client) and still exits 0, so the run reports success with pieces
+# missing. Unpack everything, then configure, then let the caller assert what it needed.
+offline_debs_install() {
+  [[ $DEBS_INSTALLED -eq 1 ]] && return 0
+  ls "$HERE"/debs/*.deb >/dev/null 2>&1 || return 0   # nothing bundled; the caller decides
+  log "Installing bundled packages from debs/ (offline, no network)"
+  # chrony declares `Conflicts: time-daemon`, and stock Ubuntu ships systemd-timesyncd, which
+  # PROVIDES time-daemon. Online, apt resolves that by swapping the two. dpkg alone refuses
+  # ("conflicting packages - not installing chrony") and, since chrony is one archive among a
+  # hundred, the run otherwise looks healthy — leaving a server that is not a time authority.
+  # So retire the incumbent first. Verified on Ubuntu 26.04: this is what blocks chrony offline.
+  local td
+  for td in systemd-timesyncd ntp ntpsec openntpd; do
+    if dpkg -s "$td" >/dev/null 2>&1; then
+      log "Removing $td first — it provides time-daemon, which chrony conflicts with"
+      run_sh "dpkg --remove $td || dpkg --purge $td"
+    fi
+  done
+  run_sh "dpkg --unpack $HERE/debs/*.deb"
+  run_sh "dpkg --configure -a"
+  DEBS_INSTALLED=1
+}
+
 ensure_pkg() {
+  # Test the PACKAGE, not a binary named after it: `command -v chrony` never matches, because
+  # the package ships chronyd/chronyc — so this used to re-install on every single run.
+  dpkg -s "$1" >/dev/null 2>&1 && return 0
   command -v "$1" >/dev/null && return 0
   if [[ "$MODE" == "offline" ]]; then
-    warn "offline: cannot apt-get $1 — ensure it is preinstalled"; return 0
+    # chrony comes through here, and its absence is silent: the server stops being the LAN time
+    # authority, the DNS clock intercept resolves the tablets' NTP hostnames to a host that
+    # answers nothing, every clock drifts — and buendia-verify.sh has no NTP assertion, so the
+    # run still reports GO. Fatal, therefore, not a warning.
+    offline_debs_install
+    [[ $DRY_RUN -eq 1 ]] && return 0
+    dpkg -s "$1" >/dev/null 2>&1 && return 0
+    die "offline: '$1' is not installed.
+       In the two-step install this is what step 1 is for — run it while connected to the
+       internet, then come back:
+           sudo ./setup.sh --prepare
+       (For a genuinely never-online box, bundle the packages instead: on the build box run
+       tools/bundle-debs.sh --release \$(. /etc/os-release; echo \$VERSION_CODENAME) — note that
+       path is NOT yet validated: chrony conflicts with systemd-timesyncd under plain dpkg.)"
   fi
   apt_refresh          # must precede the first install: a fresh image has a stale index
   run apt-get install -y "$1"
@@ -162,7 +223,15 @@ host_config() {
   run install -m 0644 "$HERE/config/logind.conf.d/buendia.conf" /etc/systemd/logind.conf.d/buendia.conf
   run_sh "systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target || true"
 
-  config_network
+  # Deliberately NOT during --prepare: config_network puts the static site address on the wired
+  # interface and points the default route and resolver at OUR router, which does not exist yet
+  # on whatever connection is providing the internet. Doing it here would cut the very link the
+  # image pull needs. It belongs to --finish, once the cable has moved.
+  if [[ "$PHASE" == "prepare" ]]; then
+    log "Networking: SKIPPED for --prepare (applied by --finish, once cabled to our router)"
+  else
+    config_network
+  fi
 
   log "Host config: chrony (server is the LAN time authority, §3.4)"
   ensure_pkg chrony
@@ -299,9 +368,12 @@ install_docker() {
   if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
     log "Docker already present: $(docker --version)"
   elif [[ "$MODE" == "offline" ]]; then
-    log "Installing Docker from bundled debs/ (offline)"
-    ls "$HERE"/debs/*.deb >/dev/null 2>&1 || die "no .deb files in debs/ for offline install."
-    run_sh "dpkg -i $HERE/debs/*.deb || apt-get -f install -y"
+    offline_debs_install
+    if [[ $DRY_RUN -eq 0 ]]; then
+      command -v dockerd >/dev/null \
+        || die "offline: Docker is still absent after unpacking debs/. The set is incomplete or
+       was built for a different Ubuntu release (check debs/MANIFEST.txt against this box)."
+    fi
   else
     log "Installing Docker (online${DOCKER_VERSION:+, pinned $DOCKER_VERSION})"
     apt_refresh
@@ -340,11 +412,23 @@ install_docker() {
 # ---------------------------------------------------------------------------
 load_images() {
   if [[ "$MODE" == "offline" ]]; then
-    log "Loading container images from images/*.tar (offline)"
-    ls "$HERE"/images/*.tar >/dev/null 2>&1 \
-      || die "no image tarballs in images/ for offline load. Produce them with tools/bundle-images.sh (needs internet)."
-    local t
-    for t in "$HERE"/images/*.tar; do run docker load -i "$t"; done
+    # An earlier --prepare already pulled these, so they are in the local image store and no
+    # tarballs need to travel. Check before demanding files: requiring images/*.tar here is what
+    # made a two-step install impossible without carrying ~770 MB that was already on the disk.
+    if [[ $DRY_RUN -eq 1 ]]; then
+      log "Images: would use the local store if populated, else images/*.tar (offline)"
+    elif docker image inspect "$DB_IMAGE" >/dev/null 2>&1 \
+       && docker image inspect "$OPENMRS_IMAGE" >/dev/null 2>&1; then
+      log "Images already in the local store (pulled by --prepare) — nothing to load"
+    else
+      log "Loading container images from images/*.tar (offline)"
+      ls "$HERE"/images/*.tar >/dev/null 2>&1 \
+        || die "the images are not in the local store and there are no tarballs in images/.
+       Either run 'sudo ./setup.sh --prepare' while connected to the internet, or produce the
+       tarballs on the build box with tools/bundle-images.sh."
+      local t
+      for t in "$HERE"/images/*.tar; do run docker load -i "$t"; done
+    fi
   else
     log "Pulling container images from the registry (online)"
     # Public images need no credentials; support a token for a private repo anyway.
@@ -601,6 +685,18 @@ main() {
   host_config
   install_docker
   load_images
+
+  if [[ "$PHASE" == "prepare" ]]; then
+    log "PREPARE complete — Docker, chrony and the container images are on this box."
+    echo "  Nothing was started and no network setting was changed."
+    echo
+    echo "  Next: disconnect from the internet, cable this box to the Buendia router, then:"
+    echo "      sudo ./buendia-netcheck.sh --write     # confirm the link, set NET_IFACE"
+    echo "      sudo ./setup.sh --finish               # static address, stack, go/no-go"
+    summary "PREPARE OK — not yet a working server"
+    return 0
+  fi
+
   bring_up
   remote_support
 
