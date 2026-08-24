@@ -14,7 +14,8 @@ network settings, so it cannot break the connection it is using.
 ## What you need
 
 - The **server laptop**, with Ubuntu freshly installed, and you able to run `sudo`.
-- The **USB stick** with the `Buendia` folder on it.
+- A **USB stick** with the `Buendia` folder copied onto it (unzip the archive we sent you
+  straight onto the stick; the folder must keep its name and contents).
 - The **Buendia router** (GL.iNet Flint 2), its power supply, and one Ethernet cable.
 - Internet for step 1 — office Wi-Fi, a phone hotspot, or a cable. Anything will do.
 - The router's admin password, which you set yourself in step 3 below.
@@ -25,7 +26,8 @@ network settings, so it cannot break the connection it is using.
 
 1. Connect the laptop to the internet. Check that a browser can load a web page.
 
-2. Plug in the USB stick, open a terminal, and go to the `Buendia` folder on it:
+2. Plug in the USB stick, open a terminal, and go into the `Buendia` folder on it. In the file
+   manager, right-click inside the folder and choose "Open in Terminal", or type:
 
        cd /media/$USER/*/Buendia
 

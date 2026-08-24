@@ -53,3 +53,10 @@ image/settings.xml
 # secrets (.env is supplied separately), so it is safe to publish as a release asset.
 buendia-deploy-*.tar.gz
 buendia-deploy-*.tar.gz.sha256
+
+# The USB pack assembled by tools/make-usb-pack.sh, and its staging folder. Both are
+# CREDENTIALS: buendia.env holds the database passwords and the payload's APK carries the
+# server password as a readable string resource. Send privately; never commit, never publish.
+Buendia/
+buendia-usb-*.zip
+buendia-usb-*.zip.sha256
