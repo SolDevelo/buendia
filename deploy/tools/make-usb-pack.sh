@@ -27,7 +27,14 @@ die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 set -a; . "$D/.env"; set +a
 
 STAGE="$(mktemp -d)"; trap 'rm -rf "$STAGE"' EXIT
-OUT="$D/Buendia"; rm -rf "$OUT"; mkdir -p "$OUT"
+OUT="$D/Buendia"
+# Stash --keep-passwords BEFORE wiping the staging folder: the file being reused is normally the
+# previous pack's own buendia.env, which lives inside it. Reading it after the rm found nothing.
+if [[ -n "$KEEP" ]]; then
+  [[ -f "$KEEP" ]] || die "--keep-passwords: $KEEP not found"
+  cp "$KEEP" "$STAGE/keep.env"; KEEP="$STAGE/keep.env"
+fi
+rm -rf "$OUT"; mkdir -p "$OUT"
 
 log "Collecting"
 # Exactly ONE bundle and ONE payload: bootstrap.sh refuses an ambiguous folder, and the wrong
