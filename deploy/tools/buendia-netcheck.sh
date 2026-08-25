@@ -101,7 +101,7 @@ diagnose_no_lease() {
                 now="$(cidr "$i")"
                 case "$now" in ""|169.254.*) printf '.'; sleep 3; w=$(( w + 3 ));; *) break;; esac
               done
-              printf '\n
+              printf '\n'
               case "$now" in
                 ""|169.254.*) advise "set ipv4.method=auto on $prof, but still no lease — see the cable/port advice above." ;;
                 *) ok "repaired: $i now holds $now"; PROBLEMS=$((PROBLEMS-2)); FIXED_NET=1; return 0 ;;

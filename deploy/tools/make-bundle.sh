@@ -147,6 +147,16 @@ EOF
 echo "    + README.md (generated for the operator)"
 
 # --- self-check: prove nothing internal slipped in --------------------------
+echo "==> syntax check"
+# `bash -n a.sh b.sh` checks only the FIRST file and silently ignores the rest — which is how a
+# broken script reached a USB stick once. Check them one at a time, and fail the build.
+syn=0
+while IFS= read -r -d '' f; do
+  bash -n "$f" 2>/dev/null || { echo "    SYNTAX ERROR: ${f#$ROOT/}" >&2; bash -n "$f" 2>&1 | head -2 >&2; syn=1; }
+done < <(find "$ROOT" -name '*.sh' -type f -print0)
+[[ $syn -eq 0 ]] || { echo "ERROR: a shipped script does not parse — bundle not built." >&2; exit 1; }
+echo "    every shipped script parses"
+
 echo "==> leak check"
 leaks="$(cd "$ROOT" && find . -type f \( -iname 'CLAUDE.md' -o -path './docs/*' -o -path './.claude/*' \
   -o -iname '*FIELD-PILOT*' -o -iname 'TECHNICAL-REVIEW*' \) -print)"
