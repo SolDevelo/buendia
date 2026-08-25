@@ -251,6 +251,19 @@ host_config() {
   # restart Docker or pull in a new kernel with nobody there to notice, and a snap refresh does
   # the same on its own schedule. Both are disabled deliberately; updates become a staffed,
   # deliberate act. Nothing here needs the network, so it also holds on an offline box.
+  # A name is easier to type and to tell someone over a radio than four numbers, and the browser
+  # will not treat it as a search term as long as the http:// is included. .lan is used as well
+  # as .local because .local is formally reserved for mDNS; /etc/hosts wins on Ubuntu either way
+  # (nsswitch consults files before mdns), but the extra name costs nothing and avoids an argument.
+  log "Host config: name this server 'buendia' in /etc/hosts"
+  if [[ $DRY_RUN -eq 0 ]]; then
+    sed -i '/[[:space:]]# buendia-pilot$/d' /etc/hosts
+    printf '%s\tbuendia buendia.lan buendia.local\t# buendia-pilot\n' "$STATIC_IP" >> /etc/hosts
+    echo "  $STATIC_IP -> buendia / buendia.lan / buendia.local"
+  else
+    echo "  [dry-run] add '$STATIC_IP buendia buendia.lan buendia.local' to /etc/hosts"
+  fi
+
   log "Host config: disable background updates (no unattended change in the field)"
   run_sh "systemctl disable --now unattended-upgrades 2>/dev/null || true"
   run_sh "systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true"
@@ -787,7 +800,19 @@ publish_qr_to_desktop() {
   for d in "$home/Desktop" "$home/Pictures" "$home"; do [[ -d "$d" ]] && break; done
   dest="$d/Buendia-tablet-setup"; mkdir -p "$dest" || return 1
   for src in "$@"; do [[ -f "$src" ]] && cp -f "$src" "$dest/"; done
+  # A clickable link to the records system, so nobody has to remember an address or the /openmrs
+  # that the bare port silently needs.
+  cat > "$dest/Buendia records.desktop" <<DESK
+[Desktop Entry]
+Type=Link
+Name=Buendia — patient records
+Comment=Opens the Buendia records system in a browser
+URL=http://buendia.lan:${OPENMRS_PORT:-9000}/openmrs
+Icon=applications-internet
+DESK
+  chmod 0755 "$dest/Buendia records.desktop"
   chown -R "$u":"$(id -gn "$u")" "$dest" 2>/dev/null || true
+  run_as_user gio set -t string "$dest/Buendia records.desktop" metadata::trusted true 2>/dev/null || true
   echo "$dest"
 }
 
@@ -813,13 +838,27 @@ DBUS_SESSION_BUS_ADDRESS=*|XDG_SESSION_TYPE=*|XDG_CURRENT_DESKTOP=*) envv+=("$k"
   return 0
 }
 
-# Hand something to the desktop: an image, an HTML page, a URL.
-open_with_desktop() {
-  local target="$1" opener
-  for opener in xdg-open gio firefox eog; do
-    command -v "$opener" >/dev/null 2>&1 || continue
-    [[ "$opener" == gio ]] && { run_as_user gio open "$target" && return 0; continue; }
-    run_as_user "$opener" "$target" && return 0
+# Open a URL or an HTML page in a real BROWSER. Not xdg-open first: it honours the desktop's
+# text/html association, which on the test laptop was a text editor — so the router's admin page
+# and the install card both opened as source code. Browsers are tried by name first, and a local
+# file is handed over as a file:// URL so the browser treats it as a page, not an argument.
+open_url() {
+  local target="$1" b
+  [[ "$target" == /* ]] && target="file://$target"
+  for b in x-www-browser sensible-browser firefox google-chrome chromium chromium-browser epiphany; do
+    command -v "$b" >/dev/null 2>&1 || continue
+    run_as_user "$b" "$target" && return 0
+  done
+  command -v xdg-open >/dev/null 2>&1 && { run_as_user xdg-open "$target" && return 0; }
+  return 1
+}
+
+# Images go to an image viewer; here xdg-open is the right first choice.
+open_image() {
+  local target="$1" v
+  for v in xdg-open eog gwenview gthumb feh; do
+    command -v "$v" >/dev/null 2>&1 || continue
+    run_as_user "$v" "$target" && return 0
   done
   return 1
 }
@@ -853,7 +892,7 @@ configure_router() {
   # in a browser and wait, rather than failing and making the operator find the URL themselves.
   if ! tcp_open "$r" 22; then
     log "Router: it needs its setup wizard run once — opening it in a browser"
-    if open_with_desktop "http://$r/"; then
+    if open_url "http://$r/"; then
       echo "  A browser window should have opened at http://$r/"
     else
       echo "  Open this address in a browser:  http://$r/"
@@ -918,9 +957,9 @@ show_tablet_qr() {
     echo "  Open that folder from the desktop if the windows below do not appear."
     echo
   fi
-  if [[ -n "$card" && -f "$card" ]] && open_with_desktop "$card"; then
+  if [[ -n "$card" && -f "$card" ]] && open_url "$card"; then
     echo "  A page with both codes should now be open in the browser."
-  elif open_with_desktop "$wifi_png"; then
+  elif open_image "$wifi_png"; then
     echo "  An image viewer should now be open."
   else
     echo "  Nothing could be opened automatically — open these files from the Files application:"

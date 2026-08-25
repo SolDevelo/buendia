@@ -79,7 +79,10 @@ tablet's browser instead.
 
 ## Day-to-day
 
-- Buendia in a browser: **http://192.168.8.10:9000/openmrs**
+- Buendia in a browser **on the server itself**: use the shortcut
+  **"Buendia — patient records"** in the `Buendia-tablet-setup` folder on the desktop, or type
+  **http://buendia.lan:9000/openmrs**
+- From any other machine on the Buendia Wi-Fi: **http://192.168.8.10:9000/openmrs**
   The `/openmrs` on the end is required — without it the page is blank.
 - To check the server whenever anyone reports a problem:
 
@@ -91,6 +94,23 @@ tablet's browser instead.
   router is back about a minute after power returns.
 - **Automatic updates are switched off deliberately.** A clinic server must not restart its own
   software overnight with nobody there. Updates are something we do with you.
+
+## Known quirk: no mouse pointer after closing and opening the lid
+
+On some laptops the touchpad stops responding after the lid is closed and opened again: the
+screen and everything on it are fine, but there is no pointer, and the touchpad's own on/off key
+does nothing. Plugging in a USB mouse restores it immediately.
+
+The cause is that this server is deliberately configured **not to suspend when the lid closes**,
+so the machine never goes through the sleep-and-wake cycle that would normally re-initialise the
+touchpad. Reloading its driver brings it back without a reboot:
+
+    sudo modprobe -r psmouse && sudo modprobe psmouse          # most laptops
+    sudo modprobe -r i2c_hid_acpi && sudo modprobe i2c_hid_acpi  # if that one is "not found"
+
+The simplest avoidance is the one the server wants anyway: **leave the lid open.** It is how the
+machine is meant to run — it stays cooler, and the screen is what a tablet scans the QR codes
+from.
 
 ## Starting again
 

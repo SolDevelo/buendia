@@ -60,8 +60,8 @@ install -m 0644 "${bundles[0]}"                 "$OUT/$(basename "${bundles[0]}"
 install -m 0644 "${bundles[0]}.sha256"          "$OUT/$(basename "${bundles[0]}").sha256"
 install -m 0644 "${payloads[0]}"                "$OUT/$(basename "${payloads[0]}")"
 install -m 0644 "${payloads[0]}.sha256"         "$OUT/$(basename "${payloads[0]}").sha256"
-[[ -f "$D/pkgserver/www/install-qr.png" ]] \
-  && install -m 0644 "$D/pkgserver/www/install-qr.png" "$OUT/install-qr-${STATIC_IP}.png"
+# No install-qr PNG here on purpose: setup.sh generates both codes on the server, from that
+# server's own configuration. A copy shipped in the pack could only be the same or wrong.
 
 log "Generating the server env"
 if [[ -n "$KEEP" ]]; then "$HERE/make-site-env.sh" --out "$OUT/buendia.env" --keep-passwords "$KEEP"
