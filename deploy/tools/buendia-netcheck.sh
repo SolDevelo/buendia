@@ -351,7 +351,7 @@ elif [[ $WRITE -eq 1 && -n "$ENVF" ]]; then
 else
   warn "$ENVF has NET_IFACE=${ENV_IFACE:-empty}, but the wired interface is $IFACE"
   advise "Apply it: $0 --write   (or edit $ENVF and set NET_IFACE=$IFACE)"
-  advise "Left empty, setup.sh autodetects by default route and would pick Wi-Fi on a laptop, generating a netplan wifis: block that is not the shipping path."
+  advise "If it is left empty the installer has to guess, and on a laptop it guesses Wi-Fi — which is not how this server is meant to be connected."
 fi
 
 # ---------------------------------------------------------------------------

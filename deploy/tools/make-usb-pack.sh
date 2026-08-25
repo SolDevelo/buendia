@@ -56,6 +56,13 @@ install -m 0755 "$D/prepare.sh"                 "$OUT/prepare.sh"
 install -m 0755 "$D/tools/bootstrap.sh"         "$OUT/bootstrap.sh"
 install -m 0755 "$D/tools/buendia-netcheck.sh"  "$OUT/buendia-netcheck.sh"
 install -m 0644 "$D/INSTALL-TWO-STEP.md"        "$OUT/INSTALL.md"
+# A PDF as well as the Markdown: whoever installs this may have no way to render .md, and read
+# as plain text it loses the emphasis that tells them which line to type.
+if "$HERE/make-install-pdf.sh" --out "$OUT/INSTALL.pdf" >/dev/null 2>&1; then
+  echo "    + INSTALL.pdf"
+else
+  echo "    WARNING: could not build INSTALL.pdf (Chrome refuses to run as root — try as your own user)" >&2
+fi
 install -m 0644 "${bundles[0]}"                 "$OUT/$(basename "${bundles[0]}")"
 install -m 0644 "${bundles[0]}.sha256"          "$OUT/$(basename "${bundles[0]}").sha256"
 install -m 0644 "${payloads[0]}"                "$OUT/$(basename "${payloads[0]}")"

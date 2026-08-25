@@ -60,3 +60,5 @@ buendia-deploy-*.tar.gz.sha256
 Buendia/
 buendia-usb-*.zip
 buendia-usb-*.zip.sha256
+# Rendered from INSTALL-TWO-STEP.md by tools/make-install-pdf.sh at pack time.
+INSTALL.pdf

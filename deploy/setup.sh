@@ -109,7 +109,7 @@ preflight() {
   log "Preflight"
   # x86-64 is a hard requirement, not a preference: mysql:5.6 (the last MySQL that works with
   # OpenMRS 1.10's hardcoded storage_engine) has no arm64 image. No ARM mini-PCs / Raspberry Pi.
-  [[ "$(uname -m)" == "x86_64" ]] || die "x86-64 required (mysql:5.6 is amd64-only). See plan §3.1."
+  [[ "$(uname -m)" == "x86_64" ]] || die "this server must be a 64-bit Intel or AMD machine. An ARM laptop (Apple silicon, or a Snapdragon/Copilot+ PC) cannot run it."
   . /etc/os-release
   [[ "${ID:-}" == "ubuntu" || "${ID:-}" == "debian" ]] || warn "untested OS: ${ID:-unknown}"
 
@@ -160,7 +160,7 @@ DEBS_INSTALLED=0
 offline_debs_install() {
   [[ $DEBS_INSTALLED -eq 1 ]] && return 0
   ls "$HERE"/debs/*.deb >/dev/null 2>&1 || return 0   # nothing bundled; the caller decides
-  log "Installing bundled packages from debs/ (offline, no network)"
+  log "Installing the bundled system packages (no internet needed)"
   # chrony declares `Conflicts: time-daemon`, and stock Ubuntu ships systemd-timesyncd, which
   # PROVIDES time-daemon. Online, apt resolves that by swapping the two. dpkg alone refuses
   # ("conflicting packages - not installing chrony") and, since chrony is one archive among a
@@ -218,10 +218,10 @@ detect_iface() {
 }
 
 host_config() {
-  log "Host config: timezone → $TZ"
+  log "Server settings: time zone → $TZ"
   run timedatectl set-timezone "$TZ"
 
-  log "Host config: ignore laptop lid, disable suspend/sleep (run lid-OPEN for cooling, §7)"
+  log "Server settings: never sleep, and ignore the lid closing"
   run install -d /etc/systemd/logind.conf.d
   run install -m 0644 "$HERE/config/logind.conf.d/buendia.conf" /etc/systemd/logind.conf.d/buendia.conf
   run_sh "systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target || true"
@@ -236,7 +236,7 @@ host_config() {
     config_network
   fi
 
-  log "Host config: chrony (server is the LAN time authority, §3.4)"
+  log "Time: this server becomes the clock that the tablets follow"
   ensure_pkg chrony
   local cd=/etc/chrony/conf.d
   [[ -d "$cd" ]] || cd=/etc/chrony/chrony.conf.d
@@ -255,7 +255,7 @@ host_config() {
   # will not treat it as a search term as long as the http:// is included. .lan is used as well
   # as .local because .local is formally reserved for mDNS; /etc/hosts wins on Ubuntu either way
   # (nsswitch consults files before mdns), but the extra name costs nothing and avoids an argument.
-  log "Host config: name this server 'buendia' in /etc/hosts"
+  log "Server settings: this machine can now be reached as 'buendia'"
   if [[ $DRY_RUN -eq 0 ]]; then
     sed -i '/[[:space:]]# buendia-pilot$/d' /etc/hosts
     printf '%s\tbuendia buendia.lan buendia.local\t# buendia-pilot\n' "$STATIC_IP" >> /etc/hosts
@@ -264,7 +264,7 @@ host_config() {
     echo "  [dry-run] add '$STATIC_IP buendia buendia.lan buendia.local' to /etc/hosts"
   fi
 
-  log "Host config: disable background updates (no unattended change in the field)"
+  log "Server settings: switch off automatic updates"
   run_sh "systemctl disable --now unattended-upgrades 2>/dev/null || true"
   run_sh "systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true"
   run_sh "systemctl mask apt-daily.service apt-daily-upgrade.service 2>/dev/null || true"
@@ -277,7 +277,7 @@ host_config() {
   # available. So it has to be installed now. Ubuntu Desktop normally ships it; a minimal
   # Server install does not, and discovering that offline leaves the router unconfigurable.
   if [[ "$PHASE" == "prepare" ]]; then
-    log "Host config: ssh client (needed offline, to configure the router)"
+    log "Installing the tool used later to configure the router"
     ensure_pkg openssh-client
     # Rendering the tablet QR codes on screen at the end of the offline step needs a generator,
     # and apt is not available then. Small package, installed now.
@@ -294,7 +294,7 @@ host_config() {
   # Graceful shutdown on low battery / UPS: laptop battery via UPower thresholds, or Network
   # UPS Tools for an external UPS. TODO: wire to the chosen power kit (§3.1). MySQL 5.6 killed
   # mid-write is the most plausible way this pilot loses data.
-  warn "TODO: configure graceful shutdown on low battery / UPS (§3.1) for the chosen power kit."
+  warn "Note: this server does not yet shut itself down when its battery runs low."
 }
 
 # Static IP, generated from .env — there is deliberately no checked-in netplan file to drift
@@ -302,15 +302,15 @@ host_config() {
 # someone else (e.g. existing site Wi-Fi with a DHCP reservation) and this box must not touch it.
 config_network() {
   if [[ "$CONFIGURE_NETWORK" != "true" ]]; then
-    log "Host config: network — SKIPPED (CONFIGURE_NETWORK=$CONFIGURE_NETWORK)"
+    log "Network: left unchanged (turned off in the configuration)"
     warn "the server's address is not managed by this script — confirm it is reachable at $STATIC_IP,"
-    warn "  because that address is baked into every tablet's APK."
+    warn "  because every tablet is configured for that address."
     return 0
   fi
 
   local iface; iface="$(detect_iface)"
   [[ -n "$iface" ]] || die "could not detect a wired interface. Set NET_IFACE in .env (see: ip -br link)."
-  log "Host config: static IP $STATIC_IP/$NET_PREFIX on $iface (netplan)"
+  log "Network: giving this server its fixed address $STATIC_IP"
 
   # Wireless interfaces need netplan's `wifis:` block with an access-points stanza; declaring one
   # under `ethernets:` is invalid config that fails at apply time. Autodetect follows the default
@@ -348,7 +348,7 @@ config_network() {
       renderer="networkd"
     fi
   fi
-  echo "  netplan renderer: $renderer"
+  echo "  network manager: $renderer"
 
   local block="ethernets" wifi_ap=""
   if [[ $is_wifi -eq 1 ]]; then
@@ -390,14 +390,14 @@ YAML
   # a server on the wrong address while every tablet had the old one baked in. That is a silent
   # brick, so it is fatal now, and we confirm the address actually landed rather than trusting
   # the exit code.
-  netplan apply || die "netplan apply failed for interface '$iface'. Check: ip -br link"
+  netplan apply || die "the network settings could not be applied to '$iface'. Check the cable and run: ip -br link"
   local i
   for i in $(seq 1 10); do
     ip -4 addr show dev "$iface" 2>/dev/null | grep -qw "$STATIC_IP" && break
     sleep 1
   done
   ip -4 addr show dev "$iface" 2>/dev/null | grep -qw "$STATIC_IP" \
-    || die "$iface did not take $STATIC_IP after netplan apply. Tablets bake in this address — fix before shipping."
+    || die "this server did not take the address $STATIC_IP. Every tablet is configured for that address, so this must be fixed before the server is used."
   ok "  $iface is up at $STATIC_IP"
 }
 
@@ -433,7 +433,7 @@ install_docker() {
     fi
   fi
 
-  log "Docker: log rotation caps (§3.1) + start on boot"
+  log "Docker: limit log file sizes, and start automatically at boot"
   run install -d /etc/docker
   # Only restart the daemon when the config actually changed: an unconditional restart on every
   # idempotent re-run bounces a healthy stack for no reason.
@@ -456,12 +456,12 @@ load_images() {
     # tarballs need to travel. Check before demanding files: requiring images/*.tar here is what
     # made a two-step install impossible without carrying ~770 MB that was already on the disk.
     if [[ $DRY_RUN -eq 1 ]]; then
-      log "Images: would use the local store if populated, else images/*.tar (offline)"
+      log "Buendia software: would use what is already downloaded, or the supplied files"
     elif docker image inspect "$DB_IMAGE" >/dev/null 2>&1 \
        && docker image inspect "$OPENMRS_IMAGE" >/dev/null 2>&1; then
-      log "Images already in the local store (pulled by --prepare) — nothing to load"
+      log "The Buendia software is already downloaded — nothing to fetch"
     else
-      log "Loading container images from images/*.tar (offline)"
+      log "Loading the Buendia software from the files supplied"
       ls "$HERE"/images/*.tar >/dev/null 2>&1 \
         || die "the images are not in the local store and there are no tarballs in images/.
        Either run 'sudo ./setup.sh --prepare' while connected to the internet, or produce the
@@ -470,7 +470,7 @@ load_images() {
       for t in "$HERE"/images/*.tar; do run docker load -i "$t"; done
     fi
   else
-    log "Pulling container images from the registry (online)"
+    log "Downloading the Buendia software (about 800 MB — this is the slow part)"
     # Public images need no credentials; support a token for a private repo anyway.
     if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_TOKEN:-}" ]]; then
       run_sh "printf '%s' \"\$REGISTRY_TOKEN\" | docker login -u \"\$REGISTRY_USER\" --password-stdin ${REGISTRY_HOST:-docker.io}"
@@ -520,16 +520,16 @@ fetch_apk() {
   shopt -u nullglob
 
   case "$src" in
-    none)  log "APK fetch: skipped (APK_SOURCE=none)"; return 0 ;;
-    local) log "APK fetch: using pkgserver/www as-is (APK_SOURCE=local)"; return 0 ;;
+    none)  log "Tablet app: skipped by configuration"; return 0 ;;
+    local) log "Tablet app: using the copy already supplied"; return 0 ;;
     auto)
       # Already populated (a re-run, or an offline USB install) — never re-download.
       if [[ ${#have[@]} -gt 0 ]]; then
-        log "APK fetch: pkgserver/www already holds $(basename "${have[0]}") — nothing to download"
+        log "Tablet app: already supplied ($(basename "${have[0]}")) — nothing to download"
         return 0
       fi
       if [[ -z "${APK_RELEASE_REPO:-}" || -z "$token" ]]; then
-        log "APK fetch: nothing to do (no APK present, and no APK_RELEASE_REPO + token given)"
+        log "Tablet app: nothing to fetch"
         return 0
       fi
       ;;
@@ -542,7 +542,7 @@ fetch_apk() {
   local asset="${APK_RELEASE_ASSET:-pkgserver-www.tar.gz}"
   [[ -n "$token" ]] || die "no token: pass GITHUB_TOKEN=... in the environment (it is never stored in .env)."
 
-  log "APK fetch: $asset from $APK_RELEASE_REPO @ $APK_RELEASE_TAG (private release)"
+  log "Tablet app: downloading $asset"
   if [[ $DRY_RUN -eq 1 ]]; then
     printf '  \033[0;36m[dry-run]\033[0m would download %s with the supplied token (redacted)\n' "$asset"
     return 0
@@ -607,7 +607,7 @@ for a in rel.get("assets", []):
 # 5. Bring up the stack
 # ---------------------------------------------------------------------------
 bring_up() {
-  log "Seed check"
+  log "Checking the supplied database"
   # The baseline seed lives INSIDE the DB image (seed/build-db-image.sh stamps a label).
   # A bare mysql image here means a schema-less, concept-less DB: OpenMRS will appear to boot
   # and nothing will work. Previously this check looked in seed/*.sql — the wrong directory —
@@ -620,7 +620,7 @@ bring_up() {
     # Not pulled yet. In a real run load_images() has already pulled it, so this means the pull
     # failed; in a dry run the pull was only printed, so absence is expected.
     if [[ $DRY_RUN -eq 1 ]]; then
-      echo "  (dry run: $DB_IMAGE not present locally — cannot check for the baked seed yet)"
+      echo "  (dry run: the database image is not downloaded yet, so it cannot be checked)"
     else
       die "$DB_IMAGE is not present locally after the image step — the pull must have failed."
     fi
@@ -629,11 +629,11 @@ bring_up() {
     seed_label="$(docker image inspect --format \
       '{{index .Config.Labels "org.projectbuendia.seed.sha256"}}' "$DB_IMAGE" 2>/dev/null || true)"
     if [[ -n "$seed_label" && "$seed_label" != "<no value>" ]]; then
-      echo "  baseline seed baked into $DB_IMAGE (sha256 ${seed_label:0:12})"
+      echo "  the supplied database is present and complete"
     elif [[ "$ALLOW_UNSEEDED_DB" == "true" ]]; then
-      warn "$DB_IMAGE carries no baked seed, continuing because ALLOW_UNSEEDED_DB=true."
+      warn "the database image looks incomplete; continuing because that was explicitly allowed."
     else
-      die "$DB_IMAGE carries no baked baseline seed — the database would come up empty and unusable.
+      die "the supplied database image is incomplete — Buendia would start with no data and be unusable.
        Build it:  cd seed && ./build-seed.sh && ./build-db-image.sh   then set DB_IMAGE in .env.
        (Override with ALLOW_UNSEEDED_DB=true only if you know the volume is already seeded.)"
     fi
@@ -642,13 +642,13 @@ bring_up() {
 
   fetch_apk
 
-  log "APK publish check"
+  log "Checking the tablet app is ready to install"
   # The pkgserver container starts regardless, but with an empty document root there is nothing
   # for a tablet to install and the client's :9001 health check would 404.
   ls "$HERE"/pkgserver/www/*.apk >/dev/null 2>&1 \
     || warn "pkgserver/www/ has no .apk — tablets can't install over the LAN. Run: pkgserver/publish.sh"
 
-  log "Starting the stack (docker compose up -d)"
+  log "Starting Buendia"
   run_sh "cd '$HERE/compose' && docker compose --env-file '$HERE/.env' up -d"
 }
 
@@ -657,9 +657,9 @@ bring_up() {
 # ---------------------------------------------------------------------------
 remote_support() {
   if [[ "$ENABLE_REMOTE_SUPPORT" != "true" ]]; then
-    log "Remote support: DISABLED (ENABLE_REMOTE_SUPPORT!=true) — install only, do not connect"
+    log "Remote support: not enabled — nothing will connect out from this server"
   else
-    log "Remote support: enabling Tailscale (server-initiated dial-out + SSH)"
+    log "Remote support: enabling the support connection"
   fi
   if ! command -v tailscale >/dev/null; then
     if [[ "$MODE" == "offline" ]]; then
@@ -681,7 +681,7 @@ remote_support() {
 # 7. Wait for the stack, then prove it is USABLE (not merely listening)
 # ---------------------------------------------------------------------------
 wait_for_rest() {
-  log "Waiting for the OpenMRS REST API on :${OPENMRS_PORT:-9000}"
+  log "Waiting for Buendia to finish starting (a minute or two)"
   # /ws/rest/v1/session returns 200 without auth once the platform + REST framework are up.
   # (The buendia resources require auth and would 401 here — don't use them for liveness.)
   local url="http://localhost:${OPENMRS_PORT:-9000}/openmrs/ws/rest/v1/session" i
@@ -700,7 +700,7 @@ verify() {
   # not the same as usable: it passes on a stack that can't authenticate, has no locations, or
   # has the duplicate-login row that locked a tablet out mid-test. buendia-verify.sh checks the
   # things a clinician's tablet actually depends on, so the installer's exit code now means it.
-  log "Go/no-go verification (tools/buendia-verify.sh)"
+  log "Final check: making sure the server is genuinely usable"
   "$HERE/tools/buendia-verify.sh" --port "${OPENMRS_PORT:-9000}" --pkg-port "${PKGSERVER_PORT:-9001}"
 }
 
@@ -709,10 +709,10 @@ summary() {
   local result="$1"
   log "Summary"
   cat <<TXT
-  host        : $(hostname) ($(uname -m)), $(. /etc/os-release; echo "${PRETTY_NAME:-?}")
+  server      : $(hostname) ($(uname -m)), $(. /etc/os-release; echo "${PRETTY_NAME:-?}")
   timezone    : $TZ   clock: $(date -Is 2>/dev/null || date)
-  db image    : $DB_IMAGE
-  openmrs     : $OPENMRS_IMAGE
+  database    : $DB_IMAGE
+  Buendia     : $OPENMRS_IMAGE
   result      : $result
 TXT
   # Only advertise the URLs once something is actually serving them. After --prepare nothing is
@@ -988,7 +988,7 @@ main() {
   load_images
 
   if [[ "$PHASE" == "prepare" ]]; then
-    log "PREPARE complete — Docker, chrony and the container images are on this box."
+    log "Step 1 finished — the Buendia software is now on this machine"
     echo "  Nothing was started and no network setting was changed."
     echo
     echo "  Next: disconnect from the internet, cable this box to the Buendia router, then:"
@@ -1016,7 +1016,7 @@ main() {
   # every deployment would otherwise share a publicly-known salt. Rotating it here also applies
   # whatever password prepare.sh was given, and keeps the value the tablets carry authoritative.
   if [[ $rc -eq 0 && $DRY_RUN -eq 0 && "$PHASE" != "prepare" && -x "$HERE/tools/create-openmrs-user.sh" ]]; then
-    log "Clinical login: setting the '''${APK_OPENMRS_USER:-buendia}''' password with a fresh salt"
+    log "Setting the password for the Buendia login"
     "$HERE/tools/create-openmrs-user.sh" "${APK_OPENMRS_USER:-buendia}" "${APK_OPENMRS_PASSWORD:-buendia}" \
       >/dev/null 2>&1 && echo "  ok" \
       || warn "could not set the clinical password — the seeded default is still in place."
