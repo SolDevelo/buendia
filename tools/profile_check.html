@@ -1,0 +1,1061 @@
+<title>Buendia Profile Preflight</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#eef2f5;
+  --surface:#ffffff;
+  --surface-2:#f7f9fb;
+  --ink:#15212c;
+  --ink-soft:#3d4e5d;
+  --muted:#68798a;
+  --line:#d6e0e8;
+  --line-soft:#e6edf2;
+  --accent:#0d5f70;
+  --accent-soft:#e2eff2;
+  --crit:#b53521;
+  --crit-bg:#fdeeeb;
+  --crit-edge:#f0a596;
+  --warn:#8a5a0c;
+  --warn-bg:#fdf5e4;
+  --warn-edge:#e8c98a;
+  --ok:#256b43;
+  --ok-bg:#eaf5ee;
+  --ok-edge:#9ccfaf;
+  --shadow:0 1px 2px rgba(21,33,44,.06), 0 8px 24px -12px rgba(21,33,44,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#101a21;
+    --surface:#17242d;
+    --surface-2:#1d2d37;
+    --ink:#e8eff4;
+    --ink-soft:#bccbd6;
+    --muted:#8ba0af;
+    --line:#2c414f;
+    --line-soft:#243642;
+    --accent:#5cc0d4;
+    --accent-soft:#1b3a42;
+    --crit:#ff9f8c;
+    --crit-bg:#331914;
+    --crit-edge:#7d3c2f;
+    --warn:#f0c67d;
+    --warn-bg:#2e2413;
+    --warn-edge:#6d5527;
+    --ok:#87d0a3;
+    --ok-bg:#152a1e;
+    --ok-edge:#356b4b;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#101a21;
+  --surface:#17242d;
+  --surface-2:#1d2d37;
+  --ink:#e8eff4;
+  --ink-soft:#bccbd6;
+  --muted:#8ba0af;
+  --line:#2c414f;
+  --line-soft:#243642;
+  --accent:#5cc0d4;
+  --accent-soft:#1b3a42;
+  --crit:#ff9f8c;
+  --crit-bg:#331914;
+  --crit-edge:#7d3c2f;
+  --warn:#f0c67d;
+  --warn-bg:#2e2413;
+  --warn-edge:#6d5527;
+  --ok:#87d0a3;
+  --ok-bg:#152a1e;
+  --ok-edge:#356b4b;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font:400 16px/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:900px;margin:0 auto;padding-inline:20px;padding-block:40px 72px}
+
+/* ---- masthead ---- */
+header.top{display:flex;flex-direction:column;gap:10px;margin-bottom:28px}
+.eyebrow{
+  font:500 11px/1 "IBM Plex Mono",ui-monospace,monospace;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--accent);
+}
+h1{
+  font:700 clamp(30px,5vw,44px)/1.06 Archivo,"Segoe UI",system-ui,sans-serif;
+  letter-spacing:-.022em;margin:0;text-wrap:balance;
+}
+.standfirst{margin:0;max-width:62ch;color:var(--ink-soft);font-size:17px}
+.standfirst b{color:var(--ink);font-weight:600}
+
+/* ---- drop zone ---- */
+.intake{
+  margin-top:26px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;box-shadow:var(--shadow);overflow:hidden;
+}
+.drop{
+  display:flex;flex-wrap:wrap;align-items:center;gap:16px;
+  padding:22px 24px;border-bottom:1px solid var(--line-soft);
+  border-left:3px solid var(--accent);
+  transition:background .15s ease;
+}
+.drop.hot{background:var(--accent-soft)}
+.drop-text{flex:1 1 260px;min-width:0}
+.drop-text strong{display:block;font:600 17px/1.3 Archivo,sans-serif;letter-spacing:-.01em}
+.drop-text span{display:block;color:var(--muted);font-size:14px;margin-top:3px}
+.btn{
+  appearance:none;cursor:pointer;font:600 14px/1 "IBM Plex Sans",sans-serif;
+  padding:11px 18px;border-radius:8px;border:1px solid var(--accent);
+  background:var(--accent);color:var(--surface);transition:opacity .15s ease;
+}
+:root[data-theme="dark"] .btn,
+:root:not([data-theme="light"]) .btn{color:#0c1419}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .btn{color:#fff}}
+.btn:hover{opacity:.88}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:focus-visible,.linkish:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.linkish{
+  background:none;border:0;padding:0;cursor:pointer;color:var(--accent);
+  font:inherit;font-size:14px;text-decoration:underline;text-underline-offset:2px;
+}
+.filebar{
+  display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
+  padding:13px 24px;background:var(--surface-2);
+  font:400 13px/1.4 "IBM Plex Mono",ui-monospace,monospace;color:var(--muted);
+}
+.filebar b{color:var(--ink);font-weight:500}
+
+/* ---- verdict ---- */
+.verdict{
+  margin-top:26px;padding:20px 22px;border-radius:14px;border:1px solid;
+  display:flex;gap:16px;align-items:flex-start;
+}
+.verdict .mark{
+  flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+  display:grid;place-items:center;font:700 18px/1 Archivo,sans-serif;
+}
+.verdict h2{margin:0 0 4px;font:600 20px/1.25 Archivo,sans-serif;letter-spacing:-.012em}
+.verdict p{margin:0;font-size:15px;max-width:62ch}
+.verdict.stop{background:var(--crit-bg);border-color:var(--crit-edge);color:var(--crit)}
+.verdict.caution{background:var(--warn-bg);border-color:var(--warn-edge);color:var(--warn)}
+.verdict.clear{background:var(--ok-bg);border-color:var(--ok-edge);color:var(--ok)}
+.verdict .mark{background:currentColor}
+.verdict .mark span{color:var(--surface)}
+.verdict h2,.verdict p{color:var(--ink)}
+
+/* ---- tally ---- */
+.tally{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.tally .chip{
+  display:flex;align-items:baseline;gap:8px;padding:9px 14px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface);font-size:13px;color:var(--ink-soft);
+}
+.tally .chip b{
+  font:600 16px/1 "IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+.tally .chip.stop{border-color:var(--crit-edge);background:var(--crit-bg)}
+.tally .chip.stop b{color:var(--crit)}
+.tally .chip.caution{border-color:var(--warn-edge);background:var(--warn-bg)}
+.tally .chip.caution b{color:var(--warn)}
+.tally .chip.tidy b{color:var(--muted)}
+
+/* ---- findings ---- */
+.group-head{
+  display:flex;align-items:baseline;gap:12px;margin:38px 0 14px;
+  padding-bottom:9px;border-bottom:2px solid var(--line);
+}
+.group-head h3{margin:0;font:600 13px/1 "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase}
+.group-head .n{
+  font:500 12px/1 "IBM Plex Mono",monospace;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+.group-head.stop h3{color:var(--crit)}
+.group-head.caution h3{color:var(--warn)}
+.group-head.tidy h3{color:var(--muted)}
+.group-note{margin:-6px 0 16px;font-size:14px;color:var(--muted);max-width:64ch}
+
+.finding{
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+}
+.finding > .bar{height:3px}
+.finding.stop > .bar{background:var(--crit)}
+.finding.caution > .bar{background:var(--warn)}
+.finding.tidy > .bar{background:var(--line)}
+.finding .body{padding:18px 22px 20px}
+.finding h4{
+  margin:0 0 8px;font:600 18px/1.28 Archivo,sans-serif;letter-spacing:-.012em;
+  text-wrap:balance;
+}
+.finding .why,.finding .fix{margin:0;font-size:15px;max-width:64ch}
+.finding .why{color:var(--ink-soft)}
+.finding .fix{
+  margin-top:12px;padding:12px 14px;border-radius:8px;
+  background:var(--accent-soft);color:var(--ink);border-left:3px solid var(--accent);
+}
+.finding .fix b{font-weight:600}
+.rows{
+  margin-top:14px;border:1px solid var(--line-soft);border-radius:8px;
+  overflow-x:auto;
+}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{
+  background:var(--surface-2);font:500 11px/1.3 "IBM Plex Mono",monospace;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--muted);white-space:nowrap;
+}
+tr:last-child td{border-bottom:0}
+td.rn{
+  font:500 13px/1.5 "IBM Plex Mono",monospace;color:var(--accent);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+td.col{font:400 12.5px/1.5 "IBM Plex Mono",monospace;color:var(--muted);white-space:nowrap}
+td.val{font:400 13px/1.5 "IBM Plex Mono",monospace;word-break:break-word;min-width:14ch}
+mark{background:var(--warn-bg);color:var(--warn);padding:0 2px;border-radius:2px;font-weight:600}
+
+.form-tag{
+  display:inline-block;padding:2px 7px;border-radius:5px;background:var(--surface-2);
+  border:1px solid var(--line-soft);font:500 12px/1.5 "IBM Plex Mono",monospace;
+  color:var(--ink-soft);
+}
+footer.foot{
+  margin-top:46px;padding-top:18px;border-top:1px solid var(--line);
+  font-size:13.5px;color:var(--muted);max-width:66ch;
+}
+footer.foot p{margin:0 0 8px}
+code{
+  font:400 .92em/1.4 "IBM Plex Mono",ui-monospace,monospace;
+  background:var(--surface-2);border:1px solid var(--line-soft);
+  border-radius:4px;padding:1px 5px;
+}
+.sample-note{
+  margin-top:14px;font-size:13.5px;color:var(--muted);
+  display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Project Buendia · profile authoring</div>
+    <h1>Profile Preflight</h1>
+    <p class="standfirst">Drop a profile <b>.csv</b> here before you send it. Everything runs in this
+    page — the file is never uploaded anywhere. The checks below are the defects that get past
+    the server's own upload validation and only show up later, on a tablet.</p>
+  </header>
+
+  <div class="intake">
+    <div class="drop" id="drop">
+      <div class="drop-text">
+        <strong>Choose a profile CSV</strong>
+        <span>or drag the file onto this panel</span>
+      </div>
+      <input type="file" id="file" accept=".csv,text/csv" hidden>
+      <button class="btn" id="pick" type="button">Choose file…</button>
+      <button class="btn ghost" id="demo" type="button">Load example</button>
+    </div>
+    <div class="filebar" id="filebar" hidden></div>
+  </div>
+
+  <div id="out"></div>
+
+  <footer class="foot">
+    <p><b>How to save the file so the server accepts it.</b> In Excel, <em>Save as →
+    CSV UTF-8 (Comma delimited)</em>. The plain <em>CSV (Comma delimited)</em> option cannot store
+    characters like <code>₂</code> or <code>≥</code> and silently replaces them with
+    <code>?</code>.</p>
+    <p>Checks run entirely in your browser. Nothing is sent over the network.</p>
+  </footer>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * Buendia profile CSV preflight.
+ * Every rule here mirrors a real failure in tools/profile_apply,
+ * openmrs xforms generation, or the Android client's Intl parser.
+ * ------------------------------------------------------------------ */
+
+var COLS = ['tab','title','section','type','required','concept','label',
+            'option concept','option label','normal','noncritical','absolute',
+            'format','caption format','css class','css style','script'];
+
+/* type -> the OpenMRS datatype profile_apply records for it */
+var DATATYPE = {yes_no:'Coded', yes_no_unknown:'Coded', select_one:'Coded',
+                select_multiple:'Coded', number:'Numeric', text:'Text',
+                date:'Date', datetime:'Datetime'};
+/* types that must carry a concept of their own (select_multiple must not) */
+var NEEDS_CONCEPT = ['yes_no','yes_no_unknown','select_one','number','text','date','datetime'];
+var TEXTCOLS = ['title','section','label','option label'];
+
+/* ---------- CSV ---------- */
+function parseCsv(text){
+  var rows=[], row=[], cell='', i=0, q=false, c;
+  while(i < text.length){
+    c = text.charAt(i);
+    if(q){
+      if(c === '"'){
+        if(text.charAt(i+1) === '"'){ cell += '"'; i += 2; continue; }
+        q = false; i++; continue;
+      }
+      cell += c; i++; continue;
+    }
+    if(c === '"'){ q = true; i++; continue; }
+    if(c === ','){ row.push(cell); cell=''; i++; continue; }
+    if(c === '\r' || c === '\n'){
+      if(c === '\r' && text.charAt(i+1) === '\n') i++;
+      row.push(cell); rows.push(row); row=[]; cell=''; i++; continue;
+    }
+    cell += c; i++;
+  }
+  if(cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/* ---------- helpers ---------- */
+function slug(s){
+  var d = s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  return d.replace(/[^a-z0-9]+/g,'_');
+}
+function hasFr(s){ return /\[[A-Za-z-]{2,5}:[^\]]*\]/.test(s); }
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+/* show a cell, making a stray '?' and stray whitespace visible */
+function cellHtml(s){
+  var h = esc(s);
+  h = h.replace(/\?/g,'<mark>?</mark>');
+  h = h.replace(/^(\s+)/,'<mark>&middot;</mark>').replace(/(\s+)$/,'<mark>&middot;</mark>');
+  return h || '<span style="color:var(--muted)">(empty)</span>';
+}
+
+/* ---------- the rule engine ---------- */
+function analyse(bytes){
+  var findings = [];
+  var meta = {};
+
+  function add(sev, id, title, why, fix, rows){
+    findings.push({sev:sev, id:id, title:title, why:why, fix:fix, rows:rows||[]});
+  }
+
+  /* --- 0. bytes: BOM and encoding ---------------------------------- */
+  var bom = bytes.length > 2 && bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF;
+  var body = bom ? bytes.subarray(3) : bytes;
+  var text, utf8 = true;
+  try{
+    text = new TextDecoder('utf-8', {fatal:true}).decode(body);
+  }catch(e){
+    utf8 = false;
+    text = new TextDecoder('windows-1252').decode(body);
+  }
+  meta.bom = bom;
+  meta.utf8 = utf8;
+  meta.bytes = bytes.length;
+  meta.crlf = text.indexOf('\r\n') !== -1;
+
+  if(bom){
+    add('stop','BOM',
+      'The file starts with a hidden byte-order mark',
+      'Excel’s “CSV UTF-8” option writes three invisible bytes at the very start of the '+
+      'file. They get stuck to the first column heading, so the server reads the first column '+
+      'as something other than “tab” and stops immediately with <code>KeyError: \'tab\'</code>. '+
+      'Not one form is created.',
+      'Nothing inside the spreadsheet needs to change. If you send us the file we strip this '+
+      'automatically — it only matters when the file is uploaded to the server directly.');
+  }
+  if(!utf8){
+    add('stop','ENCODING',
+      'The file is not saved as UTF-8, so accented text is damaged',
+      'This file was saved with the plain <em>CSV (Comma delimited)</em> option, which cannot '+
+      'store the full set of characters. Accents survive by luck; anything outside the Western '+
+      'European set does not.',
+      'Re-save from Excel with <b>Save as → CSV UTF-8 (Comma delimited)</b>.');
+  }
+
+  /* --- rows ------------------------------------------------------- */
+  var raw = parseCsv(text);
+  if(!raw.length){
+    add('stop','EMPTY','The file has no rows','Nothing could be read out of this file.','Check that you saved a CSV and not an .xlsx workbook.');
+    return {findings:findings, meta:meta};
+  }
+  var hdr = raw[0].map(function(h){ return h.replace(/^﻿/,'').trim(); });
+  meta.rowCount = raw.length - 1;
+
+  var missing = COLS.filter(function(c){ return hdr.indexOf(c) === -1; });
+  if(missing.length){
+    add('stop','HEADER',
+      'The heading row is missing ' + missing.length + ' column' + (missing.length>1?'s':''),
+      'The first row must name all 17 columns exactly. Missing: <code>' +
+      missing.map(esc).join('</code>, <code>') + '</code>.',
+      'Restore the heading row from the last profile that worked. Column order matters — '+
+      'the server reads by position as well as by name.');
+  }
+
+  var idx = {};
+  COLS.forEach(function(c){ idx[c] = hdr.indexOf(c); });
+  var rows = [];
+  for(var r = 1; r < raw.length; r++){
+    var o = {_row: r + 1};
+    COLS.forEach(function(c){
+      var i = idx[c];
+      o[c] = (i >= 0 && i < raw[r].length) ? String(raw[r][i]).trim() : '';
+      o['_raw_' + c] = (i >= 0 && i < raw[r].length) ? String(raw[r][i]) : '';
+    });
+    rows.push(o);
+  }
+
+  /* --- split into tabs / blocks the way profile_apply does -------- */
+  var tab = '';
+  var blocks = [];      /* {tab, title, rows:[]} */
+  rows.forEach(function(o){
+    if(o.tab) tab = o.tab;
+    o._tab = tab;
+    if(o.title){ blocks.push({tab: tab, title: o.title, rows: []}); }
+    else if(blocks.length){ blocks[blocks.length-1].rows.push(o); }
+  });
+  var forms  = blocks.filter(function(b){ return b.tab === 'form'; });
+  var charts = blocks.filter(function(b){ return b.tab === 'chart'; });
+  meta.forms = forms.length;
+  meta.charts = charts.length;
+
+  /* --- 1. a concept id on a row that declares nothing ------------- */
+  /* profile_apply looks up the datatype of every value in the 'concept'
+     column. A datatype is only recorded when that row also has a 'type',
+     or when the id sits in 'option concept' under a select. An id in
+     'concept' on a row with no 'type' therefore has no datatype and the
+     whole apply aborts with "Couldn't get type of concept N". This is
+     what an option pasted two columns to the left looks like.          */
+  var stray = [];
+  rows.forEach(function(o){
+    if(o.concept && !o.type && !o['option concept']){
+      stray.push({row:o._row, col:'concept', val:o.concept + (o.label ? '  ·  ' + o.label : '')});
+    }
+  });
+  if(stray.length){
+    add('stop','STRAYCONCEPT',
+      'An answer has been typed into the question columns',
+      'These rows put a concept number in the <code>concept</code> column while leaving '+
+      '<code>type</code> empty. An answer belongs two columns further right, in '+
+      '<code>option concept</code> and <code>option label</code>. As written, the server '+
+      'cannot work out what kind of value this is and stops with '+
+      '<code>Couldn’t get type of concept ' + esc(stray[0].val.split(' ')[0]) + '</code>. '+
+      'The upload appears to succeed; applying the profile fails and nothing changes.',
+      'Move these two values right by two columns: the number into <b>option concept</b>, '+
+      'the text into <b>option label</b> — matching every other answer row in the file.',
+      stray);
+  }
+
+  /* --- 2. a question with no concept ------------------------------ */
+  var noCon = [];
+  forms.forEach(function(f){
+    f.rows.forEach(function(o){
+      if(o.type && NEEDS_CONCEPT.indexOf(o.type) !== -1 && !o.concept){
+        noCon.push({row:o._row, col:f.title, val:(o.label || '(no label either)')});
+      }
+    });
+  });
+  if(noCon.length){
+    add('stop','NOCONCEPT',
+      'A question has no concept number',
+      'Every question except a <code>select_multiple</code> needs its own concept in the '+
+      '<code>concept</code> column. Without one the server skips the row silently — the '+
+      'question never appears on the tablet, and if it was the only item under a heading, '+
+      'that heading becomes an empty group, which can stop the whole form from opening.',
+      'Give each of these rows a concept number, or delete the row.',
+      noCon);
+  }
+
+  /* --- 2b. a chart row with no concept is dropped ----------------- */
+  /* apply_chart keeps a chart row only when it has BOTH a type and a
+     concept, so a row that lost its concept vanishes from the chart
+     without any error at all.                                        */
+  var chartNoCon = [];
+  charts.forEach(function(c){
+    c.rows.forEach(function(o){
+      if(o.type && !o.concept){
+        chartNoCon.push({row:o._row, col:c.title, val:(o.label || '(no label)')});
+      }
+    });
+  });
+  if(chartNoCon.length){
+    add('caution','CHARTNOCONCEPT',
+      'A chart row will not appear on the chart',
+      'A row on the patient chart is only kept when it has both a rendering type and a '+
+      'concept. These rows have no concept, so they are dropped in silence — no error, no '+
+      'warning, and the chart simply comes out without them.',
+      'Put the concept back in the <code>concept</code> column. Where the row combines several '+
+      'values, list them all separated by semicolons, e.g. '+
+      '<code>117399;119481;138571</code>, in the same order as the '+
+      '<code>{1}</code> <code>{2}</code> <code>{3}</code> placeholders in the format.',
+      chartNoCon);
+  }
+
+  /* --- 3. duplicate question label inside one form ---------------- */
+  /* The XForm binding id is generated from the LABEL, not the concept.
+     Two questions sharing a label in one form produce an orphaned
+     binding plus a binding used twice; the client's parser rejects the
+     file and the form does not open at all.                           */
+  var dupLabel = [];
+  forms.forEach(function(f){
+    var seen = {};
+    f.rows.forEach(function(o){
+      if(o.type && o.label && o.type !== 'select_multiple'){
+        var k = slug(o.label);
+        (seen[k] = seen[k] || []).push(o);
+      }
+    });
+    Object.keys(seen).forEach(function(k){
+      if(seen[k].length > 1){
+        seen[k].forEach(function(o){
+          dupLabel.push({row:o._row, col:f.title, val:o.label});
+        });
+      }
+    });
+  });
+  if(dupLabel.length){
+    add('stop','DUPLABEL',
+      'Two questions in the same form have the same label',
+      'The tablet builds each answer’s internal name from the <b>label</b>, not from the '+
+      'concept number. When two questions in one form carry the same label, one name is '+
+      'claimed twice and one is left pointing at nothing. The tablet rejects the form outright: '+
+      'it will not open at all, so no data can be entered.',
+      'Give each question wording of its own. <b>Different concept numbers do not fix this — '+
+      'only different labels do.</b> Adding what distinguishes them is usually enough, e.g. '+
+      '“Health zone (place of illness)”. Do the same inside the <code>[fr:…]</code> part.',
+      dupLabel);
+  }
+
+  /* --- 4. select_multiple with no heading of its own -------------- */
+  var smNoLabel = [];
+  forms.forEach(function(f){
+    f.rows.forEach(function(o){
+      if(o.type === 'select_multiple' && !o.label){
+        smNoLabel.push({row:o._row, col:f.title, val:'(label is empty)'});
+      }
+    });
+  });
+  if(smNoLabel.length){
+    add('stop','SMLABEL',
+      'A multiple-choice group has no heading in its own row',
+      'A <code>select_multiple</code> becomes its own group on the tablet, and the group takes '+
+      'its heading from that row’s <code>label</code>. Left empty, the group has no name — '+
+      'and a heading put in a <code>section</code> row above it instead leaves that section '+
+      'empty, which can stop the form from loading.',
+      'Put the heading in the <b>label</b> cell of the <code>select_multiple</code> row itself, '+
+      'not in a section row above it.',
+      smNoLabel);
+  }
+
+  /* --- 5. section with no fields under it ------------------------- */
+  var emptySec = [];
+  blocks.forEach(function(b){
+    var pending = null;
+    b.rows.forEach(function(o){
+      if(o.section){
+        if(pending) emptySec.push({row:pending._row, col:b.title, val:pending.section});
+        pending = o; return;
+      }
+      if(o.type || o['option concept']) pending = null;
+    });
+    if(pending) emptySec.push({row:pending._row, col:b.title, val:pending.section});
+  });
+  if(emptySec.length){
+    add('stop','EMPTYSECTION',
+      'A heading has no questions under it',
+      'A heading with nothing beneath it becomes an empty group in the generated form. '+
+      'Empty groups are the most common reason a form silently refuses to open on the tablet.',
+      'Either add the questions that belong under this heading, or delete the heading row.',
+      emptySec);
+  }
+
+  /* --- 6. malformed [fr:…] annotation ----------------------------- */
+  var badIntl = [];
+  rows.forEach(function(o){
+    TEXTCOLS.concat(['caption format']).forEach(function(c){
+      var v = o[c];
+      if(!v || v.indexOf('[') === -1) return;
+      if(c === 'section' && v.charAt(0) === '[') return;   /* [[fixed]], [tiles] */
+      var open = (v.match(/\[/g)||[]).length, close = (v.match(/\]/g)||[]).length;
+      if(open !== close) badIntl.push({row:o._row, col:c, val:v});
+    });
+  });
+  if(badIntl.length){
+    add('stop','BADINTL',
+      'A translation bracket is not closed',
+      'The tablet only recognises a translation written exactly as '+
+      '<code>English [fr:Français]</code>. If the closing <code>]</code> is missing or was '+
+      'typed as <code>)</code> or <code>}</code>, the translation is never seen and the whole '+
+      'string is shown to the clinician raw, brackets and all.',
+      'Close each translation with a square bracket <code>]</code>.',
+      badIntl);
+  }
+
+  /* --- 7. one concept, two datatypes ------------------------------ */
+  var dt = {}, dtBad = [];
+  forms.forEach(function(f){
+    f.rows.forEach(function(o){
+      if(o.concept && o.type){
+        var want = DATATYPE[o.type];
+        if(dt[o.concept] && dt[o.concept].t !== want){
+          dtBad.push({row:o._row, col:o.concept,
+            val:'declared ' + want + ' here, but ' + dt[o.concept].t + ' on row ' + dt[o.concept].r});
+        }
+        if(!dt[o.concept]) dt[o.concept] = {t:want, r:o._row};
+      }
+    });
+  });
+  if(dtBad.length){
+    add('stop','DTYPE',
+      'The same concept is used for two different kinds of value',
+      'A concept can only hold one kind of value — a number, or text, or a choice. Using one '+
+      'concept as two different kinds makes the profile impossible to apply.',
+      'Decide which kind of value this concept holds, and give the other question a concept '+
+      'of its own.',
+      dtBad);
+  }
+
+  /* --- 8. non-numeric concept id ---------------------------------- */
+  var badId = [];
+  rows.forEach(function(o){
+    ['concept','option concept'].forEach(function(c){
+      var v = o[c];
+      if(!v) return;
+      /* a chart row may list several concepts separated by ';' */
+      var parts = v.split(';');
+      var bad = parts.some(function(p){
+        p = p.trim();
+        if(!p) return true;
+        if(/^buendia_/.test(p)) return false;   /* buendia_concept_placement */
+        return !/^[0-9]+$/.test(p);
+      });
+      if(bad) badId.push({row:o._row, col:c, val:v});
+    });
+  });
+  if(badId.length){
+    add('stop','BADID',
+      'A concept cell contains something that is not a number',
+      'Concept cells must hold a plain whole number and nothing else. A stray space, a letter, '+
+      'a decimal point or a thousands separator that Excel added will stop the profile applying.',
+      'Remove anything that is not a digit. In Excel, format these cells as <b>Text</b> so it '+
+      'stops reformatting the numbers.',
+      badId);
+  }
+
+  /* --- 9. answers with no question above them --------------------- */
+  var orphan = [];
+  forms.forEach(function(f){
+    var last = null;
+    f.rows.forEach(function(o){
+      if(o.type) last = o.type;
+      if(o['option concept'] && last !== 'select_one' && last !== 'select_multiple'){
+        orphan.push({row:o._row, col:f.title, val:o['option concept'] + '  ·  ' + o['option label']});
+      }
+    });
+  });
+  if(orphan.length){
+    add('caution','ORPHANOPT',
+      'An answer has no multiple-choice question above it',
+      'Answers attach to the nearest <code>select_one</code> or <code>select_multiple</code> '+
+      'above them. These answers have no such question above, so they are ignored.',
+      'Move these rows under the question they belong to, or add the missing question row.',
+      orphan);
+  }
+
+  /* --- 10. same concept twice in one form ------------------------- */
+  var dupCon = [];
+  forms.forEach(function(f){
+    var seen = {};
+    f.rows.forEach(function(o){
+      if(o.concept && o.type) (seen[o.concept] = seen[o.concept] || []).push(o);
+    });
+    Object.keys(seen).forEach(function(k){
+      if(seen[k].length > 1){
+        seen[k].forEach(function(o){
+          dupCon.push({row:o._row, col:f.title, val:k + '  ·  ' + o.label});
+        });
+      }
+    });
+  });
+  if(dupCon.length){
+    add('caution','DUPCONCEPT',
+      'The same concept is used twice in one form',
+      'The question appears twice on the tablet, but both copies write to the same place — so '+
+      'whichever the clinician fills in last overwrites the other. Both copies also show the '+
+      'same label, taken from the row that comes last in the file.',
+      'If these are genuinely two different questions, give the second one its own concept '+
+      '<b>and</b> its own label.',
+      dupCon);
+  }
+
+  /* --- 11. one concept as a question in several forms ------------- */
+  var q = {};
+  forms.forEach(function(f){
+    f.rows.forEach(function(o){
+      if(o.concept && o.type) (q[o.concept] = q[o.concept] || []).push({f:f.title, o:o});
+    });
+  });
+  var sharedQ = [];
+  Object.keys(q).forEach(function(k){
+    var occ = q[k], fs = {}, ls = {};
+    occ.forEach(function(x){ fs[x.f]=1; ls[x.o.label]=1; });
+    if(Object.keys(fs).length > 1 && Object.keys(ls).length > 1){
+      occ.forEach(function(x){
+        sharedQ.push({row:x.o._row, col:x.f, val:k + '  ·  ' + x.o.label});
+      });
+    }
+  });
+  if(sharedQ.length){
+    add('caution','SHAREDQ',
+      'One concept is asked with different wording in different forms',
+      'A concept carries a single label everywhere it is used, and the row that comes last in '+
+      'the file wins. So the earlier form will show the later form’s wording instead of its '+
+      'own.',
+      'Either use the same wording in both forms, or give one of them a concept of its own.',
+      sharedQ);
+  }
+
+  /* --- 12. same answer concept, different labels ------------------ */
+  var opt = {};
+  rows.forEach(function(o){
+    if(o['option concept']){
+      (opt[o['option concept']] = opt[o['option concept']] || []).push(o);
+    }
+  });
+  var optLab = [];
+  Object.keys(opt).forEach(function(k){
+    var ls = {};
+    opt[k].forEach(function(o){ ls[o['option label']] = 1; });
+    if(Object.keys(ls).length > 1){
+      opt[k].forEach(function(o){
+        optLab.push({row:o._row, col:k, val:o['option label']});
+      });
+    }
+  });
+  if(optLab.length){
+    add('caution','OPTLABEL',
+      'The same answer is worded differently in different places',
+      'An answer concept has one label across the whole profile, and the row that comes last '+
+      'in the file wins everywhere. Two genuinely different answers sharing one concept is '+
+      'worse than a wording problem: the two are merged in the data and can no longer be told '+
+      'apart in reports.',
+      'For a pure wording difference, pick one wording and use it everywhere. For two '+
+      'different answers, give the second one its own concept number.',
+      optLab);
+  }
+
+  /* --- 13. same question given different answer lists ------------ */
+  var setsOf = {};
+  forms.forEach(function(f){
+    var parent = null, list = [], prow = null;
+    function flush(){
+      if(parent) (setsOf[parent] = setsOf[parent] || []).push({f:f.title, row:prow, list:list.join(',')});
+    }
+    f.rows.forEach(function(o){
+      if(o.type === 'select_one' || o.type === 'select_multiple'){
+        flush(); parent = o.concept || null; list = []; prow = o._row;
+      }else if(o.type){ flush(); parent = null; list = []; prow = null; }
+      if(o['option concept'] && parent) list.push(o['option concept']);
+    });
+    flush();
+  });
+  var diffOpts = [];
+  Object.keys(setsOf).forEach(function(k){
+    var seen = {};
+    setsOf[k].forEach(function(x){ seen[x.list] = 1; });
+    if(Object.keys(seen).length > 1){
+      setsOf[k].forEach(function(x){
+        diffOpts.push({row:x.row, col:k, val:x.list.split(',').filter(Boolean).length + ' answers: ' + x.list});
+      });
+    }
+  });
+  if(diffOpts.length){
+    add('caution','SHAREDOPTS',
+      'The same question is offered different answer lists',
+      'A question’s list of answers is stored once, against the concept. Where the lists '+
+      'differ, every form ends up showing whichever list appears last in the file.',
+      'Make the lists identical, or give one of the questions its own concept number.',
+      diffOpts);
+  }
+
+  /* --- 14. chart placeholder beyond the row's concepts ----------- */
+  var chartRef = [];
+  charts.forEach(function(c){
+    c.rows.forEach(function(o){
+      if(!o.concept) return;
+      var ids = o.concept.split(';').filter(function(s){ return s.trim(); });
+      var n = ids.length;
+      if(o.concept === 'buendia_concept_placement') n = 2;
+      ['format','caption format','css class'].forEach(function(col){
+        var v = o[col];
+        if(!v) return;
+        var refs = (v.match(/\{(\d+)[,}]/g) || []).map(function(m){ return parseInt(m.slice(1),10); });
+        var bad = refs.filter(function(x){ return x > n; })
+                      .filter(function(x,i,a){ return a.indexOf(x) === i; })
+                      .sort(function(a,b){ return a-b; });
+        if(bad.length){
+          chartRef.push({row:o._row, col:col,
+            val:(o.label || '(no label)') + '  —  has ' + n + ' concept' + (n===1?'':'s') +
+                ', uses ' + bad.map(function(x){ return '{'+x+'}'; }).join(' ')});
+        }
+      });
+    });
+  });
+  if(chartRef.length){
+    add('caution','CHARTREF',
+      'A chart row refers to a value it does not have',
+      'In the chart, <code>{1}</code> means the first concept listed in that row, '+
+      '<code>{2}</code> the second, and so on. Where the row has fewer concepts than that, the '+
+      'placeholder cannot be filled in and is printed on the chart exactly as written — the '+
+      'clinician sees the characters <code>{2}</code>.',
+      'Either list more concepts in that row, separated by semicolons, or renumber the '+
+      'placeholders so none is higher than the number of concepts. A single question with '+
+      'several possible answers needs only <code>{1}</code>, with all the answers listed '+
+      'inside it.',
+      chartRef);
+  }
+
+  /* --- 15. chart renders a non-number as a number ---------------- */
+  var chartType = [];
+  charts.forEach(function(c){
+    c.rows.forEach(function(o){
+      if(o.type !== 'number' || !o.concept) return;
+      o.concept.split(';').forEach(function(cid){
+        cid = cid.trim(); if(!cid) return;
+        if(dt[cid] && dt[cid].t !== 'Numeric'){
+          chartType.push({row:o._row, col:cid,
+            val:(o.label||'') + '  —  shown as a number, but defined as ' +
+                dt[cid].t + ' on row ' + dt[cid].r});
+        }
+      });
+    });
+  });
+  if(chartType.length){
+    add('caution','CHARTTYPE',
+      'A chart shows a value as a number that the forms do not record as one',
+      'The chart row asks for a number, but the forms define that concept as text or as a '+
+      'choice. Nothing will be plotted. This is almost always a mistyped concept number.',
+      'Check the concept number against the form row it is meant to come from.',
+      chartType);
+  }
+
+  /* --- 16. damaged characters ------------------------------------- */
+  var lost = [];
+  rows.forEach(function(o){
+    TEXTCOLS.forEach(function(c){
+      if(o[c] && o[c].indexOf('?') !== -1) lost.push({row:o._row, col:c, val:o[c]});
+    });
+  });
+  if(lost.length){
+    add(utf8 ? 'caution' : 'stop','LOSTCHAR',
+      'A symbol has been replaced by a question mark',
+      'A question mark in a label is nearly always the wreckage of a character the save '+
+      'could not store — <code>O₂</code> saved as <code>O?</code>, or '+
+      '<code>≥10</code> as <code>?10</code>. Clinicians read the question mark as part '+
+      'of the question.',
+      'Retype the symbol and re-save with <b>CSV UTF-8</b>. Where a plain-text spelling is '+
+      'safer for the field, <code>O2</code> and <code>&gt;=10</code> read fine and cannot be '+
+      'damaged again.',
+      lost);
+  }
+
+  /* --- 17. missing French ---------------------------------------- */
+  var noFr = [];
+  rows.forEach(function(o){
+    TEXTCOLS.forEach(function(c){
+      var v = o[c];
+      if(!v || v.charAt(0) === '[') return;
+      if(/^[\W\d]+$/.test(v)) return;          /* "+", "++", "0-50" */
+      if(!hasFr(v)) noFr.push({row:o._row, col:c, val:v});
+    });
+  });
+  if(noFr.length){
+    add('tidy','NOFR',
+      'Text with no French translation',
+      'Anything without a <code>[fr:…]</code> part shows in English on a French tablet. '+
+      'For units and abbreviations that are the same in both languages — <code>Hb (g/dL)</code>, '+
+      '<code>O+</code> — that is correct and nothing needs doing.',
+      'Add <code>[fr:…]</code> to the entries that are real words. Leave the symbols and '+
+      'units alone.',
+      noFr);
+  }
+
+  /* --- 18. tidiness: spaces --------------------------------------- */
+  var space = [];
+  rows.forEach(function(o){
+    TEXTCOLS.forEach(function(c){
+      var v = o[c];
+      if(v && /\[[A-Za-z-]{2,5}:\s/.test(v)) space.push({row:o._row, col:c, val:v});
+    });
+    COLS.forEach(function(c){
+      var v = o['_raw_' + c];
+      if(v && v !== v.trim()) space.push({row:o._row, col:c, val:v});
+    });
+  });
+  if(space.length){
+    add('tidy','SPACE',
+      'Stray spaces at the edge of a cell or after <code>[fr:</code>',
+      'A space directly after <code>[fr:</code>, or at the start or end of a cell, is kept and '+
+      'shown to the clinician. It is cosmetic, but it makes the translation look misaligned '+
+      'next to the others.',
+      'Delete the extra space. Marked <mark>&middot;</mark> below.',
+      space);
+  }
+
+  return {findings:findings, meta:meta};
+}
+
+/* ---------- rendering ---------- */
+var SEV = {
+  stop:    {label:'Will not work', note:'The server refuses this profile, or a form will not open on the tablet. These have to be fixed.'},
+  caution: {label:'Wrong on the tablet', note:'The profile applies, so nothing looks broken — but a clinician sees something other than what is written here.'},
+  tidy:    {label:'Worth a look', note:'Cosmetic, or possibly deliberate. Read them once and move on.'}
+};
+
+function renderRows(rows){
+  if(!rows.length) return '';
+  var head = '<div class="rows"><table><thead><tr><th>Row</th><th>Where</th><th>Value</th></tr></thead><tbody>';
+  var body = rows.slice(0, 60).map(function(r){
+    return '<tr><td class="rn">' + r.row + '</td><td class="col">' + esc(r.col) +
+           '</td><td class="val">' + cellHtml(r.val) + '</td></tr>';
+  }).join('');
+  var more = rows.length > 60
+    ? '<tr><td class="rn">…</td><td class="col"></td><td class="val">and ' +
+      (rows.length - 60) + ' more</td></tr>'
+    : '';
+  return head + body + more + '</tbody></table></div>';
+}
+
+function render(res, name, quiet){
+  var f = res.findings, m = res.meta;
+  var counts = {stop:0, caution:0, tidy:0};
+  f.forEach(function(x){ counts[x.sev]++; });
+
+  var bar = document.getElementById('filebar');
+  bar.hidden = false;
+  bar.innerHTML =
+    '<b>' + esc(name) + '</b>' +
+    '<span>' + (m.rowCount || 0) + ' rows</span>' +
+    '<span>' + (m.forms || 0) + ' form' + (m.forms === 1 ? '' : 's') + ' · ' +
+                (m.charts || 0) + ' chart' + (m.charts === 1 ? '' : 's') + '</span>' +
+    '<span>' + (m.utf8 ? 'UTF-8' : 'not UTF-8') + (m.bom ? ' + BOM' : '') + '</span>' +
+    '<span>' + Math.round(m.bytes / 1024) + ' kB</span>';
+
+  var v, vh, vp, vm;
+  if(counts.stop){
+    v = 'stop'; vm = '✕';
+    vh = 'This profile will not work yet';
+    vp = counts.stop + ' problem' + (counts.stop>1?'s':'') + ' will stop the profile applying, ' +
+         'or stop a form opening on the tablet. Everything needed to fix each one is below.';
+  }else if(counts.caution){
+    v = 'caution'; vm = '!';
+    vh = 'This profile will apply, but not as written';
+    vp = counts.caution + ' place' + (counts.caution>1?'s':'') + ' where the tablet shows ' +
+         'something different from what the spreadsheet says. Nothing here produces an error '+
+         'message, so these are only ever found by reading them.';
+  }else{
+    v = 'clear'; vm = '✓';
+    vh = 'No known defects';
+    vp = 'None of the checks below found anything. That covers the defects we have seen break '+
+         'a profile — it does not confirm the clinical content is right.';
+  }
+
+  var html = '<div class="verdict ' + v + '"><div class="mark"><span>' + vm + '</span></div>' +
+             '<div><h2>' + vh + '</h2><p>' + vp + '</p></div></div>';
+
+  html += '<div class="tally">';
+  ['stop','caution','tidy'].forEach(function(s){
+    var cls = s === 'tidy' ? 'tidy' : s;
+    html += '<div class="chip ' + cls + '"><b>' + counts[s] + '</b> ' + SEV[s].label + '</div>';
+  });
+  html += '</div>';
+
+  ['stop','caution','tidy'].forEach(function(s){
+    var list = f.filter(function(x){ return x.sev === s; });
+    if(!list.length) return;
+    html += '<div class="group-head ' + s + '"><h3>' + SEV[s].label +
+            '</h3><span class="n">' + list.length + '</span></div>' +
+            '<p class="group-note">' + SEV[s].note + '</p>';
+    list.forEach(function(x){
+      html += '<article class="finding ' + s + '"><div class="bar"></div><div class="body">' +
+              '<h4>' + x.title + '</h4>' +
+              '<p class="why">' + x.why + '</p>' +
+              '<p class="fix"><b>What to change.</b> ' + x.fix + '</p>' +
+              renderRows(x.rows) +
+              '</div></article>';
+    });
+  });
+
+  document.getElementById('out').innerHTML = html;
+  if(!quiet) document.getElementById('out').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ---------- wiring ---------- */
+function handle(file){
+  var fr = new FileReader();
+  fr.onload = function(){
+    render(analyse(new Uint8Array(fr.result)), file.name);
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+var fileInput = document.getElementById('file');
+document.getElementById('pick').addEventListener('click', function(){ fileInput.click(); });
+fileInput.addEventListener('change', function(){
+  if(fileInput.files && fileInput.files[0]) handle(fileInput.files[0]);
+});
+
+var drop = document.getElementById('drop');
+['dragenter','dragover'].forEach(function(e){
+  drop.addEventListener(e, function(ev){ ev.preventDefault(); drop.classList.add('hot'); });
+});
+['dragleave','drop'].forEach(function(e){
+  drop.addEventListener(e, function(ev){ ev.preventDefault(); drop.classList.remove('hot'); });
+});
+drop.addEventListener('drop', function(ev){
+  var dt = ev.dataTransfer;
+  if(dt && dt.files && dt.files[0]) handle(dt.files[0]);
+});
+
+/* A small example so the page opens showing what it does. Each row below
+   demonstrates one real defect class; the clinical content is invented. */
+var EXAMPLE = [
+  'tab,title,section,type,required,concept,label,option concept,option label,normal,noncritical,absolute,format,caption format,css class,css style,script',
+  'form,[1] Admission,,,,,,,,,,,,,,,',
+  ',,Home [fr:Résidence],,,,,,,,,,,,,,',
+  ',,,text,,900003,Health zone [fr:Zone de santé],,,,,,,,,,',
+  ',,,text,,1354,Community / Village [fr:Quartier / Village],,,,,,,,,,',
+  ',,Place where patient became ill [fr:Lieu où le patient est tombé malade],,,,,,,,,,,,,,',
+  ',,,text,,900060,Health zone [fr:Zone de santé],,,,,,,,,,',
+  ',,,text,,900062,Community / Village [fr:Quartier / Village],,,,,,,,,,',
+  ',,Vital signs [fr:Signes vitaux],,,,,,,,,,,,,,',
+  ',,,number,,5092,O? saturation (%) [fr:Saturation en O? (%)],,,96-100,98-100,0-100,,,,,',
+  ',,,select_one,,,,,,,,,,,,,',
+  ',,,,,777000062,2 weeks [fr:2 semaines],,,,,,,,,,',
+  ',,,,,777000063,1 month [fr:1 mois],,,,,,,,,,',
+  ',,Follow-up [fr:Suivi],,,,,,,,,,,,,,',
+  ',,,,,,,,,,,,,,,,',
+  'chart,Chart,,,,,,,,,,,,,,,',
+  ',,[[fixed]],,,,,,,,,,,,,,',
+  ',,,select_one,,160706,Blood type [fr:Groupe de sang],,,,,,"{1,select,152677:O-} {2,select,152676:O+}",,,,'
+].join('\r\n');
+
+document.getElementById('demo').addEventListener('click', function(){
+  var bytes = new TextEncoder().encode(EXAMPLE);
+  var withBom = new Uint8Array(bytes.length + 3);
+  withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
+  withBom.set(bytes, 3);
+  render(analyse(withBom), 'example.csv (not a real profile)');
+});
+
+/* Open showing the example, without stealing the reader's scroll position. */
+(function(){
+  var bytes = new TextEncoder().encode(EXAMPLE);
+  var withBom = new Uint8Array(bytes.length + 3);
+  withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
+  withBom.set(bytes, 3);
+  render(analyse(withBom), 'example.csv (not a real profile)', true);
+})();
+</script>
