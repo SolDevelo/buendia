@@ -509,6 +509,37 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-09-21 — tablet drug list cut to MSF's own configuration.** MSF curated the drug
+> list in OpenMRS *Manage Concept Drugs* (197 drugs: 125 CIEL rows renamed in place, 72 appended;
+> nothing deleted or retired). The catalogue compiled into the APK and the omod now matches it
+> exactly — **196 formats / 144 drugs**, down from 457 drugs / 864 presentations. Verified in both
+> built artefacts: all 196 codes present, no dropped code remaining.
+> **`client/get_meds` is superseded by `client/build_catalog`**, which takes an explicit list
+> (`client/catalog-drc-pilot.csv`) and emits every row or fails naming the line, instead of
+> filtering the whole MSL and silently dropping what it did not recognise. Provenance for the cut is
+> `client/mml-buendia-2026.xlsx` + `mml-buendia-2026-alignment.csv` (every MSF `drugId` → MML code).
+> Shipped as **APK 1.2.0** and **omod 1.1.0** (`1.0-SNAPSHOT` finally dropped, across four poms and
+> `tools/openmrs_build`), image published as
+> `soldevelo/buendia-openmrs@sha256:6cca1799ac46a7a286cd2d47dcf44d05dcf988f533e5a5c86ac3faede61db638`
+> and pinned in `deploy/.env`. `DB_IMAGE` is untouched — no seed or profile change.
+>
+> ⚠️ **The order dialog's five category buttons are hardcoded** in `OrderDialogFragment.onOpen` and
+> `order_dialog_fragment.xml`. Removing a category fails the APK build; adding one compiles but
+> renders no button, so its drugs are unreachable. `build_catalog` therefore always emits all five
+> and folds MSF's non-drug stock families into them — `SMSU` supplies into external, `NFOS`
+> nutrition into oral. A category is presentation only; only the *format* code is stored on an order.
+>
+> ⚠️ **Do not pipe `build-image.sh` through `tail`** — the pipeline's status is `tail`'s, so a failed
+> build reports success. Two builds failed unnoticed that way this session. Separately, Debian 11 is
+> EOL and `deb.debian.org` now 404s on its point-release debs, killing both image stages at
+> `apt-get install`; the Dockerfile is pinned to `archive.debian.org` with `Check-Valid-Until` off.
+>
+> **Open:** eight items are absent from MSL 201908 and carry **provisional codes**
+> (`DORAASPY2G-`, `DORAASPY6T-`, `DORADARR4T-`, `DORALEVE2T-`, `DEXOOTET5O5`, `DORAAZIT3S1`,
+> `DINJPOTC2A-`, `DORAPOTC1S-`). Orders store the format code, so get these confirmed with MSF
+> before data is collected against them — renumbering later orphans the orders. Clinicians should
+> also be told the picker is now 144 drugs; the field still accepts free text.
+
 > **Update 2026-08-26 — clinical profile revised (A7).** The profile edited on
 > `buendia-demo.soldevelo.com` was pulled down and integrated: `deploy/profile/bunia.csv` now carries
 > that content, `seed/initdb/10-buendia-base.sql` was regenerated and baked into
@@ -864,7 +895,7 @@ card prints a blank line to fill in by hand.
 | WS-1 | Server container stack + packaging | ✅ done. Installer hardened (6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go wired in) and **validated on real hardware 2026-07-29** — bare Ubuntu 24 notebook → USB bootstrap → GO, verified remotely 13/13, tablet installed by QR. Netplan branch still unexercised (`CONFIGURE_NETWORK=false` was used) — and since the network is ours, only the **`ethernets:`** branch needs proving; `wifis:` is off the shipping path (§8 item 5) |
 | WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull`. **Profile revised, published and pinned 2026-08-26** — `deploy/profile/bunia.csv` now carries the clinical content authored on `buendia-demo.soldevelo.com` (A7), with the six presentation columns a spreadsheet had stripped re-attached; seed rebuilt, pushed as `soldevelo/buendia-db@sha256:4959c378…`, pinned in `.env` + `Buendia/buendia.env` + the USB zip, and verified 16/16 on a clean-volume boot **from the published digest** |
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
-| WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
+| WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging. **Drug catalogue realigned to MSF's OpenMRS configuration and rebuilt as APK 1.2.0 / omod 1.1.0 (2026-09-21)** — 196 formats generated by `client/build_catalog` from `client/catalog-drc-pilot.csv`; see the 2026-09-21 update above for the hardcoded-category trap |
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
 | WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. It is **impossible** (not merely disabled) with no internet path at the site — and since the router is ours, the path is an **optional uplink on it**: cable, an existing site Wi-Fi joined as a client, or **a cellular SIM, which depends on nobody at the site**. Price the SIM/LTE option while doing this |
