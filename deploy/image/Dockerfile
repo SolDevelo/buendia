@@ -18,6 +18,14 @@ ARG BASE_IMAGE=azul/zulu-openjdk-debian:7
 FROM ${BASE_IMAGE} AS builder
 ARG MAVEN_VERSION=3.5.4
 ARG MAVEN_FLAGS=""
+# Debian 11 went EOL, so deb.debian.org 404s on its point-release .debs and any
+# apt-get install here fails. archive.debian.org holds bullseye's final state; its
+# Release files are past Valid-Until, and bullseye-security was never mirrored there.
+RUN printf '%s\n' \
+      'deb http://archive.debian.org/debian bullseye main' \
+      'deb http://archive.debian.org/debian bullseye-updates main' \
+      > /etc/apt/sources.list \
+ && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
@@ -51,6 +59,15 @@ FROM ${BASE_IMAGE} AS runtime
 ARG TOMCAT_VERSION=7.0.109
 ENV OPENMRS_APPLICATION_DATA_DIRECTORY=/opt/openmrs/ \
     JAVA_OPTS="-Duser.timezone=UTC"
+
+# Debian 11 went EOL, so deb.debian.org 404s on its point-release .debs and any
+# apt-get install here fails. archive.debian.org holds bullseye's final state; its
+# Release files are past Valid-Until, and bullseye-security was never mirrored there.
+RUN printf '%s\n' \
+      'deb http://archive.debian.org/debian bullseye main' \
+      'deb http://archive.debian.org/debian bullseye-updates main' \
+      > /etc/apt/sources.list \
+ && echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
