@@ -509,6 +509,32 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-08-26 — clinical profile revised (A7).** The profile edited on
+> `buendia-demo.soldevelo.com` was pulled down and integrated: `deploy/profile/bunia.csv` now carries
+> that content, `seed/initdb/10-buendia-base.sql` was regenerated and baked into
+> **`buendia-db:5.6-364b9524`**, and a clean-volume boot of that image verified **GO, 16/16**, with the
+> chart structurally identical to the demo server's (82/82 items) and the numeric form constraints the
+> demo server has lost (15 across 9 forms) back in place. **No new concepts** — the revision reuses the
+> baseline's 165 concept IDs, so the image rebuild is only about the baked profile.
+> **Published and pinned the same day.** `buendia-db:5.6-364b9524` was pushed to Docker Hub as
+> `soldevelo/buendia-db@sha256:4959c378266dc22bd5c66d782ce2d1e74d3f575fee4f805e97090a8b1c24b550`
+> (seed label `393c6d81…`, git `364b9524`), and that digest is pinned in **all three** places that
+> matter: `deploy/.env`, `deploy/Buendia/buendia.env`, and the shippable
+> `deploy/buendia-usb-drcp-1.1.0.zip` (sha256 `10a4e76d…`). The pack was rebuilt with
+> `make-usb-pack.sh --keep-passwords` so the DB passwords and the APK/`STATIC_IP` pairing are
+> unchanged — the only difference from the previous pack is that one digest line.
+> `OPENMRS_IMAGE` is untouched (`f51a9d6d…`): the module did not change, and re-pushing its tag was a
+> verified no-op. **The deployment bundle needed no rebuild** — it ships no profile and no `.env`.
+> A clean-volume boot **from the published digest** (not the local build) verified **GO, 16/16**.
+> See §4 *Server / seed / profile* for the spreadsheet-truncation trap this uncovered.
+>
+> ⚠️ **When re-pinning, `publish-images.sh` reads `DB_IMAGE` from `deploy/.env` and prefers it** if
+> that reference exists locally — so with the old digest still pinned it plans to push the *old*
+> image. Point `.env` at the new local tag first, push, then re-pin to the digest it prints. Also
+> avoid leaving a **digest** reference in `OPENMRS_IMAGE`/`DB_IMAGE` when pushing: the script derives
+> the remote tag as `${src##*:}`, which turns a digest into a junk tag named after the hex.
+
+
 **Two machines are involved. Neither holds anything precious — both are reproducible.**
 
 ⚠️ **The local stack is DOWN.** `buendia-verify.sh` at close of the 2026-08-10 session returned
@@ -726,6 +752,35 @@ card prints a blank line to fill in by hand.
 - **Profile as a package artifact** — `deploy/profile/bunia.csv` is the committed, tailorable default; edit it
   and re-run `build-seed.sh` to change the shipped profile. Activation = apply content + set
   `projectbuendia.currentProfile` (chartUuids stays NULL, not needed).
+- **Spreadsheet round-trip silently truncates a profile CSV to 11 columns — and that costs the
+  numeric input bounds.** The revised profile taken off the demo server on 2026-08-26
+  (`buniaMASTER_training_v3_comma_utf8_nobom.csv`) had been edited in a spreadsheet, which dropped the
+  header's last six columns: `absolute`, `format`, `caption format`, `css class`, `css style`, `script`.
+  Nothing errors — `buendia-profile-validate` only requires `section`, `concept`, `label`, and
+  `profile_apply` reads by column *name*, so a missing column is simply an absent value. What is lost:
+  - `absolute` feeds `concept_numeric.low_absolute/hi_absolute`, which the **xforms module turns into
+    the form's numeric `constraint`**. On the demo server the Vitals form has **0** range constraints;
+    with the columns restored it has 9 (temperature 35–45, HR 0–300, …). Without them a clinician can
+    enter a temperature of 400 and the form accepts it.
+  - `format` / `caption format` / `css class` / `css style` become the chart item's `format`,
+    `caption_format`, `css_class`, `css_style` — keys the Android client reads by exactly those names
+    (`json/JsonChartItem.java`). Losing them flattens the chart header: no "Jour N" day counter, no
+    bed number, no NEG/POS Ebola result, no `#.0°` / `#'%'` number formats, no `long-field` diagnosis.
+  **So: never ship a profile straight back out of a spreadsheet.** Diff the column count first
+  (`head -1 profile.csv | tr ',' '\n' | wc -l` → must be 17) and re-attach the presentation columns
+  from the previous version, matching rows on **(tab, type, concept, label)**. The tab must be in that
+  key — `Diagnosis`, `Anorexia`, `Weight` and `Temperature` each appear in both a form tab and the
+  chart tab with *different* presentation values, and a tab-blind match silently attaches the chart's
+  `format` to a form row, where it is inert.
+- **The baseline `bunia.csv` carried 11 decomposed (NFD) accents** across 8 labels — `Zone de santé`,
+  `Numero de téléphone`, `[fr:Échantillon]` and friends — which render as `Zone de santeÌ` in some
+  fonts. The file is now NFC-normalised; keep it that way (`python3 -c "import unicodedata,sys;
+  t=open(sys.argv[1]).read(); print(t==unicodedata.normalize('NFC',t))"`).
+- **Columns 18–20 of the baseline `bunia.csv` were inert notes, not data.** Nine rows had values past
+  the 17-column header (an AVPU comment, and ranges like `32..43`, `40..200`). `csv.DictReader` files
+  everything beyond the header under the `None` key and `profile_apply` reads by name, so they were
+  never applied — the author's intended `absolute` values that never got moved into that column. They
+  were dropped in the 2026-08-26 revision; if those ranges are wanted, put them in `absolute`.
 - **A directory bind-mount SHADOWS a file baked into the image at the same path.** The baseline seed
   now lives inside `DB_IMAGE` at `/docker-entrypoint-initdb.d/10-buendia-base.sql`; compose used to
   mount the whole `../seed/initdb` directory there, which hides it. Result: a DB with **no schema and
@@ -807,7 +862,7 @@ card prints a blank line to fill in by hand.
 | WS | What | Status |
 |----|------|--------|
 | WS-1 | Server container stack + packaging | ✅ done. Installer hardened (6 defects fixed, `--dry-run`, netplan generated from `.env`, go/no-go wired in) and **validated on real hardware 2026-07-29** — bare Ubuntu 24 notebook → USB bootstrap → GO, verified remotely 13/13, tablet installed by QR. Netplan branch still unexercised (`CONFIGURE_NETWORK=false` was used) — and since the network is ours, only the **`ethernets:`** branch needs proving; `wifis:` is off the shipping path (§8 item 5) |
-| WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull` |
+| WS-2 | Seed data + profile bake | ✅ done (db-snapshot + bunia.csv baked + zero-config site seed: login & locations). **Seed now baked into `DB_IMAGE`** so it travels by `docker pull`. **Profile revised, published and pinned 2026-08-26** — `deploy/profile/bunia.csv` now carries the clinical content authored on `buendia-demo.soldevelo.com` (A7), with the six presentation columns a spreadsheet had stripped re-attached; seed rebuilt, pushed as `soldevelo/buendia-db@sha256:4959c378…`, pinned in `.env` + `Buendia/buendia.env` + the USB zip, and verified 16/16 on a clean-volume boot **from the published digest** |
 | WS-3 | Reproducible image build + registry delivery | ✅ done (`build-image.sh`, `build-db-image.sh`, `build-pkgserver-image.sh`, `publish-images.sh`, `bundle-images.sh`). Internet at setup, none at runtime; cold-boot verified 17/17 |
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging |
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |

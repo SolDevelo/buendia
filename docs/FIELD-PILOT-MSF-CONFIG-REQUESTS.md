@@ -151,7 +151,7 @@
 - **Lands in:** `locale.allowed.list` global property + tablet locale; clinical wording in the profile CSV.
 - **Answer:** _(pending)_
 
-### A7. Clinical profile — forms, charts, questions — 🟡
+### A7. Clinical profile — forms, charts, questions — ✅ (revision taken from the demo server 2026-08-26)
 
 - **Need:** confirmation that the shipped Ebola profile is the right clinical content, or a revised
   profile (which forms, which questions, which order, which chart layout, and in which language).
@@ -162,7 +162,17 @@
   (`projectbuendia.currentProfile = bunia.csv`).
 - **Lands in:** `deploy/profile/bunia.csv`, then re-run `deploy/seed/build-seed.sh`. MSF can also
   upload/activate a profile at runtime via the Profile Manager web page.
-- **Answer:** _(pending)_
+- **Answer:** a revised profile was authored on **`buendia-demo.soldevelo.com`** and is the profile
+  active there: `buniaMASTER_training_v3_comma_utf8_nobom.csv` (uploaded 2026-08-06, from
+  `..._v1_...` of 2026-07-28). Its content is now what `deploy/profile/bunia.csv` ships. **No new
+  concepts** — it uses exactly the baseline's 165 concept IDs, so nothing outside the profile changed.
+  The edits are a reorganisation of the **chart** tab plus a few removals from the admission/vitals
+  forms; see `FIELD-PILOT-PROGRESS.md` §4 *“Spreadsheet round-trip”* for the full list and for the
+  one caveat: the demo file had been truncated to 11 columns by a spreadsheet, so we re-attached the
+  presentation columns rather than shipping that loss.
+  **Still to confirm with whoever authored it** — three deliberate-looking deletions from the chart
+  header that we carried over as-is: the colour-coded **Category** triage tile (green/yellow/red), the
+  **Co-morbidities** summary line, and the **Weight** and **On O₂** tiles.
 
 ### A8. Patient ID scheme — 🟡
 
