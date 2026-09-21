@@ -60,4 +60,4 @@ cd openmrs
 mvn clean install "$@"
 
 # Install the module in the OpenMRS development server.
-$INSTALL -DgroupId=org.projectbuendia -DartifactId=projectbuendia.openmrs -Dversion=1.0-SNAPSHOT
+$INSTALL -DgroupId=org.projectbuendia -DartifactId=projectbuendia.openmrs -Dversion=1.1.0
