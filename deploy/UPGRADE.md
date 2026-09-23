@@ -29,20 +29,22 @@ avoided.
 
 ## Before you start — take a backup (~2 minutes)
 
-Run this on the server laptop. It writes one file into the home folder and changes nothing:
+Open a terminal inside the `Buendia` folder on the USB stick and run:
 
-    sudo docker compose --env-file /opt/buendia/.env \
-      -f /opt/buendia/compose/docker-compose.yml exec -T db \
-      sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers "$MYSQL_DATABASE"' \
-      | gzip > ~/buendia-backup-$(date +%F).sql.gz
+    sudo ./backup.sh
 
-**Check:** the file exists and is not tiny —
+It writes one file into your home folder and changes nothing else. It then reads that file back
+and checks it: that every table is there, that the patients and observations are really in it, and
+that it was not cut short. It prints how many patients, visits and observations it saved, so you
+can see the numbers are the ones you expect.
 
-    ls -lh ~/buendia-backup-*.sql.gz
+**Check:** the last line says **`Backup taken and verified`**, and names the file.
 
-A few tens of megabytes is normal. **If it is a few hundred bytes, the backup failed — stop and send
-us the output.** Copy the file onto a USB stick as well; a backup on the same laptop does not protect
-against the laptop.
+**If it says `THIS BACKUP CANNOT BE TRUSTED`, stop and send us everything it printed.** Do not
+start the upgrade — a backup that cannot be read back is not a backup.
+
+Copy the file onto a USB stick as well; a backup on the same laptop does not protect against the
+laptop. To check a backup you took earlier, run `sudo ./backup.sh --verify-only <the file>`.
 
 ---
 

@@ -48,6 +48,8 @@ SSID_WANT="${SITE_WIFI_SSID:-}"
 COUNTRY_WANT="${ROUTER_COUNTRY:-CD}"
 ENC_WANT="${ROUTER_ENCRYPTION:-psk2}"
 FORCE_DNS_WANT="${ROUTER_FORCE_DNS:-true}"
+ADMIN_ONLY_WANT="${ROUTER_ADMIN_LAN_ONLY:-true}"
+ADMIN_FROM_WANT="${ROUTER_ADMIN_FROM:-${STATIC_IP:-192.168.8.10}}"
 
 PASS=0; FAIL=0
 ok()   { printf '  \033[1;32m✓\033[0m %-42s %s\n' "$1" "${2:-}"; PASS=$((PASS+1)); }
@@ -186,6 +188,42 @@ if [ "$FORCE_DNS_WANT" = "true" ]; then
   else bad "port-53 redirect active" "no dport-53 rule in the running firewall"; fi
 else
   printf '  \033[1;33m·\033[0m %-42s %s\n' "port-53 redirect" "disabled by ROUTER_FORCE_DNS"
+fi
+
+# ── Router administration reachable from the server only ─────────────────────
+head_ "Router admin"
+if [ "$ADMIN_ONLY_WANT" = "true" ]; then
+  A="$(R "uci show firewall 2>/dev/null | sed -n \"s/^firewall\\.\\([^.]*\\)\\.name='buendia-admin-allow'\\$/\\1/p\"")"
+  B="$(R "uci show firewall 2>/dev/null | sed -n \"s/^firewall\\.\\([^.]*\\)\\.name='buendia-admin-block'\\$/\\1/p\"")"
+  if [ -n "$A" ] && [ -n "$B" ]; then ok "admin rules configured" "$A + $B"
+  else bad "admin rules configured" "allow='${A:-missing}' block='${B:-missing}'"; fi
+
+  # The rule the config asks for is worth nothing if the firewall would not load it, and fw3
+  # drops a section it cannot parse without saying so — so read the RUNNING ruleset, the same
+  # way the port-53 check does.
+  SRCIP="$(R "uci -q get firewall.\$(uci show firewall 2>/dev/null | sed -n \"s/^firewall\\.\\([^.]*\\)\\.name='buendia-admin-allow'\\$/\\1/p\").src_ip")"
+  [ "$SRCIP" = "$ADMIN_FROM_WANT" ] && ok "admin allowed from" "$SRCIP" \
+                                    || bad "admin allowed from" "'${SRCIP:-unset}', wanted $ADMIN_FROM_WANT"
+
+  LIVE="$(R 'nft list ruleset 2>/dev/null | grep -c "buendia-admin"; iptables -S 2>/dev/null | grep -c "buendia-admin"' | awk '{t+=$1} END{print t+0}')"
+  [ "${LIVE:-0}" -ge 2 ] && ok "admin rules live in the firewall" "$LIVE rule(s)" \
+                         || bad "admin rules live in the firewall" "${LIVE:-0} found — the firewall did not load them"
+
+  # Proof that we have not locked the server out. Only meaningful from the server itself;
+  # from anywhere else a refusal is the rule working as intended, so say which host asked.
+  HERE_IP="$(ip -4 route get "$ROUTER" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)"
+  if timeout 4 sh -c "exec 3<>/dev/tcp/$ROUTER/80" 2>/dev/null; then
+    ok "router admin reachable from here" "${HERE_IP:-this host} → $ROUTER:80"
+  elif [ "$HERE_IP" = "$ADMIN_FROM_WANT" ]; then
+    bad "router admin reachable from here" "refused from $HERE_IP, which the rule is meant to allow"
+  else
+    printf '  \033[1;33m·\033[0m %-42s %s\n' "router admin reachable from here" \
+      "refused — expected: this host is ${HERE_IP:-not $ADMIN_FROM_WANT}, not $ADMIN_FROM_WANT"
+  fi
+  printf '  \033[1;33m·\033[0m %-42s %s\n' "admin refused over Wi-Fi" \
+    "cannot be tested from here — open http://$ROUTER from a tablet; it must fail at once"
+else
+  printf '  \033[1;33m·\033[0m %-42s %s\n' "router admin restriction" "disabled by ROUTER_ADMIN_LAN_ONLY"
 fi
 
 # ── The intercept, answered for real ─────────────────────────────────────────

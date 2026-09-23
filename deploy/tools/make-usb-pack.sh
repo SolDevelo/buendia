@@ -49,12 +49,15 @@ mapfile -t payloads < <(ls -1 $payload 2>/dev/null || true)
 
 for f in "${bundles[0]}" "${bundles[0]}.sha256" "${payloads[0]}" "${payloads[0]}.sha256" \
          "$D/prepare.sh" "$D/tools/bootstrap.sh" "$D/tools/buendia-netcheck.sh" \
-         "$D/INSTALL-TWO-STEP.md" "$D/UPGRADE.md"; do
+         "$D/tools/buendia-backup.sh" "$D/INSTALL-TWO-STEP.md" "$D/UPGRADE.md"; do
   [[ -f "$f" ]] || die "missing: $f"
 done
 install -m 0755 "$D/prepare.sh"                 "$OUT/prepare.sh"
 install -m 0755 "$D/tools/bootstrap.sh"         "$OUT/bootstrap.sh"
 install -m 0755 "$D/tools/buendia-netcheck.sh"  "$OUT/buendia-netcheck.sh"
+# Named backup.sh at the root, not buendia-backup.sh in a tools folder: it is the first thing
+# anyone runs on an upgrade, and it has to be typeable from the guide without hunting.
+install -m 0755 "$D/tools/buendia-backup.sh"    "$OUT/backup.sh"
 install -m 0644 "$D/INSTALL-TWO-STEP.md"        "$OUT/INSTALL.md"
 # A PDF as well as the Markdown: whoever installs this may have no way to render .md, and read
 # as plain text it loses the emphasis that tells them which line to type.

@@ -49,6 +49,7 @@ OPTIONAL=(
   tools/buendia-uninstall.sh                # revert an install, for repeat testing and clean reinstalls
   tools/buendia-netcheck.sh                 # pre-install network check; also the on-site "can't see the router" tool
   tools/buendia-uplink.sh                   # the server is dual-homed on site: what it is connected to, and what that exposes
+  tools/buendia-backup.sh                   # take a backup and read it back; also shipped at the root of the USB folder
   # The router is configured FROM THE SERVER LAPTOP: the install must need no second computer.
   # These carry no secrets (they read ../.env); the exported backup does, and stays off the stick.
   network/router-access.sh                  # one-time SSH key install, so the laptop can configure the router

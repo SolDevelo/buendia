@@ -107,6 +107,11 @@ ENCRYPTION="${ROUTER_ENCRYPTION:-psk2}"
 # buried in a vendor layer. NB it does NOT catch Private DNS over TLS, which leaves on :853 —
 # that stays a per-tablet staging step.
 FORCE_DNS="${ROUTER_FORCE_DNS:-true}"
+# Router administration (SSH, http, https) reachable only from the cabled server. See the
+# section in the remote script for why this is expressed as a source address and not as
+# "not the Wi-Fi interface" — on a bridged LAN the latter cannot be written at all.
+ADMIN_ONLY="${ROUTER_ADMIN_LAN_ONLY:-true}"
+ADMIN_FROM="${ROUTER_ADMIN_FROM:-$SERVER_IP}"
 
 [[ -n "$SSID" ]]     || die "SITE_WIFI_SSID is not set (put it in .env, quoted)."
 [[ -n "$WIFI_KEY" ]] || die "SITE_WIFI_PASSWORD is not set (put it in .env, quoted)."
@@ -166,7 +171,8 @@ fi
 PRE="SSID=$(q "$SSID") WIFI_KEY=$(q "$WIFI_KEY") SERVER_IP=$(q "$SERVER_IP") \
 COUNTRY=$(q "$COUNTRY") CH24=$(q "$CH24") CH5=$(q "$CH5") HT24=$(q "$HT24") HT5=$(q "$HT5") \
 ENCRYPTION=$(q "$ENCRYPTION") FORCE_DNS=$(q "$FORCE_DNS") LAN_PREFIX=$(q "$LAN_PREFIX") ROUTER_TZ=$(q "$ROUTER_TZ") SERVER_MAC=$(q "$SERVER_MAC") \
-ROUTER_IP=$(q "$LAN_IP") DRY=$(q "$DRY_RUN")"
+ROUTER_IP=$(q "$LAN_IP") DRY=$(q "$DRY_RUN") \
+ADMIN_ONLY=$(q "$ADMIN_ONLY") ADMIN_FROM=$(q "$ADMIN_FROM")"
 
 # shellcheck disable=SC2087
 ssh "${SSH_OPTS[@]}" "root@$ROUTER" "$PRE sh -s" <<'REMOTE'
@@ -347,6 +353,93 @@ if [ "$FORCE_DNS" = "true" ]; then
   fi
 else
   if [ -n "$sec" ]; then u -q delete "firewall.$sec"; changed=$((changed+1)); else note "not configured"; fi
+fi
+
+# ── Router administration: from the cabled server only ───────────────────────
+# "Not over Wi-Fi" cannot be written as an interface match on this box. The radios and the
+# LAN ports are members of the SAME bridge, so a packet addressed to the router reaches the
+# INPUT chain with br-lan as its ingress device — the physical port it arrived on is already
+# gone, and a rule matching -i wlan+ there never fires. (Recovering it needs br-netfilter and
+# physdev, which OpenWrt does not enable and which would put the bridge through the IP
+# firewall for every frame.)
+#
+# What IS reliable on a bridged LAN is the source address, and that happens to be exactly the
+# distinction the pilot needs: the server is the only cabled device and holds a static
+# address, while every tablet is a DHCP client. So administration is accepted from the
+# server's address and refused from everything else on the LAN.
+#
+# REJECT rather than DROP: somebody who opens the router page by accident should be told at
+# once, not left watching a browser spin — that reads as "the network is broken".
+head_ "Router admin: only from $ADMIN_FROM (admin_lan_only=$ADMIN_ONLY)"
+ALLOW_NAME=buendia-admin-allow
+BLOCK_NAME=buendia-admin-block
+ADMIN_PORTS="22 80 443"
+find_rule() { uci show firewall 2>/dev/null | sed -n "s/^firewall\.\([^.]*\)\.name='$1'$/\1/p" | head -1; }
+asec="$(find_rule "$ALLOW_NAME")"
+bsec="$(find_rule "$BLOCK_NAME")"
+
+if [ "$ADMIN_ONLY" = "true" ]; then
+  # THE LOCKOUT GUARD. This is the one change in this script that can make the router
+  # unreachable, and the way back is a factory reset — which also wipes the SSH key that got
+  # us here. So it is only ever applied from a host the rule itself admits: if this session
+  # is coming from any other address, the rule is skipped and the reason is printed.
+  src="${SSH_CLIENT%% *}"
+  [ -n "$src" ] || src="${SSH_CONNECTION%% *}"
+  [ -n "$src" ] || src="$(netstat -tn 2>/dev/null | awk '$6=="ESTABLISHED" && $4 ~ /:22$/ {split($5,a,":"); print a[1]; exit}')"
+  if [ "$src" != "$ADMIN_FROM" ]; then
+    note "SKIPPED — this session comes from ${src:-an address that could not be read}, not $ADMIN_FROM."
+    note "          Applying it now would lock this machine out of the router with no way back"
+    note "          short of a factory reset. Re-run from the server once it holds $ADMIN_FROM."
+  else
+    # fw3 evaluates rules in the order they appear in the file, so the ACCEPT must be written
+    # before the REJECT. If only one of the pair exists the order cannot be trusted, so drop
+    # both and write them again in the right order.
+    if [ -n "$asec" ] && [ -z "$bsec" ]; then u -q delete "firewall.$asec"; asec=""; fi
+    if [ -z "$asec" ] && [ -n "$bsec" ]; then u -q delete "firewall.$bsec"; bsec=""; fi
+    if [ -z "$asec" ] && [ -z "$bsec" ]; then
+      if [ "$DRY" = 1 ]; then
+        echo "  [dry-run] uci add firewall rule x2: ACCEPT $ADMIN_PORTS from $ADMIN_FROM, then REJECT from lan"
+        changed=$((changed+1))
+      else
+        a="$(uci add firewall rule)"
+        uci set "firewall.$a.name=$ALLOW_NAME"
+        uci set "firewall.$a.src=lan"
+        uci set "firewall.$a.src_ip=$ADMIN_FROM"
+        uci set "firewall.$a.proto=tcp"
+        uci set "firewall.$a.dest_port=$ADMIN_PORTS"
+        uci set "firewall.$a.target=ACCEPT"
+        uci set "firewall.$a.enabled=1"
+        # No family on the REJECT: the ACCEPT above is IPv4 by virtue of its src_ip, and the
+        # router also answers on IPv6 link-local, which a tablet has without being given one.
+        # Leaving family unset covers both, so the hole does not stay open on v6.
+        b="$(uci add firewall rule)"
+        uci set "firewall.$b.name=$BLOCK_NAME"
+        uci set "firewall.$b.src=lan"
+        uci set "firewall.$b.proto=tcp"
+        uci set "firewall.$b.dest_port=$ADMIN_PORTS"
+        uci set "firewall.$b.target=REJECT"
+        uci set "firewall.$b.enabled=1"
+        changed=$((changed+1))
+      fi
+    else
+      note "already present ($asec, $bsec)"
+      setv "firewall.$asec.src_ip" "$ADMIN_FROM"
+      setv "firewall.$asec.dest_port" "$ADMIN_PORTS"
+      setv "firewall.$bsec.dest_port" "$ADMIN_PORTS"
+      if [ "$(uci -q get "firewall.$asec.enabled" || true)" = "0" ]; then setv "firewall.$asec.enabled" "1"; fi
+      if [ "$(uci -q get "firewall.$bsec.enabled" || true)" = "0" ]; then setv "firewall.$bsec.enabled" "1"; fi
+    fi
+  fi
+else
+  # Switched off deliberately: take the pair away rather than leaving a disabled rule behind,
+  # so the running config and this script cannot disagree about what is in force.
+  if [ -n "$asec" ] || [ -n "$bsec" ]; then
+    [ -n "$asec" ] && u -q delete "firewall.$asec"
+    [ -n "$bsec" ] && u -q delete "firewall.$bsec"
+    changed=$((changed+1))
+  else
+    note "not configured"
+  fi
 fi
 
 # ── Time ─────────────────────────────────────────────────────────────────────

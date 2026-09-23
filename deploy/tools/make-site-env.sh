@@ -85,6 +85,10 @@ ROUTER_HTMODE_24=${ROUTER_HTMODE_24:-HE20}
 ROUTER_HTMODE_5=${ROUTER_HTMODE_5:-HE80}
 ROUTER_TIMEZONE=${ROUTER_TIMEZONE:-UTC}
 ROUTER_ENCRYPTION=${ROUTER_ENCRYPTION:-psk2}
+# Router administration (SSH + web UI) answers only the cabled server. A tablet on the Wi-Fi
+# is refused, which is the point: the passphrase is laminated on a ward wall.
+ROUTER_ADMIN_LAN_ONLY=${ROUTER_ADMIN_LAN_ONLY:-true}
+ROUTER_ADMIN_FROM=${ROUTER_ADMIN_FROM:-${STATIC_IP}}
 
 # --- Images: pinned by DIGEST, pulled by 'setup.sh --prepare' while online ---
 DB_IMAGE=${DB_IMAGE}
