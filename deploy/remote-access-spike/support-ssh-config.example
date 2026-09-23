@@ -1,0 +1,23 @@
+# SUPPORT side: ~/.ssh/config fragment. One command reaches the pilot server:
+#     ssh buendia-pilot
+#
+# The hop is a ProxyJump through the relay, so SUPPORT's key reaches the laptop and the relay
+# never holds a credential for it. Verified end to end in 1.3 s across the internet.
+#
+# NB the tunnel account (`tunnel`) cannot be used for this jump: it is restricted to remote
+# forwarding only, and ProxyJump needs a LOCAL forward. Use a separate support account on the
+# relay — a different key, different privileges, revocable on its own.
+
+Host buendia-relay
+    HostName RELAY_HOST
+    User support
+    IdentityFile ~/.ssh/buendia_support
+    IdentitiesOnly yes
+
+Host buendia-pilot
+    HostName 127.0.0.1          # resolved ON the relay: the forwarded, loopback-only port
+    Port 12222
+    User buendia
+    IdentityFile ~/.ssh/buendia_pilot
+    IdentitiesOnly yes
+    ProxyJump buendia-relay

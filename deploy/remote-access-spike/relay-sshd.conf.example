@@ -1,0 +1,26 @@
+# Drop-in for the RELAY: /etc/ssh/sshd_config.d/10-buendia-tunnel.conf   (chmod 600)
+#
+# ⚠️ sshd takes the FIRST value obtained for most keywords, and Ubuntu's
+#    `Include /etc/ssh/sshd_config.d/*.conf` sits at the TOP of sshd_config — so a drop-in
+#    wins over the main file. Appending to the bottom of sshd_config does NOT (measured:
+#    an appended AllowTcpForwarding was silently ignored).
+
+# The relay used for the spike restricts logins (AllowUsers ubuntu). A tunnel account must be
+# added explicitly or it is rejected before any key is considered.
+AllowUsers ubuntu tunnel
+
+# ⚠️ These ClientAlive settings are NOT what fixes a dead tunnel. Measured: with a blackholed
+# peer (the real field failure) sshd's keepalive probes sit unacknowledged in the socket send
+# queue, the write never fails, and the session is NOT reaped -- 30 x 2 was still holding the
+# port at 405s. They are kept only for the tidy cases (peer answers, or sends a RST).
+#
+# THE setting that decides recovery is the KERNEL retransmission budget, and it lives in sysctl,
+# not here.  798s (stock) -> 32s with:
+#     net.ipv4.tcp_retries2 = 6      # /etc/sysctl.d/10-buendia-relay.conf
+# It is system-wide, so the relay must be a DEDICATED instance, not a shared box.
+Match User tunnel
+    ClientAliveInterval 30
+    ClientAliveCountMax 2
+    PermitTTY no
+    X11Forwarding no
+    AllowAgentForwarding no

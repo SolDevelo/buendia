@@ -1,0 +1,14 @@
+# RELAY: /home/tunnel/.ssh/authorized_keys  (chmod 600, owned by the tunnel user)
+#
+# Verified on OpenSSH 9.7 that each restriction below actually bites:
+#   - command execution  -> "This account is not available"
+#   - PTY                -> "PTY allocation request failed on channel 0"
+#   - -L local forward   -> connection reset (permitopen mismatch)
+#   - any other -R port  -> "remote port forwarding failed for listen port 13333"
+#
+# ⚠️ permitopen="none" is NOT valid in authorized_keys (only in sshd_config). An unparseable
+#    option makes sshd reject the whole key, which presents as a bare "Permission denied
+#    (publickey)" and wastes an afternoon. Pin -L to a dead target instead.
+# ⚠️ permitlisten must match the bind address the client actually requests, so the client must
+#    use -R 127.0.0.1:12222:... and not -R 12222:...
+restrict,port-forwarding,permitlisten="127.0.0.1:12222",permitopen="127.0.0.1:1",command="/bin/false" ssh-ed25519 AAAA...REPLACE... buendia-pilot-tunnel

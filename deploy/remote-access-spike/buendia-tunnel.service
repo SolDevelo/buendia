@@ -1,0 +1,37 @@
+# Buendia field-pilot remote support — reverse SSH tunnel (SPIKE artefact).
+#
+# Install as a SYSTEM unit (/etc/systemd/system/buendia-tunnel.service) so it starts at boot
+# with no user logged in:  systemctl enable --now buendia-tunnel
+#
+# autossh is NOT used, and is not needed: systemd's Restart=always supervises the process,
+# ServerAlive* detects a dead peer, and ExitOnForwardFailure turns a refused forward into a
+# clean exit that systemd retries. That is one fewer package on an offline box.
+[Unit]
+Description=Buendia remote support tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=buendia-tunnel
+# -N: no command. The bind address 127.0.0.1 is REQUIRED, not cosmetic: it must match the
+# relay's permitlisten= option or the forward is refused (measured — see README).
+ExecStart=/usr/bin/ssh -N \
+  -R 127.0.0.1:12222:127.0.0.1:22 \
+  -i /etc/buendia/tunnel_key \
+  -o IdentitiesOnly=yes \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=15 \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=/etc/buendia/relay_known_hosts \
+  -o LogLevel=ERROR \
+  tunnel@RELAY_HOST
+Restart=always
+# 60s, not 10s: the box is offline for most of its life, and a 10s retry writes ~18k journal
+# lines a day for nothing (measured). 60s costs at most a minute of extra downtime.
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

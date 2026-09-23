@@ -1,0 +1,18 @@
+# RELAY: /etc/sysctl.d/10-buendia-relay.conf   —  sysctl --system to apply
+#
+# THE setting that makes a dead tunnel recover in seconds instead of ~13 minutes.
+#
+# When the pilot laptop vanishes without closing its connection (Wi-Fi drops, power cut, or it
+# returns on a different address), the relay keeps the session and its forwarded port until the
+# KERNEL abandons the TCP connection. sshd's own ClientAlive* does NOT reap it: the keepalive
+# probes sit unacknowledged in the send queue, so sshd's write never fails and its "peer not
+# answering" path is never reached (verified: ClientAlive 30x2 still held the port at 405s).
+#
+# Measured on OpenSSH 9.7:
+#     tcp_retries2 = 15 (default)  ->  port freed after 798s   (laptop unreachable for 13 min)
+#     tcp_retries2 = 6             ->  port freed after  32s
+#
+# ⚠️ SYSTEM-WIDE. This shortens the retransmission budget for every TCP connection on the host,
+#    so it belongs on a DEDICATED relay, never on a box that also serves something else.
+#    6 is aggressive (~30s); 8 (~100s) is a gentler choice if the relay does anything else.
+net.ipv4.tcp_retries2 = 6
