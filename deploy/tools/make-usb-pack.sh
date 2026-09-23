@@ -49,7 +49,7 @@ mapfile -t payloads < <(ls -1 $payload 2>/dev/null || true)
 
 for f in "${bundles[0]}" "${bundles[0]}.sha256" "${payloads[0]}" "${payloads[0]}.sha256" \
          "$D/prepare.sh" "$D/tools/bootstrap.sh" "$D/tools/buendia-netcheck.sh" \
-         "$D/INSTALL-TWO-STEP.md"; do
+         "$D/INSTALL-TWO-STEP.md" "$D/UPGRADE.md"; do
   [[ -f "$f" ]] || die "missing: $f"
 done
 install -m 0755 "$D/prepare.sh"                 "$OUT/prepare.sh"
@@ -62,6 +62,24 @@ if "$HERE/make-install-pdf.sh" --out "$OUT/INSTALL.pdf" >/dev/null 2>&1; then
   echo "    + INSTALL.pdf"
 else
   echo "    WARNING: could not build INSTALL.pdf (Chrome refuses to run as root — try as your own user)" >&2
+fi
+
+# Both guides travel, because the same stick is used to install and later to upgrade, and the
+# upgrade has a backup step and a password answer the install guide does not mention.
+#
+# UPGRADE.md ends with a section addressed to us — build commands, image digests, what is not yet
+# proven end to end. That must not reach the site, so it is cut here at its own heading rather
+# than kept as a second, divergent copy of the guide.
+awk '/^## Notes for SolDevelo/ { exit } { print }' "$D/UPGRADE.md" \
+  | awk '{ l[n++] = $0 } END { while (n > 0 && (l[n-1] == "" || l[n-1] == "---")) n--;
+           for (i = 0; i < n; i++) print l[i] }' > "$STAGE/UPGRADE.md"
+grep -q 'Notes for SolDevelo' "$STAGE/UPGRADE.md" && die "the internal section survived the cut in UPGRADE.md"
+install -m 0644 "$STAGE/UPGRADE.md" "$OUT/UPGRADE.md"
+if "$HERE/make-install-pdf.sh" --src "$STAGE/UPGRADE.md" --out "$OUT/UPGRADE.pdf" >/dev/null 2>&1; then
+  echo "    + UPGRADE.md + UPGRADE.pdf"
+else
+  echo "    + UPGRADE.md"
+  echo "    WARNING: could not build UPGRADE.pdf (Chrome refuses to run as root — try as your own user)" >&2
 fi
 install -m 0644 "${bundles[0]}"                 "$OUT/$(basename "${bundles[0]}")"
 install -m 0644 "${bundles[0]}.sha256"          "$OUT/$(basename "${bundles[0]}").sha256"
@@ -103,4 +121,5 @@ printf '\n\033[1;32m==> %s (%s)\033[0m\n' "$(basename "$ZIP")" "$(du -h "$ZIP" |
 echo "    sha256: $(awk '{print $1}' "$ZIP.sha256")"
 echo
 echo "Send it PRIVATELY — it contains the database passwords and an APK carrying the server password."
-echo "MSF unzips it onto a USB stick, giving a 'Buendia' folder, and follows INSTALL.md inside it."
+echo "MSF unzips it onto a USB stick, giving a 'Buendia' folder. A machine with nothing on it yet"
+echo "follows INSTALL.md; a server already in use follows UPGRADE.md."
