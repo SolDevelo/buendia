@@ -82,8 +82,8 @@ against the laptop.
    *If it says `NO-GO`*, the checks above it name what failed. Send us that text. The old data is
    still there; nothing has been deleted.
 
-6. Confirm the patients are still there — open **http://192.168.8.10:9000/openmrs** and look at the
-   patient list, or run:
+6. Confirm the patients are still there — open **http://buendia.lan:9000/openmrs** on the server
+   laptop and look at the patient list, or run:
 
        sudo /opt/buendia/tools/buendia-verify.sh
 
@@ -116,17 +116,21 @@ did not come from this package. Send us the message.
 Nothing about TeamViewer itself changes, and this upgrade does not touch it. Two things are worth
 knowing, because one of them will otherwise look like a broken server.
 
-**Use this address for Buendia, not "localhost":**
+**On the server laptop, use this address for Buendia, not "localhost":**
 
 ```
-http://192.168.8.10:9000/openmrs
+http://buendia.lan:9000/openmrs
 ```
 
-It is the same address the tablets use and the same one printed on the in-zone card. If somebody
-types `http://localhost:9000` instead, the page will simply **hang and never load** — it does not
-say "error", it just spins. That is expected after this upgrade and does **not** mean the server is
-broken. The server is now reachable only on the Buendia network address, which is the point of the
-change described above.
+The laptop knows that name for itself, so there is nothing to type from memory and nothing to look
+up; there is also a **"Buendia — patient records"** shortcut in the `Buendia-tablet-setup` folder on
+the desktop that opens the same page. `http://192.168.8.10:9000/openmrs` is the same server by its
+address, and is what a tablet or any other machine on the Buendia Wi-Fi uses.
+
+If somebody types `http://localhost:9000` instead, the page will simply **hang and never load** — it
+does not say "error", it just spins. That is expected after this upgrade and does **not** mean the
+server is broken. The server is now reachable only on the Buendia network address, which is the
+point of the change described above.
 
 **Somebody on site opens TeamViewer when support is needed.** That is the arrangement we assume,
 and it means there is **nothing to set up and nothing to leave running**. TeamViewer can only be
