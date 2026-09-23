@@ -212,7 +212,15 @@ if [ "$ADMIN_ONLY_WANT" = "true" ]; then
   # Proof that we have not locked the server out. Only meaningful from the server itself;
   # from anywhere else a refusal is the rule working as intended, so say which host asked.
   HERE_IP="$(ip -4 route get "$ROUTER" 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)"
-  if timeout 4 sh -c "exec 3<>/dev/tcp/$ROUTER/80" 2>/dev/null; then
+  # NOT `sh -c`: /dev/tcp is a bash feature and /bin/sh is dash on Ubuntu, so the connection
+  # never opened and this reported FAIL against a router that was answering perfectly well.
+  # curl where there is one (there always is — buendia-verify.sh depends on it), bash otherwise.
+  if command -v curl >/dev/null 2>&1; then
+    probe() { curl -s -o /dev/null -m 4 "http://$ROUTER/"; }
+  else
+    probe() { timeout 4 bash -c "exec 3<>/dev/tcp/$ROUTER/80"; }
+  fi
+  if probe 2>/dev/null; then
     ok "router admin reachable from here" "${HERE_IP:-this host} → $ROUTER:80"
   elif [ "$HERE_IP" = "$ADMIN_FROM_WANT" ]; then
     bad "router admin reachable from here" "refused from $HERE_IP, which the rule is meant to allow"

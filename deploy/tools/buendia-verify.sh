@@ -22,13 +22,13 @@ ENV_FILE="$HERE/../.env"
 APK_DIR="$HERE/../apk"
 WWW_DIR="$HERE/../pkgserver/www"
 
-HOST=127.0.0.1; PORT=9000; PKG_PORT=9001
+HOST=127.0.0.1; PORT=9000; PKG_PORT=9001; HOST_GIVEN=0
 USER=""; PASS=""; PROJECT=""
 DO_DB=1; DO_PKG=1; DO_WRITE=0; QUICK=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --host)     HOST="$2"; shift 2 ;;
+    --host)     HOST="$2"; HOST_GIVEN=1; shift 2 ;;
     --port)     PORT="$2"; shift 2 ;;
     --pkg-port) PKG_PORT="$2"; shift 2 ;;
     --user)     USER="$2"; shift 2 ;;
@@ -54,6 +54,19 @@ if [ -f "$ENV_FILE" ]; then
     set -a; source "$ENV_FILE"; set +a
   fi
 fi
+# Where the stack can actually be reached FROM THIS MACHINE. With LAN_BIND set the ports are
+# published on the LAN address only, so 127.0.0.1 no longer answers — and, because the packet
+# then leaves by the default route instead of being refused, every check would hang for its
+# full timeout before failing. Both guides tell the operator to run this script by hand, so
+# the default has to be right without arguments. --host still wins. (setup.sh works this out
+# for itself in stack_host(); this is the same rule, for the same reason.)
+if [ "$HOST_GIVEN" = 0 ]; then
+  case "${LAN_BIND:-}" in
+    ""|0.0.0.0) : ;;                 # not bound to one address: loopback is correct
+    *) HOST="$LAN_BIND" ;;
+  esac
+fi
+
 USER="${USER:-${APK_OPENMRS_USER:-buendia}}"
 PASS="${PASS:-${APK_OPENMRS_PASSWORD:-buendia}}"
 DB_NAME="${MYSQL_DATABASE:-openmrs}"
