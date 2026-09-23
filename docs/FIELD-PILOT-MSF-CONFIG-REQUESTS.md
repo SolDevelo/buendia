@@ -22,6 +22,24 @@
 > apply it to the named file — the `pilot-site-config` skill is the apply path — and note it in
 > `FIELD-PILOT-PROGRESS.md` §2. The outgoing extract is *derived*; don't log answers into it.
 >
+> ## ⚠️ To tell MSF with this version — the services were reachable on their corporate network
+>
+> **Say this plainly, and say it first.** On the version MSF is running today, the patient-record
+> service and the tablet-app download service listen on **every** network the server is attached to.
+> So while that laptop was joined to MSF's corporate Wi-Fi (**B7**), any device on that network could
+> have reached the patient-record service — which is behind a single, well-known account — and
+> downloaded the tablet app, which carries the server password in readable form.
+>
+> **Proportion it correctly.** That is a corporate network, not the public Internet; the window was a
+> deliberate test rather than continuous operation; and nothing indicates anything was accessed. It is
+> not an incident. But it is real, it is the direct consequence of a design that assumed the server
+> would only ever sit on our own isolated LAN, and MSF should hear it from us rather than find it.
+>
+> **The new version fixes it:** both services are bound to the Buendia network only, so joining any
+> other Wi-Fi no longer exposes them. **This is the main reason to take this version**, ahead of the
+> new app and ahead of anything about remote support. Carried into the outgoing document under *What
+> is new*, not in a footnote.
+>
 > ## 🌐 The network is ours — settled, and it removed several questions
 >
 > **SolDevelo supplies the network: our own router, `192.168.8.0/24`, server at `192.168.8.10`.** No site
@@ -30,9 +48,17 @@
 >   networking question and no network settings are needed from MSF.
 > - **The server's address is ours and final** (`192.168.8.10`) — identical at SolDevelo, at MSF
 >   Switzerland during UAT and at the site. **B1** is reduced to a cosmetic site label.
-> - **"Our own router" does not mean "no internet".** The router's WAN port optionally takes an uplink
->   (cable, the site's Wi-Fi joined as a client, or a cellular SIM), which keeps tablet clock sync and
->   remote support available while nothing clinical depends on it. Asked as a non-blocking option in **B2**.
+> - **"Our own router" does not mean "no internet".** An Internet path keeps remote support available
+>   while nothing clinical depends on it. The path is the **server laptop's own connection**, not the
+>   router's — the laptop joins a third-party Wi-Fi while staying cabled to the Buendia router, with a
+>   phone USB-tethered to the laptop as the fallback. The router-side options (repeater, WAN cable,
+>   SIM) are kept as secondary: a laptop handles WPA-Enterprise/802.1X natively and a captive portal is
+>   a browser click, whereas the router's repeater mode is pre-shared-key only.
+>   **MSF demonstrated this themselves on 2026-09-22** — see **B7**, now answered in practice.
+> - **The remote-support channel is MSF's own TeamViewer** (**B8**, new). MSF installed it on the server
+>   laptop, reached it over their corporate Wi-Fi, and confirmed the tablets were unaffected. Good
+>   enough for the pilot; whether it continues is judged on experience. **Our own tunnel is parked** —
+>   it stays in the package, switched off and unauthenticated, and is not the support path we offer.
 > - **D2** carries the equipment specification: `docs/FIELD-PILOT-NETWORK-SPEC.md` — a *family with three
 >   coverage tiers* rather than a model, because the layout that picks the tier is the missing input.
 >   SolDevelo procures.
@@ -40,12 +66,18 @@
 > **Priority of the answers we are waiting on**, highest first:
 > 1. **B5** — what MSF's tablet image permits. Can invalidate the QR install route outright, and the
 >    tablets must also be able to **join our SSID** (q6 — no longer optional now that the network is ours).
-> 2. **C1** — data-protection sign-off. Gates WS-7 being enabled at a site.
+> 2. **C1** — data-protection sign-off. **Reshaped 2026-09-22:** its remote-access half is largely
+>    settled by MSF choosing their own tool (**B8**); what remains open is **data export off-site**.
 > 3. **D1** — the server machine, if anything is to be purchased (delivery lead time).
 > 4. **D2 / B2** — the site layout, so the network equipment can be sized. Only the *extra* coverage nodes
 >    wait on this; the baseline is bought and staged regardless.
+> 5. **B8** — the four TeamViewer questions (account, our access, confirm attended access, is it official).
+>    Not blocking. **B7** is answered in practice for Switzerland; only its site-side half is open.
 >
-> _Last updated: 2026-08-10. The network questions that were sent on 2026-07-30 (their subnet, gateway,
+> _Last updated: 2026-09-22 — **MSF proved the support path themselves and chose the tool**: **B7**
+> answered in practice (site half still open), new **B8** (TeamViewer), **C1** reshaped so its export
+> half is not carried along by its remote-access half, and the ⚠️ exposure note added at the top.
+> Earlier on 2026-09-22: B7 added. 2026-08-10: The network questions that were sent on 2026-07-30 (their subnet, gateway,
 > DHCP pool, a reserved server address, VLANs, client isolation — the former item **B6**) are **withdrawn**:
 > we supply the network. **The outgoing extract has been revised accordingly and needs re-sending**, with
 > `FIELD-PILOT-NETWORK-SPEC.md` as a third attachment._
@@ -250,8 +282,8 @@
   7. any outdoor span between buildings (>~30 m changes the equipment class);
   8. environment (dust/heat/humidity), socket type and voltage — this also settles the **D1**
      laptop-vs-fanless question;
-  9. *optional, non-blocking* — is any internet available for an uplink to our router, or should we plan a
-     cellular SIM? Nothing clinical depends on it; it buys native tablet clock sync and remote support;
+  9. *moved to* **B7** — the Internet question is no longer about an uplink to our router, but about how
+     the **server laptop** reaches the Internet. Still optional and non-blocking;
   10. tablet count (**B3**) — for node placement, not capacity.
   **Questions 1–5 decide the tier; nothing in the pilot is blocked while they are outstanding**, since the
   baseline tier is bought and staged either way and growing coverage is purely additive (same SSID, same
@@ -272,6 +304,83 @@
   `CONFIGURE_NETWORK`) → `setup.sh` generates `/etc/netplan/60-buendia.yaml`. `SITE_WIFI_*` is used only by
   the `wifis:` fallback above.
 - **Answer:** _(pending — the layout answers)_
+
+### B7. The server laptop's Internet path — for remote support — ✅ *(answered in practice for Switzerland, 2026-09-22; the site half is still open)*
+
+> **Answered by what MSF did, not by a reply.** MSF installed TeamViewer on the server laptop, joined
+> that laptop to **their corporate Wi-Fi** while it remained cabled to the Buendia router, and reported
+> that **the tablets kept working** and **the remote session worked**.
+>
+> That is the primary path demonstrated in the real environment, by MSF, on MSF's own network — which
+> is better evidence than the answer we were waiting for. It settles: the laptop can authenticate to
+> MSF's corporate Wi-Fi whatever its scheme; a dual-homed laptop does not disturb the tablets; and an
+> Internet path for support exists during the Switzerland staging period. **Questions 1 and 2 below are
+> closed in practice.**
+>
+> **What it does not settle: the pilot site's Wi-Fi is a different network.** Nothing yet shows the
+> laptop can join *it*, and it is the one place where the answer could still be "no Internet at all",
+> in which case support is a USB diagnostic dump and a phone call. That is the remaining question.
+
+- **Still needed from MSF — the site side only:**
+  1. ~~Is MSF's corporate Wi-Fi WPA2-Personal or Enterprise/802.1X?~~ **Closed in practice** — the
+     laptop joined it successfully on 2026-09-22, so whatever the scheme is, it works.
+  2. ~~Does connecting a SolDevelo-supplied server to that Wi-Fi need IT approval or registration?~~
+     **Closed in practice** for the staging period — it was done. Still worth a line in writing if the
+     arrangement is meant to persist (see **C1**).
+  3. **At the pilot site:** is the Wi-Fi a plain passphrase, and is there a **wired drop** anywhere near
+     where the server will sit? A cable into the router's WAN port is the least-effort option of all
+     where one exists.
+  4. **Is a phone with tethering acceptable** at the site, as the fallback when the site's own Wi-Fi
+     cannot be joined? It depends on nobody's network.
+- **The policy dimension** — a machine holding patient data attaches to MSF's corporate network while a
+  support session runs — is real but is now **MSF's own arrangement rather than ours to propose**, since
+  MSF chose the tool and made the connection. Recorded under **C1** rather than here.
+- **What ships:** the Buendia services are bound so they are **not reachable from whatever network the
+  laptop joins** — see the ⚠️ note at the top of this document, which is the defect this closes.
+- **Answer:** ✅ **2026-09-22, by demonstration** — laptop on MSF corporate Wi-Fi, cabled to the Buendia
+  router, tablets unaffected, remote access working. Site-side questions 3 and 4 remain open.
+
+### B8. Remote support channel — TeamViewer — 🟡 *(new 2026-09-22; MSF's tool, MSF's account)*
+
+> **Decision: TeamViewer is the pilot's remote-support channel.** MSF installed it on the server laptop
+> themselves, proved it works from their corporate network, and confirmed a person will be available on
+> site to reboot the machine and make sure TeamViewer is running. Judged **good enough for the pilot**;
+> whether it is used beyond the pilot is decided on experience.
+>
+> **How it is run is MSF's to decide (2026-09-23).** Our working assumption is **attended access** —
+> someone on site opens TeamViewer when support is needed. We do not require unattended access, and we
+> do not require the machine to be left permanently logged in and reachable. B8 puts that assumption to
+> MSF to confirm or correct rather than asking them to configure anything.
+>
+> **Consequence for us: our own tunnel is parked, not deleted.** It stays in the package, switched off
+> and unauthenticated, and is no longer the support path we offer. If TeamViewer turns out not to suit
+> the site, it is the documented fallback and the work is done.
+
+- **Need from MSF — four short answers:**
+  1. **Whose TeamViewer account is it, and is it licensed for this use?** (TeamViewer detects
+     commercial use; a licence question is cheaper answered now than mid-incident.)
+  2. **Can SolDevelo be granted access, and by what route** — our own account added to the device, or a
+     session MSF opens for us each time?
+  3. **Confirm the working assumption:** we assume someone on site opens TeamViewer when support is
+     needed, and that the machine is *not* expected to be reachable unattended. Correct us if MSF would
+     rather run it differently — either way works for us, and neither needs anything from our side.
+  4. **Is this the official support channel for the pilot**, or was it a one-off for the test?
+- **What TeamViewer does not give us, stated so nobody is surprised later.** It is a screen-sharing
+  channel driven by a person: nothing is scriptable, so there is **no automated diagnostic pull and no
+  file sync**. It also needs a live desktop session on the laptop. With attended access this sharpens
+  into a real constraint worth stating: **we cannot look at a sick server unless somebody on site opens
+  TeamViewer**, so nothing is diagnosable out of hours or while the site cannot be reached by phone.
+  Accepted — and it is why the offline **USB diagnostic dump** (which needs neither connectivity nor a
+  supporter) and the server's **self-recovery after a power cut** carry more weight than they appear to.
+  Both ship regardless.
+- **A trade declined, recorded so it is not revisited by accident.** Making the box reachable after an
+  unattended reboot would have required desktop **autologin** — a permanently logged-in desktop holding
+  patient data, on a machine non-technical staff power-cycle. Attended access means it is never needed.
+- **Default shipped:** our own tunnel **off** (`ENABLE_REMOTE_SUPPORT=false`). Nothing connects out
+  from the server unless deliberately enabled. Clinical operation never uses any of this.
+- **Lands in:** nothing of ours — TeamViewer is installed and configured by MSF on the server laptop.
+  Recorded here so the support model is written down in one place.
+- **Answer:** partially — the channel is chosen and proven; the four questions above are pending.
 
 ### B5. MSF's tablet system image — what does it contain and permit? — 🟡 **can invalidate the whole install path**
 
@@ -390,15 +499,26 @@
 
 ## C. Governance (gates work, not just config)
 
-### C1. Data-protection sign-off — 🟡 **blocking WS-7**
+### C1. Data-protection sign-off — 🟡 **reshaped 2026-09-22; the export half is what is still blocking**
 
 - **Need:** written approval covering (a) remote support access to a server holding patient data, and
   (b) data export off-site.
-- **Why:** the remote-support tunnel (Tailscale + SSH) is **installed but disabled** pending this, and
-  `deploy/tools/buendia-export.sh` moves patient data. Without sign-off, WS-7 cannot be delivered and
-  all support must be on-site or over the phone.
-- **Default shipped:** `ENABLE_REMOTE_SUPPORT=false` in `deploy/.env`; Tailscale installed, not authed.
-- **Answer:** _(pending)_
+- **(a) Remote support — largely settled, and not by us.** MSF chose the tool, installed it on the
+  server laptop, connected that laptop to **their own corporate network**, and ran a session. It is
+  MSF's tool, on MSF's account, under MSF's IT arrangements. The awkward part of this gate was never
+  the encryption — it was a third party introducing a channel into a box holding patient data. When the
+  channel is MSF's own, that is MSF's decision to make, and they have made it. **What is still worth
+  having is one or two sentences in writing** confirming they regard remote support as settled on that
+  basis, so the pilot record shows a decision rather than an assumption.
+- **(b) Data export off-site — untouched by any of this, and still open.** `deploy/tools/buendia-export.sh`
+  moves patient data off the machine. Nothing about the TeamViewer decision bears on whether a copy of
+  the pilot's data may leave the site, who may hold it, or in what form. **Do not let (a) being settled
+  carry (b) with it** — this is the half that still gates work, together with **C2**.
+- **What this no longer gates.** Our own tunnel is parked (**B8**), so C1 is no longer the thing
+  standing between us and a support capability. It never gated *building or testing* it in any case.
+- **Default shipped:** our own tunnel disabled and unauthenticated; the Buendia services bound so they
+  are not reachable from whatever network the laptop joins; nothing exported automatically.
+- **Answer:** _(pending — (a) settled in practice, confirmation requested; (b) open)_
 
 ### C2. Data retention & handover — 🟡
 

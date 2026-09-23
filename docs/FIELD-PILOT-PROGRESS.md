@@ -4,7 +4,12 @@
 > field-pilot. Read this first, then the plan (`FIELD-PILOT-DEPLOYMENT-PLAN.md`). Update it as you go
 > (see **Working guidelines** at the bottom).
 
-_Last updated: 2026-08-10 — **the network is ours** (see the block below); all pilot docs realigned to that
+_Last updated: 2026-09-22 — **remote support is settled: MSF's own TeamViewer**, installed and proven by
+MSF on their corporate Wi-Fi with the tablets unaffected; the Tailscale tunnel is **parked, not deleted**.
+The package version under bench test adds the safe-dual-homing fixes that MSF's own test showed were
+needed (published ports bound to the LAN address — their laptop had `:9000`/`:9001` open to the corporate
+network). Next up is the WS-7 bench session; see `FIELD-PILOT-WS7-REMOTE-ACCESS-RUNSHEET.md`. Previously,
+2026-08-10 — **the network is ours** (see the block below); all pilot docs realigned to that
 single path and the new `FIELD-PILOT-NETWORK-SPEC.md` added. **WS-1..WS-5 COMPLETE and twice validated on
 real hardware** (the local stack is currently **stopped** — see *State of things RIGHT NOW*). A bare Ubuntu
 24 notebook was installed from a USB stick — the second time from the 36 KB deployment bundle, with no git
@@ -35,8 +40,9 @@ support and native tablet time-sync stay available while an uplink that fails co
 plan §3.3.
 
 **➡️ NEXT SESSION: don't wait on MSF — three things need nothing from them.** In order:
-**(1)** test the remote-support tunnel locally over a mobile hotspot (never tested; C1 does *not* gate
-testing it); **(2)** test `CONFIGURE_NETWORK=true` on the **`ethernets:`** branch — still never applied on
+**(1)** run the WS-7 bench session per `FIELD-PILOT-WS7-REMOTE-ACCESS-RUNSHEET.md` — the
+`ip_nonlocal_bind` gate, the upgrade, the new APK, Phase 1 (**R4** above all) and the three TeamViewer
+cases; the tunnel rehearsal is parked; **(2)** test `CONFIGURE_NETWORK=true` on the **`ethernets:`** branch — still never applied on
 hardware, and **MSF runs that step, not us**. *(The unproven `wifis:` branch left the shipping path on
 2026-08-10: the server now plugs into our own router with a cable. Test it only if time is free.)*;
 **(3)** build the backup mechanism, which is still the largest technical gap. Then WS-6 runbooks.
@@ -263,8 +269,10 @@ them (Parties, §2.1, §3.3, §3.4, §3.5, §8); the older text it replaced is m
    - **"Our own router" ≠ "no internet".** The WAN port is optional — an ethernet drop, an existing site
      Wi-Fi *joined as a client* (repeater/WISP), or a cellular SIM. Tablets and server keep our subnet
      either way, so an uplink that fails costs nothing while a working one buys Android-native tablet clock
-     sync and a **remote-support path that is otherwise impossible, not merely disabled**. **A SIM in the
-     router depends on nobody at the site** — worth pricing while doing WS-7.
+     sync. *(Superseded 2026-09-22 for the remote-support half: support rides the **laptop's** own connection
+     to a third-party Wi-Fi, not a router uplink — which is also the only option that reaches an 802.1X
+     corporate network, since repeater mode is PSK-only. A router uplink now buys tablet clock sync, not
+     access.)*
    - **Consequences already applied to the docs:** **B2** is a layout ask (spaces, distances in metres,
      **wall material**, power/mounting at candidate AP spots, contamination boundary, outdoor spans);
      **B1** is reduced to a site label; **D2** + `FIELD-PILOT-NETWORK-SPEC.md` carry the equipment (ten hard
@@ -276,18 +284,54 @@ them (Parties, §2.1, §3.3, §3.4, §3.5, §8); the older text it replaced is m
      `ethernets:` must work, and it still has never run on hardware (§8 item 5). `wifis:` stays a documented
      fallback for a thin laptop with no RJ45 and no adapter.
 
-### ⚠️ The remote connection has NEVER been tested (recorded 2026-07-30, PW)
+### ✅ Remote support — SETTLED 2026-09-22: MSF's own TeamViewer
 
-`ENABLE_REMOTE_SUPPORT=false`, Tailscale is not authenticated, and nothing has been proven to dial out or
-carry a session. Treat plan §3.5 as design intent, not delivered capability. Two clarifications now in
-the plan:
+**MSF installed TeamViewer on the server laptop themselves**, joined that laptop to their corporate Wi-Fi
+while it stayed wired to our router, and confirmed both that the tablets kept working and that TeamViewer
+access worked. A person on site can reboot the box and make sure it is up. **That is the pilot's channel**;
+continuation beyond the pilot will be judged on experience.
 
-- **C1 sign-off gates *enabling it at the site*, not *testing it*.** Building and proving the tunnel is
-  not blocked; only pointing it at a box holding real patient data is.
-- **How it gets tested (PW's plan, no MSF dependency):** put this workstation on a *different* internet
-  connection from the test notebook — a **mobile hotspot** — so the two are genuinely on separate
-  networks, then confirm the tunnel establishes and carries an SSH session. A faithful rehearsal of the
-  site case at zero cost.
+Three consequences worth carrying forward:
+
+- **The topology is validated in MSF's own environment**, not just on our bench: the laptop holds our LAN
+  on the wire and a foreign Wi-Fi at the same time, and the tablets were unaffected. The uplink belongs on
+  the **laptop**, not the router — a router-side repeater is PSK-only and could not have joined an 802.1X
+  corporate network.
+- **An exposure that is no longer hypothetical.** While that laptop sat on MSF's corporate Wi-Fi, the stack
+  published `:9000` and `:9001` on `0.0.0.0` — patient data behind one well-known account, plus an APK
+  carrying the server password. Binding those ports to the LAN address is in the package version now under
+  bench test, and on a dual-homed box it is the **main reason to ship that version**.
+- **How it is run is MSF's to decide (2026-09-23), and the assumption is attended access** — someone on
+  site opens TeamViewer when support is needed. We do not require unattended access or a permanently
+  logged-in machine. **The autologin question dies with it:** requiring reachability after an unattended
+  reboot would have meant an auto-logged-in desktop holding patient data, and that trade is now simply
+  never taken. **R16 and R17 are withdrawn**; two cases remain (R18, R19): the OpenMRS UI reachable inside
+  the session now that `localhost` no longer answers, and the stack indifferent to TeamViewer start/stop.
+- **What TeamViewer costs:** nothing scriptable (no automated diagnostic pull, no file sync, no unattended
+  export), and — with attended access — **no diagnosis at all unless somebody on site opens it**, so
+  nothing out of hours and nothing while the site is unreachable by phone. Accepted; it is why the offline
+  USB diagnostic dump and the server's self-recovery after a power cut carry more weight than they look
+  like they should.
+
+**The Tailscale tunnel is parked, not deleted** — `ENABLE_REMOTE_SUPPORT=false`, with
+`FIELD-PILOT-WS7-REMOTE-ACCESS-TEST-PLAN.md` and its runsheet kept intact and runnable. Pick it up only if
+the pilot shows TeamViewer is not enough (anything scriptable, or a session with nobody at the keyboard);
+if C1's remote-access half is ever reopened, the comparison is against **Headscale**, and
+`deploy/remote-access-spike/` records a measured self-hosted reverse-tunnel alternative.
+
+> **Superseded, kept as the record (2026-07-30, PW):** *"The remote connection has NEVER been tested."*
+> `ENABLE_REMOTE_SUPPORT=false`, Tailscale not authenticated, nothing proven to dial out. The plan then
+> carried two clarifications:
+
+> - **C1 sign-off gates *enabling it at the site*, not *testing it*.** Building and proving the tunnel is
+>   not blocked; only pointing it at a box holding real patient data is.
+> - **How it gets tested (PW's plan, no MSF dependency):** put this workstation on a *different* internet
+>   connection from the test notebook — a **mobile hotspot** — so the two are genuinely on separate
+>   networks, then confirm the tunnel establishes and carries an SSH session.
+>
+> That rehearsal was never run, and is now parked rather than pending. **C1 itself has narrowed:** the
+> remote-access half largely dissolves (MSF's own tool, account and IT approval), while the **data-export**
+> half is untouched and still gates taking clinical data off the kit.
 
 ### Decisions taken internally (2026-07-29, PW)
 
@@ -423,7 +467,7 @@ Notes from that run:
   and site IP **first**, then build the APK that ships.
 - **Multi-tablet not re-tested with the packaged build** — two devices syncing bidirectionally was
   confirmed in an earlier ad-hoc demo, not with this APK.
-- **Remote-support tunnel (§3.5 / WS-7)** — Tailscale+SSH, gated on MSF data-protection sign-off.
+- **Remote support (§3.5 / WS-7)** — settled 2026-09-22 as MSF's own TeamViewer; the Tailscale+SSH tunnel is parked. What is unbuilt here is the **data export**, still gated on C1.
 - **In-app OTA updates — DEFERRED, NOT DROPPED (reclassified 2026-07-30, PW).** It was part of the
   default solution; it was then found not to work in the v1.0 client, so it is out of the *pilot* scope —
   but it stays on the backlog to revisit **at the end, low priority, liveable-without**. Do not describe
@@ -436,7 +480,7 @@ Notes from that run:
   file, no rebuild needed.
 - **Runbooks (WS-6)** — Staging setup guide / Site runbook / Clinical quick-start (→ PDF) not written yet.
 - **Hardware procurement**, **hypercare support model** — MSF/programme decisions (plan §8);
-  **data-protection sign-off** gates WS-7 (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md` C1).
+  **data-protection sign-off** now gates only WS-7's **data export** (`FIELD-PILOT-MSF-CONFIG-REQUESTS.md` C1); the remote-access half is settled by MSF choosing their own TeamViewer.
 
 ### Committed
 On branch `drc-pilot`, **pushed to `soldevelo/drc-pilot` on 2026-07-30** (previously 6 commits ahead;
@@ -898,7 +942,7 @@ card prints a blank line to fill in by hand.
 | WS-4 | Android APK build + real-tablet validation | ✅ **done** — reproducible release-signed build (`deploy/apk/build-apk.sh`) installed on a real tablet by QR and validated through the full clinical workflow (2026-07-29). Two loose ends are *deployment* steps, not build work: **back up the signing key**, and rebuild with the real site `APK_SERVER`/password at staging. **Drug catalogue realigned to MSF's OpenMRS configuration and rebuilt as APK 1.2.0 / omod 1.1.0 (2026-09-21)** — 196 formats generated by `client/build_catalog` from `client/catalog-drc-pilot.csv`; see the 2026-09-21 update above for the hardcoded-category trap |
 | WS-5 | APK delivery (QR first install + in-zone card) | ✅ **done** — `deploy/pkgserver/` serves the APK on `:9001` and a real tablet installed from the QR (2026-07-29); `make-install-card.sh` produces the laminatable in-zone card (Wi-Fi-join + install QRs) required by plan §3.4. **In-app OTA deferred, not dropped** (reclassified 2026-07-30) — broken on v1.0 (§4), so pilot updates are a documented manual re-install and the acceptance criterion was revised; it stays a low-priority backlog item scoped in plan §7 |
 | WS-6 | Runbooks (staging/site/clinical → PDF) | ⬜ not started. **Audience changed 2026-07-30** — the install guide is executed by **MSF**, not us, and must assume no Buendia knowledge. Two new pieces needed: the **UAT change-capture + fold-back** procedure and the **wipe-test-data-before-shipping** step |
-| WS-7 | Remote-support tunnel + data export | ⬜ not started — **and never tested**. **C1 gates *enabling it at a site*, not *testing it***, so the local mobile-hotspot test is unblocked and should be done early. It is **impossible** (not merely disabled) with no internet path at the site — and since the router is ours, the path is an **optional uplink on it**: cable, an existing site Wi-Fi joined as a client, or **a cellular SIM, which depends on nobody at the site**. Price the SIM/LTE option while doing this |
+| WS-7 | Remote support + data export | 🟡 **channel settled 2026-09-22 — MSF's own TeamViewer**, installed and proven by MSF on their corporate Wi-Fi with the tablets unaffected. **How it is run is MSF's to decide and the assumption is attended access** (2026-09-23) — someone on site opens TeamViewer when support is needed — so R16/R17 are withdrawn and the autologin trade is never taken. Nothing to build; what remains is **verification of our own half** (R18: OpenMRS UI reachable inside the session; R19: stack indifferent to TeamViewer start/stop) plus MSF's written confirmation. The **safe-dual-homing** work this stream now carries — ports bound to the LAN address, the wired default route losing to any uplink, `buendia-uplink.sh` — is delivered in the package under bench test. **Tunnel (Tailscale + SSH) parked, not deleted**, `ENABLE_REMOTE_SUPPORT=false`. Data export still gated on C1 |
 | WS-8 | Router configuration as code | 🆕 ⬜ not started (added 2026-08-10, plan §4). Consequence of owning the network: the router config is a **deliverable**, and the only artefact the DNS clock intercept depends on. Ships **twice** — an idempotent OpenWrt `uci` script (source of truth; survives a firmware bump, a different model, a locally-bought replacement) **and** the exported backup (thirty-second restore for an *identical* unit; a backup archive is model-locked, which is why one file is not enough). ~0.5–1 day, needs the procured router in hand, blocks nothing but **gates staging**. Write it **discovery-based**: select radios by band (never hardcode `radio0`), touch only `lan`'s address (never the vendor bridge/switch — DSA vs swconfig), pin the firmware version (`band '2g'` vs `hwmode '11g'`). If GL.iNet: verify the state survives **a web-UI login as well as a reboot**; use plain AP mode for nodes (**the recommended models have no mesh mode at all** — AstroMesh is Flint 3 / Slate 7); and assert **encrypted DNS (DoH/DoT) is off** as well as rebinding protection — their OP24 branch forced DoH to Cloudflare regardless of the setting, which silently kills the clock intercept. Verify the intercept **from the tablet**, not from the router's config page |
 
 ---
@@ -985,7 +1029,7 @@ assume them — in particular **we ship our own router** (§2 item 5).
 > **Then, MSF is the long pole, so do the things that need nothing from them.** In order:
 > **item 10** (buy the baseline network hardware — it gates four separate validation claims and has a
 > delivery lead time, so order it first and work on other items while it arrives),
-> **item 7** (test the remote tunnel over a mobile hotspot — never tested, and C1 does *not* gate testing),
+> **item 7** (the WS-7 bench session — gate, upgrade, APK, Phase 1, TeamViewer cases),
 > **item 5** (test `CONFIGURE_NETWORK=true` — the `ethernets:` branch only now, and MSF executes it),
 > **item 3** (backup — the largest technical gap), then **item 8** (WS-6 runbooks, with the changed
 > audience). Items **4** and **6** are done or optional. Item **9** (multi-tablet retest) has moved into
@@ -1013,7 +1057,7 @@ assume them — in particular **we ship our own router** (§2 item 5).
    `FIELD-PILOT-NETWORK-SPEC.md` joins it as a third attachment. **Send the revision** — it visibly reduces
    what we are asking MSF for, and otherwise they will answer dead questions.
    **Which answers to chase hardest:** **B5** (their tablet image — can invalidate the QR install route, and
-   the tablets must be able to join *our* SSID), **C1** (data-protection, gates WS-7), **D1** (hardware, if
+   the tablets must be able to join *our* SSID), **C1** (data-protection — now the data-export half only), **D1** (hardware, if
    anything is purchased — delivery lead time), then **B2/D2** (the site layout, which sizes the Wi-Fi
    equipment but blocks nothing).
    **Which answers can wait:** A1/A2/A3/A4/A7 are all things the MSF user test can settle live at no cost.
@@ -1022,7 +1066,7 @@ assume them — in particular **we ship our own router** (§2 item 5).
    accompanying attachment, joined by `FIELD-PILOT-NETWORK-SPEC.md` in the revision. Reordered by lead
    time, not by the internal A/B/C grouping: **B5** (what their tablet image permits — can invalidate the QR
    install path outright), **B2** (the site layout, which sizes the Wi-Fi equipment), **B1** (a site label),
-   **D1** (hardware), **C1** (data-protection, gates WS-7) come first; the clinical items follow. Each item is tagged with who at
+   **D1** (hardware), **C1** (data-protection, data-export half) come first; the clinical items follow. Each item is tagged with who at
    MSF owns it (clinical / IT / programme / data-protection) so the mail can be routed, and it ends with
    a fill-in summary table. **Remaining action is non-technical: actually send it** and log answers back
    into the canonical `FIELD-PILOT-MSF-CONFIG-REQUESTS.md`.
@@ -1044,16 +1088,12 @@ assume them — in particular **we ship our own router** (§2 item 5).
    **Test the `ethernets:` branch before the MSF session.**
 6. **Optional, cheap:** publish `buendia-deploy-<ver>.tar.gz` as a release asset on the public repo so
    `bootstrap.sh` can fetch it via `BUNDLE_URL` with no USB.
-7. ⬆️ **Test the remote-support tunnel LOCALLY — newly unblocked, do it early.** It has never been tested
-   (see the block above). **C1 gates enabling it at the site, not testing it**, so this needs no MSF
-   input: put this box on a **mobile hotspot** so it and the test notebook are on genuinely separate
-   internet connections, then prove the tunnel establishes and carries an SSH session. Cheap, and it
-   retires the kit's largest remaining unproven claim. It also gives us a way to apply UAT change requests
-   remotely during the MSF session.
-   - ⚠️ Note the dependency the plan records: **remote support needs an internet path at the site.** Since
-     2026-08-10 that path is an **optional uplink on our own router** — an ethernet drop, the site's Wi-Fi
-     joined as a client, or **a cellular SIM, which depends on nobody at the site**. With no uplink at all
-     it is impossible, not merely disabled, so price the SIM/LTE option while doing this item.
+7. ⬆️ **Run the WS-7 bench session — the critical path is now half a day.** Follow
+   `FIELD-PILOT-WS7-REMOTE-ACCESS-RUNSHEET.md`: the `ip_nonlocal_bind` gate (§2 — the only change in the
+   package never verified on hardware, and it can invalidate `LAN_BIND`), the upgrade (§3), the new APK
+   (§4), Phase 1 (§6, of which **R4 — the stack must NOT be reachable from the foreign network — is the
+   case that matters**), then the two TeamViewer cases (§6a). No tailnet and no second internet
+   connection needed; §5 and §7 are parked.
 8. **WS-6 runbooks — but the audience changed** (see direction change 3). The install guide is now a
    document **MSF executes**, so it must assume no Buendia knowledge and have a pass/fail at every step.
    Add a piece that did not exist before: a **UAT change-capture + fold-back procedure** (how a "move this

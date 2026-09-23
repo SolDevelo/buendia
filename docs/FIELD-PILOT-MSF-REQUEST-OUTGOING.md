@@ -1,8 +1,56 @@
 # Buendia DRC Field Pilot — Configuration Inputs Needed from MSF
 
-**From:** SolDevelo · **Date:** 2026-08-10 (supersedes the 2026-07-30 version) · **Status of our side:**
-the system is built, installed and tested end-to-end on real hardware with a real tablet. What remains is
-site-specific configuration, which only MSF can supply.
+**From:** SolDevelo · **Date:** 2026-09-22 (supersedes the 2026-08-10 version) · **Status of our side:**
+the system is built, installed and tested end-to-end on our own hardware with a real tablet. What remains
+is site-specific configuration, which only MSF can supply.
+
+> **Two things in this document need an action rather than an answer:** please **install the new version**
+> (see *What is new*, immediately below), and please send back the four short **B8** questions about
+> TeamViewer. Everything else can follow at your pace.
+
+## What is new in this version of the Buendia package
+
+We are sending an updated package: **a new version of the server software and a new version of the
+tablet app.** Installing it over a server that is already running is the same two commands as the first
+installation, with a backup step first — the instructions travel with the package as `UPGRADE.md`.
+
+### Please read this first — why this version matters
+
+The version you are running now makes two of the server's services available on **every** network the
+server is connected to, rather than only on the Buendia Wi-Fi. Those two are the patient-record service
+and the service tablets download the app from.
+
+So during the test where the server laptop was connected to MSF's corporate Wi-Fi, any device on that
+corporate network could, in principle, have opened the patient-record service — which is protected only
+by a single account whose default password is publicly known — or downloaded the tablet app, which
+contains that password in a form that can be read out of the file.
+
+**In proportion:** that is an internal corporate network and not the open Internet, it was a short and
+deliberate test rather than continuous operation, and we have no indication that anything was accessed.
+We are not treating it as an incident, and nothing suggests you need to either. It is the consequence of
+a design that assumed the server would only ever sit on its own isolated Wi-Fi — an assumption that
+stopped being true the moment the laptop was given an Internet connection, which is exactly what we had
+asked for.
+
+**This version corrects it.** Both services are now restricted to the Buendia network only, so
+connecting the laptop to any other Wi-Fi no longer exposes them. Tablets are unaffected and need no
+change for this. **This is the main reason to take this version** — ahead of the new app, and ahead of
+anything about remote support. Changing the server password (**A5**) remains worth doing as well.
+
+### The rest of what is new
+
+- **Patient data is preserved by an upgrade.** The database is kept and the new software is started
+  against it. Nothing has to be re-entered.
+- **Each tablet needs the new app installed by hand** — the app cannot update itself in this version.
+  Tablets can be done one at a time; an un-updated tablet keeps working in the meantime.
+- **The server is better behaved when it has an Internet connection.** It now keeps using that
+  connection correctly while it is also connected to the Buendia router, and it starts up properly even
+  if the network cable happens to be unplugged.
+- **Remote support: we are adopting yours.** You installed TeamViewer on the server laptop, reached it
+  over your corporate Wi-Fi, and confirmed the tablets kept working — so TeamViewer is the pilot's
+  support channel, and the separate connection we had built is **switched off** and set aside. Four
+  short questions about it are **B8**. Thank you for testing it; it answered more than it was meant to
+  (see **B7**).
 
 > **This version asks for less than the one you received on 2026-07-30.** We have decided to **supply the
 > Wi-Fi network ourselves**, so the network-settings questions in that version — your subnet, gateway,
@@ -49,6 +97,10 @@ quick.
   actual server that ships and runs the user test / UAT**, adjusting the configuration in the process.
   Changes to forms and to the zone list are expected at that point and are cheap to make — see the note
   under A2/A3 and A7.
+- **Remote support is TeamViewer**, installed and owned by MSF, proven on 2026-09-22 with the server
+  laptop on MSF's corporate Wi-Fi and the tablets unaffected. Someone on site can restart the machine
+  and check it is running. The separate connection SolDevelo had built is switched off and kept only as
+  a fallback.
 - **Server hardware:** SolDevelo specifies it, MSF sources it. **See D1 below and the accompanying
   document `FIELD-PILOT-SERVER-SPEC.md`** — if MSF has a suitable laptop to repurpose, that is the
   preferred outcome.
@@ -134,28 +186,20 @@ about the site's physical layout** — the questions below.
 
 ### One clarification: "our own network" does not mean "no Internet"
 
-These are separate things, and it is worth being clear because it affects two capabilities you may care
-about.
+These are separate things, and it is worth being clear because it affects remote support.
 
-Our router provides the local network the tablets and server use. Its **Internet connection is optional
-and separate**, and can come from any of:
+Our router provides the local network the tablets and server use, and it needs no Internet to do that.
+**Separately**, the server laptop can be given an Internet connection when one is wanted — by connecting
+it to a Wi-Fi (yours, the site's, or a phone hotspot), or by plugging a phone into it and switching on
+USB tethering. The tablets and the server keep our own network and our own addresses throughout, so
+**an Internet connection that is absent, slow or broken changes nothing about clinical use.**
 
-- a spare network cable from an existing connection at the site, or
-- **your existing Wi-Fi, which our router can join as an ordinary client**, or
-- a mobile/cellular SIM in the router.
-
-In every case the tablets and the server stay on our own network at our own addresses, so **an Internet
-connection that is absent, slow or broken changes nothing about clinical use.** What it adds, when
-present, is:
-
-- **Tablet clocks stay correct automatically.** This matters clinically: the time recorded against a
-  patient observation comes from the tablet. Without any Internet we keep the tablets right from our own
-  server instead, which works, but the Internet route is simpler and better.
-- **Remote support becomes possible at all.** With no Internet path anywhere at the site, we cannot look
-  inside the system even with your permission — the only channel is a USB diagnostic file and a phone
-  call.
+What it adds, when present, is that **remote support becomes possible at all**. With no Internet path
+anywhere at the site, we cannot look inside the system even with your permission — the only channel is a
+USB diagnostic file and a phone call.
 
 So this is worth having if it is easy, and costs nothing if it is not. **It is not blocking anything.**
+The practical questions about it are gathered in **B7** below.
 
 ### 👉 What we need from you
 
@@ -181,8 +225,8 @@ there for transparency about what we are buying and why.
 7. **Is there any outdoor span between buildings?** Beyond roughly 30 m outdoors we need different,
    weatherproof equipment.
 8. **Environment and power:** dusty, hot, humid? What socket type and voltage is used at the site?
-9. **Optional, not blocking:** is there any Internet at the site our router could connect to (a spare
-   cable, or a Wi-Fi we could join)? Or should we plan on a mobile SIM?
+9. **Moved to B7** — the Internet question is now about how the *server laptop* connects, not the
+   router. Please answer it there.
 10. **How many tablets** (this is also **B3**) — for placement, not for capacity.
 
 **Questions 1–5 are the ones that matter.** They decide whether the answer is one small router or four
@@ -255,14 +299,90 @@ UPS.
 
 ---
 
+## B7. How the server reaches the Internet, for remote support 🖥️
+
+**Mostly answered — by you, and better than we asked for.** When you connected the server laptop to
+your corporate Wi-Fi while it stayed cabled to the Buendia router, and the tablets carried on working,
+that demonstrated the whole arrangement we had been describing in theory. It tells us the laptop can
+join your network whatever kind of login it uses, that having it on two networks at once does not
+disturb the tablets, and that a support connection is possible during the Switzerland period. Our first
+two questions are answered; thank you.
+
+**One part is still open, because it is a different network.** The Wi-Fi at the pilot site is not the
+same as MSF's corporate Wi-Fi, and nothing yet shows the server laptop can join *it*. This is the one
+place where the answer could still turn out to be "no Internet at all" — in which case remote support is
+not possible at the site and a problem is diagnosed from a file we write to a USB stick, plus a phone
+call. Worth knowing in advance rather than discovering it there.
+
+**What we still need to know:**
+
+1. **At the pilot site:** is the Wi-Fi a plain password? And is there a **network socket in the wall**
+   anywhere near where the server will sit? A cable is the simplest option of all if one happens to
+   exist, so it is worth a look.
+2. **Is using a phone's tethering acceptable** at the site, as the fallback if the site's own Wi-Fi
+   cannot be joined? It depends on nobody's network.
+
+**What we do today:** the server has no Internet connection unless someone gives it one, and clinical
+use never needs it.
+
+---
+
+## B8. TeamViewer — four short questions 🖥️📋⚖️
+
+**You have chosen the support channel, and we are adopting it.** You installed TeamViewer on the server
+laptop, it worked over your corporate network, and you have confirmed someone will be on site who can
+restart the machine and make sure TeamViewer is running. That is good enough for the pilot, and whether
+it continues afterwards is something to judge on experience. The separate connection we had built is
+switched off and set aside; if TeamViewer turns out not to suit the site, it is there as a fallback.
+
+**How you run it is entirely your decision.** We are assuming the simplest arrangement: when support is
+needed, somebody at the site opens TeamViewer. We are **not** asking you to set the machine up so it can
+be reached while nobody is there, and we are not asking for it to be left permanently logged in.
+
+**What we need to know:**
+
+1. **Whose TeamViewer account is it, and is it licensed for this kind of use?** TeamViewer distinguishes
+   personal from business use, and that is a cheaper question to settle now than during an incident.
+2. **How should SolDevelo get access** — our own account added to the machine, or a session that someone
+   at MSF opens for us each time? Either works; we just need to know which, and whom to contact to start
+   a session.
+3. **Please confirm the assumption above** — that someone at the site opens TeamViewer when support is
+   needed. If you would rather set it up so the machine can be reached with nobody there, that is fine
+   too; we simply need to know which it is. Nothing on our side changes either way.
+4. **Is this the official support channel for the pilot**, or was it a one-off for the test?
+
+**One limitation worth stating, so it is not a surprise later.** TeamViewer is someone watching and
+driving the screen. It cannot be automated, so we cannot have the server send us a diagnostic file by
+itself. Combined with the arrangement above, this means something worth being plain about: **we can only
+look at the server while somebody at the site is there to open TeamViewer for us.** Outside those hours,
+or at any time the site cannot be reached by telephone, we cannot see the machine at all.
+
+We think that is the right trade for this pilot, and it is why two things in the package matter more than
+they look like they should. The server **restarts itself and comes back on its own after a power cut**,
+without anyone needing to do anything, so being unreachable does not turn into being down. And it can
+**write a full diagnostic file to a USB stick** with no Internet and nobody technical present — that file
+can be sent on later and tells us most of what a live session would. Both ship regardless of how
+TeamViewer is set up.
+
+---
+
 ## C1. Data-protection sign-off ⚖️
 
-- **Need:** written approval covering (a) **remote support access** to a server holding patient data,
-  and (b) **data export** off-site.
-- **Why it matters:** the remote-support connection is installed but **switched off** pending this
-  approval. Without sign-off, all support during the pilot must be on-site or over the phone, and we
-  cannot deliver the data-export path.
-- **What we do today:** remote support disabled.
+**This has changed shape since the last version, and half of it is effectively settled.**
+
+- **Remote support access — settled by your own decision.** The support channel is your tool, on your
+  account, on your network, installed by you. The difficult part of this question was never the
+  technology; it was an outside supplier introducing a way into a machine holding patient data. Where
+  the channel is MSF's own, that is MSF's decision, and it has been made. **All we would like is a
+  sentence or two in writing** confirming you regard it as settled on that basis, so the pilot has a
+  recorded decision rather than an assumption.
+- **Data export off-site — unchanged, and still open.** This is the other half of the question and
+  nothing about the support channel touches it: whether a copy of the pilot's data may leave the site,
+  who may hold it, and in what form. We would rather not have the first half being settled quietly carry
+  the second half with it. It goes together with **C2**.
+
+**What we do today:** nothing is exported automatically, and the separate support connection we had
+built stays switched off.
 
 ---
 
@@ -438,10 +558,16 @@ These shape which answers are practical, so they're better said once, up front.
 | **B5⭐** | **One tablet with your image, before staging** | 📋 | — | |
 | **B2** | **Site layout** — spaces, distances, **wall material**, power/mounting for extra access points (a sketch or photos is ideal) | 🖥️📋 | we size for one ward and adjust | |
 | **B2** | Any rule against us running our own Wi-Fi + server at the site? | 🖥️⚖️ | we assume not | |
-| **B2** | *Optional:* any Internet our router could connect to, or should we plan a mobile SIM? | 🖥️ | assume none | |
+| **B7** | At the site: Wi-Fi with a plain password? Any network socket near the server? | 🖥️ | assume Wi-Fi only | |
+| **B7** | Is a phone's tethering acceptable at the site, as the fallback? | 📋🖥️ | we assume yes | |
+| **B8** | **Whose TeamViewer account, and is it licensed for this use?** | 📋⚖️ | — | |
+| **B8** | How should SolDevelo get access, and who do we contact to start a session? | 🖥️📋 | we assume you open a session for us | |
+| **B8** | Confirm: someone on site opens TeamViewer when support is needed | 🖥️ | we assume attended access; nothing needed from you | |
+| **B8** | Is TeamViewer the official support channel, or was it a one-off test? | 📋 | we assume official | |
 | **B1** | Short site name | 🖥️📋 | `pilot` | |
 | **D1** | **Server machine — repurpose one, or buy?** (see spec doc) | 📋🖥️ | we recommend a refurbished business **laptop**; Intel/AMD only | |
-| **C1** | Data-protection sign-off (remote support + export) | ⚖️ | remote support **off** | |
+| **C1** | Remote support — a sentence confirming you regard it as settled (your tool, your account) | ⚖️ | treated as settled | |
+| **C1** | **Data export off-site — still open** (who may hold a copy, in what form) | ⚖️ | nothing leaves the box | |
 | **A1** | Facility name | 🩺 | `Facility` | |
 | **A2/A3** | Zones, order, **default admission zone** — confirm our proposal | 🩺 | Triage · Suspect · Probable · Confirmed · Discharged; new patients → **Triage** | |
 | **A4** | Clinician list + shared or per-person; keep `Guest`? | 🩺 | one generic account + `Guest` | |
@@ -455,9 +581,13 @@ These shape which answers are practical, so they're better said once, up front.
 | **B3** | Tablet count + device policy | 📋 | — | |
 | **C2** | End-of-pilot data handling; **may a backup leave site?** | ⚖️ | nothing leaves the box | |
 
-**If you answer only two things, make them B5 and C1** — those are the ones that can change what we build
-rather than just what we configure. **Add D1 and B2 if any purchasing is involved**, since both carry a
-delivery lead time on top of the decision.
+**If you answer only two things, make them B5 and the data-export half of C1** — those are the ones that
+can change what we build rather than just what we configure. **Add D1 and B2 if any purchasing is
+involved**, since both carry a delivery lead time on top of the decision. **B8** is four quick answers
+and worth sending back whenever convenient.
+
+**And separately from any of the questions: please install this version**, for the reason given at the
+top.
 
 ---
 
@@ -466,3 +596,5 @@ delivery lead time on top of the decision.
   forwarded to whoever holds MSF's hardware.
 - `FIELD-PILOT-NETWORK-SPEC.md` — the Wi-Fi equipment we will supply, referenced by **B2**. For
   transparency; nothing in it needs a decision from MSF.
+- `UPGRADE.md` — travels inside the package itself: how to install this new version over a server that
+  is already running, including the backup step and what happens to the tablets.
