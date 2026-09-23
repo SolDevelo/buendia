@@ -36,6 +36,7 @@ REQUIRED=(
   config/chrony/buendia-ntp.conf            # LAN time authority
   config/docker/daemon.json                 # log rotation caps
   config/logind.conf.d/buendia.conf         # ignore the lid, no suspend
+  config/sysctl.d/buendia.conf              # bind the LAN address with the cable out (LAN_BIND)
   seed/initdb/20-buendia-site.sql           # bind-mounted: locations + login (tailorable per site)
   pkgserver/nginx.conf                      # bind-mounted: serves the APK with the right mime type
   tools/buendia-verify.sh                   # setup.sh's go/no-go; also the on-site health check
@@ -47,6 +48,7 @@ OPTIONAL=(
   tools/buendia-diagnostics.sh
   tools/buendia-uninstall.sh                # revert an install, for repeat testing and clean reinstalls
   tools/buendia-netcheck.sh                 # pre-install network check; also the on-site "can't see the router" tool
+  tools/buendia-uplink.sh                   # the server is dual-homed on site: what it is connected to, and what that exposes
   # The router is configured FROM THE SERVER LAPTOP: the install must need no second computer.
   # These carry no secrets (they read ../.env); the exported backup does, and stays off the stick.
   network/router-access.sh                  # one-time SSH key install, so the laptop can configure the router
