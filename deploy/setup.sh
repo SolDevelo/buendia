@@ -95,6 +95,13 @@ set -a; source "$HERE/.env"; set +a
 : "${ENABLE_REMOTE_SUPPORT:=false}"
 : "${CONFIGURE_NETWORK:=true}"
 : "${NET_PREFIX:=24}"
+# The wired default route deliberately LOSES to any other uplink. The server laptop takes its
+# internet by joining a third-party Wi-Fi (or a tethered phone) itself, and NetworkManager's
+# automatic metrics are per device type — ethernet 100, Wi-Fi 600 — so an unweighted static
+# route on the wired link wins and points every packet at a router that has no internet. With
+# the networkd renderer a static route defaults to metric 0, which is worse. 1000 loses to both
+# while still being there when the router IS the only way out.
+: "${NET_ROUTE_METRIC:=1000}"
 : "${ALLOW_UNSEEDED_DB:=false}"
 DB_IMAGE="${DB_IMAGE:-${MYSQL_IMAGE:-}}"
 [[ -n "$DB_IMAGE" ]] || die "set DB_IMAGE in .env (build it with seed/build-db-image.sh)."
@@ -226,6 +233,14 @@ host_config() {
   run install -m 0644 "$HERE/config/logind.conf.d/buendia.conf" /etc/systemd/logind.conf.d/buendia.conf
   run_sh "systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target || true"
 
+  # Lets the stack bind its LAN address even when the cable is out (LAN_BIND; see the file
+  # itself for why). Without it a reboot with no cable leaves the server down, which is the one
+  # failure mode nobody on site could diagnose.
+  log "Server settings: the stack may start before the network cable is in"
+  run install -d /etc/sysctl.d
+  run install -m 0644 "$HERE/config/sysctl.d/buendia.conf" /etc/sysctl.d/60-buendia.conf
+  run_sh "sysctl -p /etc/sysctl.d/60-buendia.conf >/dev/null 2>&1 || true"
+
   # Deliberately NOT during --prepare: config_network puts the static site address on the wired
   # interface and points the default route and resolver at OUR router, which does not exist yet
   # on whatever connection is providing the internet. Doing it here would cut the very link the
@@ -330,7 +345,9 @@ config_network() {
   # An isolated pilot LAN legitimately has no gateway and no DNS; emit those blocks only when
   # configured, because netplan rejects an empty list.
   if [[ -n "$gw" ]]; then
-    routes=$'\n      routes:\n        - to: default\n          via: '"$gw"
+    [[ "$NET_ROUTE_METRIC" =~ ^[0-9]+$ ]] \
+      || die "NET_ROUTE_METRIC must be a whole number, not '$NET_ROUTE_METRIC'."
+    routes=$'\n      routes:\n        - to: default\n          via: '"$gw"$'\n          metric: '"$NET_ROUTE_METRIC"
   else
     warn "no GATEWAY_IP set — configuring an isolated LAN with no default route."
   fi
@@ -655,36 +672,104 @@ bring_up() {
 # ---------------------------------------------------------------------------
 # 6. Remote support (Tailscale + SSH) — ships DISABLED until data-protection sign-off (§3.5/§8)
 # ---------------------------------------------------------------------------
+# The support path the kit is built around: this LAPTOP joins whatever internet happens to be
+# available — the site's Wi-Fi, MSF's corporate Wi-Fi (the only option that survives 802.1X),
+# or a phone tethered over USB — and the tunnel dials OUT. Nothing inbound is opened at the
+# site, and clinical use never touches it: with no internet the tunnel is simply dormant.
+#
+# INSTALLING and ENABLING are deliberately separate. Installing needs the internet, so it
+# belongs to step 1 (--prepare). Enabling needs MSF's data-protection sign-off (C1), so it
+# ships off. Keeping them together is how the shipping path ended up with no tailscale binary
+# at all: --prepare returned before this ran, and --finish has no network to install from.
+
+# The LAN to carry over the tunnel, so a supporter reaches the ROUTER's admin page and the
+# tablets too, not just this box. Only the shipping /24 and a /16 are derived; anything else is
+# left unadvertised rather than guessed at.
+lan_subnet() {
+  case "${NET_PREFIX:-24}" in
+    24) echo "${STATIC_IP%.*}.0/24" ;;
+    16) echo "${STATIC_IP%.*.*}.0.0/16" ;;
+    *)  echo "" ;;
+  esac
+}
+
+# Put the tunnel software on the machine. Returns non-zero if it is not there afterwards, so
+# every caller can decide for itself whether that is fatal.
+remote_support_install() {
+  command -v tailscale >/dev/null 2>&1 && return 0
+  if [[ "$MODE" == "offline" ]]; then
+    # Bundled only if tools/bundle-debs.sh built the set with tailscale in it.
+    # offline_debs_install unpacks the whole debs/ directory, so this needs no special case.
+    if ls "$HERE"/debs/tailscale_*.deb >/dev/null 2>&1; then
+      offline_debs_install
+    fi
+    [[ $DRY_RUN -eq 1 ]] && return 0
+    command -v tailscale >/dev/null 2>&1
+    return
+  fi
+  log "Remote support: installing the tunnel software"
+  run_sh "curl -fsSL https://tailscale.com/install.sh | sh"
+  [[ $DRY_RUN -eq 1 ]] && return 0
+  command -v tailscale >/dev/null 2>&1
+}
+
 remote_support() {
+  local sub; sub="$(lan_subnet)"
+  # --accept-dns=false: MagicDNS would rewrite this machine's resolver, and this machine spends
+  #   almost all of its life with no internet. Its DNS must keep pointing at our own router.
+  # --advertise-routes: the supporter gets the router UI and the tablet subnet over the same
+  #   tunnel. (Forwarding has to be on for that to work; Docker already enables it.)
+  # --ssh: no keys to distribute, and access is governed by the tailnet ACL, which is what
+  #   makes the access auditable and revocable — the answer C1 will want.
+  local args=(--ssh --accept-dns=false --hostname "buendia-${SITE_ID:-pilot}")
+  [[ -n "$sub" ]] && args+=(--advertise-routes="$sub")
+
   if [[ "$ENABLE_REMOTE_SUPPORT" != "true" ]]; then
     log "Remote support: not enabled — nothing will connect out from this server"
-  else
-    log "Remote support: enabling the support connection"
-  fi
-  if ! command -v tailscale >/dev/null; then
-    if [[ "$MODE" == "offline" ]]; then
-      warn "offline: tailscale not bundled — install it during staging (online) before shipping"
-      return 0
+    if ! command -v tailscale >/dev/null 2>&1 && ! remote_support_install; then
+      warn "the remote-support software is NOT on this machine, and there is no internet here to
+       install it. Do it during a connected step (sudo ./setup.sh --prepare) before this box
+       ships — a site with no internet of its own can never install it later."
     fi
-    run_sh "curl -fsSL https://tailscale.com/install.sh | sh"
+    echo "  To enable once MSF's data-protection sign-off is in hand: set ENABLE_REMOTE_SUPPORT=true"
+    echo "  and TAILSCALE_AUTHKEY=<key> in .env and re-run, or run:"
+    echo "      tailscale up ${args[*]} --authkey <key>"
+    return 0
   fi
-  if [[ "$ENABLE_REMOTE_SUPPORT" == "true" ]]; then
-    : "${TAILSCALE_AUTHKEY:?set TAILSCALE_AUTHKEY in .env to enable remote support}"
-    run tailscale up --ssh --hostname "buendia-${SITE_ID:-pilot}" --authkey "$TAILSCALE_AUTHKEY"
-  else
-    echo "  To enable later: set ENABLE_REMOTE_SUPPORT=true + TAILSCALE_AUTHKEY in .env, re-run,"
-    echo "  or run: tailscale up --ssh --hostname buendia-${SITE_ID:-pilot}"
-  fi
+
+  log "Remote support: enabling the support connection"
+  command -v tailscale >/dev/null 2>&1 || remote_support_install \
+    || die "remote support is switched on, but the tunnel software is not installed and cannot be
+       installed from here (no internet). Run 'sudo ./setup.sh --prepare' while connected."
+  : "${TAILSCALE_AUTHKEY:?set TAILSCALE_AUTHKEY in .env to enable remote support}"
+  run tailscale up "${args[@]}" --authkey "$TAILSCALE_AUTHKEY"
+  # Said out loud because both bite months later, unattended, with nobody able to fix them:
+  echo "  The auth key must be TAGGED and NOT ephemeral, and key expiry must be turned OFF for"
+  echo "  this machine in the Tailscale admin console. A node whose key expires while the site is"
+  echo "  offline cannot re-authenticate — and it is the box you most need to reach."
 }
 
 # ---------------------------------------------------------------------------
 # 7. Wait for the stack, then prove it is USABLE (not merely listening)
 # ---------------------------------------------------------------------------
+# Where the stack can actually be reached from this machine. With LAN_BIND set the ports are
+# published on the LAN address ONLY, so localhost no longer answers — and checking the address
+# the tablets use is the more faithful test anyway. 0.0.0.0 is not a destination; treat an
+# explicit 0.0.0.0 the same as unset.
+stack_host() {
+  case "${LAN_BIND:-}" in
+    ""|0.0.0.0) echo "127.0.0.1" ;;
+    *)          echo "$LAN_BIND" ;;
+  esac
+}
+
 wait_for_rest() {
   log "Waiting for Buendia to finish starting (a minute or two)"
   # /ws/rest/v1/session returns 200 without auth once the platform + REST framework are up.
   # (The buendia resources require auth and would 401 here — don't use them for liveness.)
-  local url="http://localhost:${OPENMRS_PORT:-9000}/openmrs/ws/rest/v1/session" i
+  local host url i
+  host="$(stack_host)"
+  url="http://$host:${OPENMRS_PORT:-9000}/openmrs/ws/rest/v1/session"
   for i in $(seq 1 90); do
     if curl -fsS -o /dev/null "$url" 2>/dev/null; then
       ok "OpenMRS REST is up ($url)"; return 0
@@ -701,7 +786,8 @@ verify() {
   # has the duplicate-login row that locked a tablet out mid-test. buendia-verify.sh checks the
   # things a clinician's tablet actually depends on, so the installer's exit code now means it.
   log "Final check: making sure the server is genuinely usable"
-  "$HERE/tools/buendia-verify.sh" --port "${OPENMRS_PORT:-9000}" --pkg-port "${PKGSERVER_PORT:-9001}"
+  "$HERE/tools/buendia-verify.sh" --host "$(stack_host)" \
+      --port "${OPENMRS_PORT:-9000}" --pkg-port "${PKGSERVER_PORT:-9001}"
 }
 
 # ---------------------------------------------------------------------------
@@ -988,6 +1074,14 @@ main() {
   load_images
 
   if [[ "$PHASE" == "prepare" ]]; then
+    # The only step with internet, so the only step that can install this. It stays switched
+    # off; ENABLE_REMOTE_SUPPORT is what turns it on, later, after sign-off.
+    if remote_support_install; then
+      ok "Remote support software installed (switched OFF — it connects nowhere)"
+    else
+      warn "could not install the remote-support software — this box would have no support tunnel."
+    fi
+
     log "Step 1 finished — the Buendia software is now on this machine"
     echo "  Nothing was started and no network setting was changed."
     echo

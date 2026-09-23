@@ -20,19 +20,26 @@
 # chrony is in the set deliberately. It is the LAN time authority: the DNS clock intercept
 # resolves the tablets' NTP hostnames to this server, so a server without chrony answers
 # nothing and every tablet clock drifts, silently.
+#
+# tailscale is in the set for the same reason but a different failure: the remote-support
+# tunnel can only ever be INSTALLED while there is internet, and a site that has none can
+# never add it later. It is OPTIONAL here — it comes from Tailscale's own apt repo, which lags
+# a brand-new Ubuntu release — so its absence warns rather than fails, and --tailscale-suite
+# lets you pull an older suite deliberately instead.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$HERE/../debs"
-RELEASE=""; DRY=0
+RELEASE=""; DRY=0; TS_SUITE=""
 PKGS="docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin chrony"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --release) RELEASE="${2:-}"; shift 2 ;;
     --out)     OUT="${2:-}"; shift 2 ;;
+    --tailscale-suite) TS_SUITE="${2:-}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1 (try --help)" >&2; exit 2 ;;
   esac
 done
@@ -57,6 +64,7 @@ echo "    ok: download.docker.com/linux/ubuntu/dists/$RELEASE exists"
 if [[ $DRY -eq 1 ]]; then
   log "DRY RUN — would download into $OUT, for Ubuntu '$RELEASE':"
   echo "    $PKGS"
+  echo "    tailscale (from pkgs.tailscale.com, suite '${TS_SUITE:-$RELEASE}'; skipped if absent)"
   exit 0
 fi
 
@@ -64,7 +72,8 @@ mkdir -p "$OUT"
 log "Downloading the .deb closure for Ubuntu '$RELEASE' (inside ubuntu:$RELEASE)"
 # --download-only puts the whole resolved closure in the apt cache. `docker-ce` pulls in
 # containerd, iptables and friends; on a minimal container that is a long list, by design.
-docker run --rm -v "$OUT:/out" -e DEBIAN_FRONTEND=noninteractive "ubuntu:$RELEASE" bash -euc "
+docker run --rm -v "$OUT:/out" -e DEBIAN_FRONTEND=noninteractive \
+    -e TS_SUITE="${TS_SUITE:-}" "ubuntu:$RELEASE" bash -euc "
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends ca-certificates curl gnupg >/dev/null
   install -m 0755 -d /etc/apt/keyrings
@@ -73,8 +82,24 @@ docker run --rm -v "$OUT:/out" -e DEBIAN_FRONTEND=noninteractive "ubuntu:$RELEAS
   . /etc/os-release
   echo \"deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \$VERSION_CODENAME stable\" \
     > /etc/apt/sources.list.d/docker.list
+
+  # Tailscale's own repo, and OPTIONAL: it lags new Ubuntu releases, and a missing support
+  # tunnel must not cost us the Docker + chrony set that the server cannot boot without.
+  WANT=\"$PKGS\"
+  SUITE=\"\${TS_SUITE:-\$VERSION_CODENAME}\"
+  if curl -fsSL -o /tmp/tailscale.gpg \"https://pkgs.tailscale.com/stable/ubuntu/\$SUITE.noarmor.gpg\"; then
+    install -m 0644 /tmp/tailscale.gpg /etc/apt/keyrings/tailscale.gpg
+    echo \"deb [arch=amd64 signed-by=/etc/apt/keyrings/tailscale.gpg] https://pkgs.tailscale.com/stable/ubuntu \$SUITE main\" \
+      > /etc/apt/sources.list.d/tailscale.list
+    cp /etc/apt/keyrings/tailscale.gpg /out/tailscale-apt-keyring.gpg
+    WANT=\"\$WANT tailscale\"
+    echo \"    tailscale: using suite '\$SUITE'\"
+  else
+    echo \"    tailscale: no suite '\$SUITE' at pkgs.tailscale.com — SKIPPED (see --tailscale-suite)\"
+  fi
+
   apt-get update -qq
-  apt-get install -y --download-only $PKGS
+  apt-get install -y --download-only \$WANT
   cp -v /var/cache/apt/archives/*.deb /out/ | tail -1
   # The keyring the target needs to trust these later is not required for dpkg -i, but ship it
   # so an operator can add the repo by hand if they ever do get connectivity.
@@ -88,7 +113,7 @@ log "Manifest"
     echo "# built:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "# source: download.docker.com (docker-ce) + Ubuntu archive (dependencies, chrony)"
     echo
-    sha256sum ./*.deb ./docker-apt-keyring.gpg
+    sha256sum ./*.deb ./*.gpg
   } > MANIFEST.txt )
 
 count=$(ls -1 "$OUT"/*.deb 2>/dev/null | wc -l)
@@ -102,6 +127,15 @@ for must in chrony docker-ce; do
     || die "$must is missing from the set — refusing to call this complete."
   echo "    contains $must"
 done
+# tailscale is optional, so this reports rather than asserts — but say it plainly, because a
+# server built from a set without it can never be given a support tunnel at an offline site.
+if ls "$OUT"/tailscale_*.deb >/dev/null 2>&1; then
+  echo "    contains tailscale (remote support can be installed offline)"
+else
+  printf '\033[1;33m    NO tailscale in this set — a server built from it offline cannot have a\n'
+  printf '    support tunnel. Install it during an online step, or rebuild with\n'
+  printf '    --tailscale-suite <codename>.\033[0m\n'
+fi
 echo
 echo "Ship the whole debs/ directory next to setup.sh, then on the target:"
 echo "    sudo ./setup.sh --offline      # installs Docker + chrony from debs/, images from images/*.tar"

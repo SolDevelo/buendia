@@ -59,7 +59,28 @@ services:
       # Parameterized only so a THROWAWAY stack can be booted alongside a running one to
       # validate a seed/config change without disturbing it:
       #   OPENMRS_PORT=9100 PKGSERVER_PORT=9101 docker compose -p throwaway --env-file ../.env up -d
-      - "${OPENMRS_PORT:-9000}:8080"      # OpenMRS at http://<STATIC_IP>:9000/openmrs
+      #
+      # LAN_BIND is WHICH ADDRESS the port is published on, and it is a data-protection
+      # control, not a tuning knob. The pilot server laptop takes its internet by joining a
+      # third-party Wi-Fi itself (site Wi-Fi, MSF corporate, a phone hotspot), so the moment it
+      # does, a port published on 0.0.0.0 is reachable by everyone on THAT network — this one
+      # serves patient data behind a single well-known account. Set LAN_BIND=<STATIC_IP> (the
+      # site .env does) and the tablets still reach it while the foreign network cannot.
+      # Unset = 0.0.0.0 = the old behaviour, which is what local dev and throwaway stacks want.
+      #
+      # ⚠️ CONSEQUENCE FOR SUPPORT, and it is not obvious: once LAN_BIND is set, this port no
+      # longer answers on 127.0.0.1. Remote support for the pilot is TeamViewer — a desktop ON
+      # this laptop — where http://localhost:9000/openmrs is the natural thing to type, and it
+      # will HANG rather than refuse (the packet leaves for the default route and is dropped),
+      # which reads exactly like a dead server. The supported address, on the laptop and on a
+      # tablet alike, is http://<STATIC_IP>:9000/openmrs. One address everywhere: the same one
+      # on the in-zone card, in the APK, and in the runbooks.
+      # A second "127.0.0.1:9000:8080" mapping was considered and rejected: it cannot be
+      # expressed here so that it also works with LAN_BIND unset — docker then refuses the
+      # stack outright with `Bind for 0.0.0.0:9000 failed: port is already allocated` (verified),
+      # which would break local development and the throwaway-stack workflow to buy a
+      # convenience alias on the one machine that already has the real address.
+      - "${LAN_BIND:-0.0.0.0}:${OPENMRS_PORT:-9000}:8080"   # http://<STATIC_IP>:9000/openmrs
     volumes:
       - openmrs_profiles:/opt/openmrs/profiles   # persist uploaded profile CSVs across restarts
     healthcheck:
@@ -82,7 +103,10 @@ services:
     restart: unless-stopped
     ports:
       # The client derives the package URL as http://<server>:9001, so this should stay 9001.
-      - "${PKGSERVER_PORT:-9001}:80"
+      # LAN_BIND as above, and it matters MORE here than on 9000: the APK served from this port
+      # carries the server password as a plain Android string resource, readable with one
+      # `aapt dump --values resources`. A foreign network must never see this port.
+      - "${LAN_BIND:-0.0.0.0}:${PKGSERVER_PORT:-9001}:80"
     volumes:
       - ../pkgserver/www:/usr/share/nginx/html:ro
       - ../pkgserver/nginx.conf:/etc/nginx/conf.d/default.conf:ro

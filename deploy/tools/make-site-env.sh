@@ -62,6 +62,14 @@ NET_PREFIX=24
 NET_RENDERER=                     # empty = autodetect (NetworkManager on Ubuntu Desktop)
 GATEWAY_IP=${ROUTER_IP:-192.168.8.1}
 DNS_SERVERS=${ROUTER_IP:-192.168.8.1}     # our router's dnsmasq: the clock-intercept resolver
+NET_ROUTE_METRIC=1000             # the wired route must LOSE to a Wi-Fi or tethered phone:
+                                  #   that is how this laptop gets internet for remote support,
+                                  #   and an unweighted wired route beats both and leads nowhere.
+
+# WHICH ADDRESS the stack answers on. This is a data-protection control: when this laptop joins
+# another Wi-Fi to get online, anything published on 0.0.0.0 is offered to that network too —
+# and :9000 is patient data, :9001 serves the APK that carries the clinical password.
+LAN_BIND=${STATIC_IP}
 
 # --- Our Wi-Fi + facility name (printed on the in-zone install card) ---
 SITE_WIFI_SSID='${SITE_WIFI_SSID}'
