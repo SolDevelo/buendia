@@ -56,8 +56,9 @@ laptop. To check a backup you took earlier, run `sudo ./backup.sh --verify-only 
 
        sudo ./prepare.sh
 
-3. **It asks the same questions as the first time, and the answers shown are already the ones your
-   site uses. Press Enter to accept every one of them.**
+3. **It asks the same questions as the first time. It has read this server's current settings, so
+   the answer shown in brackets is already the one in use here — press Enter to accept every one
+   of them.** It says *"This machine already runs Buendia"* at the top when it has done that.
 
    ⚠️ **The "Password for the `buendia` login" must stay exactly as it is.** The tablets carry that
    password inside the app. If it is changed here, every tablet is locked out until it is re-installed
@@ -193,6 +194,14 @@ and no confirmation prompt — the backup above is the only protection. Do not r
 
 ## Notes for SolDevelo (not for the site)
 
+- **`prepare.sh` takes its four site answers and both database passwords from `<target>/.env`
+  when one exists**, so on an upgrade the defaults offered are the server's own and not the build
+  box's. Before that it offered ours, and `bootstrap.sh` installs the file over `<target>/.env`
+  whole — so "press Enter to accept" silently replaced whatever the site had typed at its first
+  install. The Wi-Fi password was the sharp end: `setup.sh` passes it to `configure-router.sh`,
+  which would have rewritten the router's passphrase and dropped every tablet off the network.
+  Everything else in the file — image digests, addresses, the payload — still comes from the pack,
+  which is the point of the upgrade.
 - **Build the pack with `tools/make-usb-pack.sh --keep-passwords <the site's current buendia.env>`.**
   The APK carries the server password as a build-time string resource and `setup.sh` rotates the DB
   account to whatever `.env` says, so a pack built without the site's existing password ships an APK

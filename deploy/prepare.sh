@@ -26,6 +26,30 @@ echo "This asks a few questions, then downloads about 800 MB. Nothing is started
 # Read the shipped defaults, so every answer can simply be accepted with Enter.
 set -a; . "$HERE/buendia.env"; set +a
 
+# On an UPGRADE the shipped defaults are the wrong ones to offer. They come from our build
+# machine, while the site may have typed its own answers at the first install — and since
+# bootstrap.sh installs this file over <target>/.env wholesale, "press Enter to accept" would
+# then quietly replace the site's settings with ours. The Wi-Fi password is the one that hurts:
+# setup.sh hands it to the router, so every tablet would drop off the network at once.
+#
+# So when there is already an installation here, its own values are what gets offered. Only
+# these few keys: everything else in the new file (image digests, addresses, the payload) is
+# the point of the upgrade and must come from the stick.
+live() {   # live <VAR> -> that variable's value in the installed .env, empty if there is none
+  [[ -f "$TARGET/.env" ]] || return 0
+  ( set -a; . "$TARGET/.env" >/dev/null 2>&1; set +a; printf '%s' "${!1:-}" ) 2>/dev/null || true
+}
+UPGRADE=0
+if [[ -f "$TARGET/.env" ]]; then
+  UPGRADE=1
+  for k in SITE_FACILITY_NAME SITE_WIFI_SSID SITE_WIFI_PASSWORD APK_OPENMRS_PASSWORD; do
+    v="$(live "$k")"
+    [[ -n "$v" ]] && printf -v "$k" '%s' "$v"
+  done
+  printf '\n  %sThis machine already runs Buendia.%s The answers below are the ones it uses now —\n' "$Y" "$N"
+  printf '  press Enter to keep each of them.\n'
+fi
+
 ask() {                       # ask <prompt> <current> -> ANSWER
   local prompt="$1" current="$2" reply
   read -r -p "  $prompt [$current]: " reply </dev/tty || reply=""
@@ -65,11 +89,26 @@ sed -e "s|^SITE_FACILITY_NAME=.*|SITE_FACILITY_NAME='$NEW_FACILITY'|" \
     -e "s|^SITE_WIFI_SSID=.*|SITE_WIFI_SSID='$NEW_SSID'|" \
     -e "s|^SITE_WIFI_PASSWORD=.*|SITE_WIFI_PASSWORD='$NEW_WIFIPW'|" \
     "$HERE/buendia.env" > "$ENVF"
-if [[ "$NEW_APPPW" != "${APK_OPENMRS_PASSWORD:-buendia}" ]]; then
+if [[ "$NEW_APPPW" != "${APK_OPENMRS_PASSWORD:-buendia}" ]]; then   # NB now the offered default
   printf '  %severy tablet will need its password changed by hand to match%s\n' "$Y" "$N"
 fi
 # setup.sh rotates the server account to whatever this says, so it is the single source of truth.
 sed -i "s|^APK_OPENMRS_PASSWORD=.*|APK_OPENMRS_PASSWORD=$NEW_APPPW|" "$ENVF"
+
+# The database credentials are not a question anyone can be asked: MySQL keeps them inside the
+# data directory, so on a machine that already holds a database the running one is the only
+# possible answer and a pack built with the wrong value would simply fail to start. The pack is
+# built with --keep-passwords to carry them, but this makes it impossible to get wrong.
+if [[ $UPGRADE -eq 1 ]]; then
+  for k in MYSQL_ROOT_PASSWORD MYSQL_PASSWORD; do
+    v="$(live "$k")"
+    [[ -n "$v" ]] || continue
+    if [[ "$v" != "$(set -a; . "$ENVF"; set +a; printf '%s' "${!k}")" ]]; then
+      printf '  %skeeping this server'"'"'s %s — the database will not open with any other%s\n' "$Y" "$k" "$N"
+    fi
+    sed -i "s|^$k=.*|$k=$v|" "$ENVF"
+  done
+fi
 echo "  ok"
 
 log "Copying the software onto this machine and downloading the containers"
