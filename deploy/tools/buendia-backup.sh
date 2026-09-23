@@ -140,12 +140,17 @@ Start the server first:  sudo $DIR/setup.sh
 (If it has only just started, wait a minute and try again.)"
 ok "database is running" "$DIR"
 
-# Where it goes. Under sudo, $HOME is root's — the file belongs to the person who ran this.
-USER_NAME="${SUDO_USER:-root}"
+# Where it goes. Under sudo, $HOME is root's, so the invoking user is read from SUDO_USER —
+# but this script does not always elevate (it only does so when Docker refuses), and then
+# SUDO_USER is unset and `root` would be flatly wrong: the backup went to /root, where the
+# person who asked for it cannot read it, and on a machine where they cannot even write it.
+USER_NAME="${SUDO_USER:-$(id -un)}"
 USER_HOME="$(getent passwd "$USER_NAME" | cut -d: -f6)"
 [ -n "$USER_HOME" ] && [ -d "$USER_HOME" ] || USER_HOME="/root"
 OUT_DIR="${OUT_DIR:-$USER_HOME}"
 [ -d "$OUT_DIR" ] || die "$OUT_DIR does not exist."
+[ -w "$OUT_DIR" ] || die "$OUT_DIR cannot be written to by $(id -un).
+Choose somewhere else:  ./backup.sh --out /home/$USER_NAME"
 OUT="$OUT_DIR/buendia-backup-$SITE-$(date +%Y-%m-%d-%H%M).sql.gz"
 
 # Room to write it. The dump compresses several times over, so the raw data size is a
