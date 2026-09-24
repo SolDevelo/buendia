@@ -60,8 +60,7 @@ public interface MsfCatalog extends Catalog {
         ),
         new Drug("DORABECL", "BECLOMETASONE dipropionate [fr:BECLOMETASONE dipropionate]").withFormats(
             new Format("DORABECL1SF", "0.10 mg / puff, 200 puffs, aerosol [fr:0.10 mg / bouffée, 200 b., aérosol]", Unit.PUFF),
-            new Format("DORABECL2SF", "0.25 mg / puff, 200 puffs, aerosol [fr:0.25 mg / bouffée, 200 b., aérosol]", Unit.PUFF),
-            new Format("DORABECL5SF", "0.05 mg / puff, 200 puffs, aerosol [fr:0.05 mg / bouffée, 200 b., aérosol]", Unit.PUFF)
+            new Format("DORABECL2SF", "0.25 mg / puff, 200 puffs, aerosol [fr:0.25 mg / bouffée, 200 b., aérosol]", Unit.PUFF)
         ),
         new Drug("DORABISO", "BISOPROLOL fumarate [fr:BISOPROLOL fumarate]").withFormats(
             new Format("DORABISO1TB4", "10 mg, break. tab. in 1/4 [fr:10 mg, comp. quadrisécable]", Unit.TABLET),
@@ -222,9 +221,6 @@ public interface MsfCatalog extends Catalog {
             new Format("DORAPARA1T", "100 mg, tab. [fr:100 mg, comp.]", Unit.TABLET),
             new Format("DORAPARA5T", "500 mg, tab. [fr:500 mg, comp.]", Unit.TABLET)
         ),
-        new Drug("DORAPHYT", "PHYTOMENADIONE (vitamin K1) [fr:PHYTOMENADIONE (vitamine K1)]").withFormats(
-            new Format("DORAPHYT1A1", "10 mg / ml, 1 ml, amp. [fr:10 mg / ml, 1 ml, amp.]", Unit.ML)
-        ),
         new Drug("DORAPOTC", "POTASSIUM chloride [fr:POTASSIUM chlorure]").withFormats(
             new Format("DORAPOTC6TP", "600 mg (8mEq), prolonged-release tab. [fr:600 mg (8mEq), comp. libération prolongée]", Unit.TABLET),
             new Format("DORAPOTC1S", "100 mg / ml (1.33mEq / ml), oral sol., 500 ml, bot. [fr:100 mg / ml (1.33mEq / ml), sol. orale, 500 ml, fl.]", Unit.ML)
@@ -267,17 +263,17 @@ public interface MsfCatalog extends Catalog {
         new Drug("NFOSRUSF", "READY TO USE SUPPLEMENTARY FOOD [fr:ALIMENT SUPPL. PRET A L'EMPLOI]").withFormats(
             new Format("NFOSRUSFPEP10", "peanut paste, 100 g [fr:pâte d'arachide, 100 g]", Unit.SACHET)
         ),
-        new Drug("NFOSRUTF", "RUTF [fr:RUTF]").withFormats(
-            new Format("NFOSRUTFCEB51", "(BP100), cereal biscuit, 510 g (= 9 barres) [fr:(BP100), biscuit céréales, 510 g (= 9 barres)]", Unit.SACHET),
+        new Drug("NFOSRUTF", "READY-TO-USE THERAPEUTIC FOOD (RUTF) [fr:ALIMENT THERAPEUTIQUE PRET A L'EMPLOI (ATPE)]").withFormats(
+            new Format("NFOSRUTFCEB51", "(BP100), cereal biscuit, 510 g (= 9 bars) [fr:(BP100), biscuit céréales, 510 g (= 9 barres)]", Unit.SACHET),
             new Format("NFOSRUTFPEP92", "peanut paste, 92 g [fr:pâte d'arachide, 92 g]", Unit.SACHET)
         ),
         new Drug("NFOSTHMI", "THERAPEUTIC MILK [fr:LAIT THERAPEUTIQUE]").withFormats(
             new Format("NFOSTHMIF1O40", "F100, powder, 400 g [fr:F100, poudre, 400 g]", Unit.SACHET),
             new Format("NFOSTHMIF7O40", "F75, powder, 400 g [fr:F75, poudre, 400 g]", Unit.SACHET)
         ),
-        new Drug("DORAASPY", "AS [fr:AS]").withFormats(
-            new Format("DORAASPY2G", "20 mg / PYRONARIDINE 60 mg, granules, sachet [fr:20 mg / PYRONARIDINE 60 mg, granulés, sachet]", Unit.MG),
-            new Format("DORAASPY6T", "60 mg / PYRONARIDINE 180 mg, tab. [fr:60 mg / PYRONARIDINE 180 mg, comp.]", Unit.TABLET)
+        new Drug("DORAASPY", "AS / PYRONARIDINE (ARTESUNATE / PYRONARIDINE) [fr:AS / PYRONARIDINE (ARTESUNATE / PYRONARIDINE)]").withFormats(
+            new Format("DORAASPY2G", "20 mg / 60 mg, granules, sachet [fr:20 mg / 60 mg, granulés, sachet]", Unit.SACHET),
+            new Format("DORAASPY6T", "60 mg / 180 mg, tab. [fr:60 mg / 180 mg, comp.]", Unit.TABLET)
         ),
         new Drug("DORADARR", "DRV eq. 400 mg base / r 50 mg [fr:DRV éq. 400 mg base / r 50 mg]").withFormats(
             new Format("DORADARR4T", "tab. [fr:comp.]", Unit.TABLET)
@@ -416,6 +412,7 @@ public interface MsfCatalog extends Catalog {
             new Format("DINJPHEY2A", "50 mg / ml, 5 ml, amp. [fr:50 mg / ml, 5 ml, amp.]", Unit.ML)
         ),
         new Drug("DINJPHYT", "PHYTOMENADIONE (vitamin K1) [fr:PHYTOMENADIONE (vitamine K1)]").withFormats(
+            new Format("DINJPHYT1A1", "10 mg / ml, 1 ml, amp. [fr:10 mg / ml, 1 ml, amp.]", Unit.ML),
             new Format("DINJPHYT2AN", "10 mg / ml (2 mg / 0.2 ml), 0.2 ml amp. [fr:10 mg / ml (2 mg / 0.2 ml), 0.2 ml amp.]", Unit.ML)
         ),
         new Drug("DINJPROM", "PROMETHAZINE hydrochloride [fr:PROMETHAZINE chlorhydrate]").withFormats(
@@ -478,14 +475,16 @@ public interface MsfCatalog extends Catalog {
             new Format("DEXTBENZ2L1", "25%, lotion, 1 l, bot. [fr:25%, lotion, 1 l, fl.]", Unit.ML)
         ),
         new Drug("DEXTCHLH", "CHLORHEXIDINE digluconate [fr:CHLORHEXIDINE digluconate]").withFormats(
-            new Format("DEXTCHLH2S", "0.2%, mouthwash, sol., 300 ml, bot. [fr:0.2%, bain de bouche, sol., 300 ml, fl]", Unit.ML),
-            new Format("DEXTCHLH7G2", "7.1%, gel, 20 g tube [fr:7.1%, gel, 20 g tube]", Unit.ML)
+            new Format("DEXTCHLH2S", "0.2%, mouthwash, sol., 300 ml, bot. [fr:0.2%, bain de bouche, sol., 300 ml, fl]", Unit.ML)
+        ),
+        new Drug("DEXTHYDR", "HYDROCORTISONE (acetate or base) [fr:HYDROCORTISONE (acétate ou base)]").withFormats(
+            new Format("DEXTHYDR1O1", "1%, ointment, 15-20 g, tube [fr:1%, pommade, 15-20 g, tube]", Unit.ML)
         ),
         new Drug("DEXTCLOT", "CLOTRIMAZOLE [fr:CLOTRIMAZOLE]").withFormats(
             new Format("DEXTCLOT5T", "500 mg, vaginal tab. + applicator [fr:500 mg, comp. vaginal + applicateur]", Unit.TABLET)
         ),
-        new Drug("DEXTFUSI", "FUSIDIC ACID [fr:ACIDE FUSIDIQUE]").withFormats(
-            new Format("DEXTFUSI2C3", "2%, cream, 30 g, tube [fr:2%, crème, 30 g, tube]", Unit.ML)
+        new Drug("DEXTLIDO", "LIDOCAINE [fr:LIDOCAINE]").withFormats(
+            new Format("DEXTLIDO2J3", "2%, jelly, sterile, 30 g, tube [fr:2%, gel, stérile, 30 g, tube]", Unit.ML)
         ),
         new Drug("DEXTMICO", "MICONAZOLE nitrate [fr:MICONAZOLE nitrate]").withFormats(
             new Format("DEXTMICO2C3", "2%, cream, 30 g, tube [fr:2%, crème, 30 g, tube]", Unit.ML)

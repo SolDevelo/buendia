@@ -553,6 +553,21 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-09-24 — drug list corrected from MSF's review (APK 1.4.0, omod 1.1.1).** MSF asked
+> for one deletion and seven additions. Only two of the seven were truly missing, and **both came from
+> the 09-21 fuzzy alignment**: hydrocortisone 1% ointment had matched chlorhexidine 7.1% gel and
+> lidocaine 2% jelly had matched fusidic acid 2% cream. They now carry the MSL codes `DEXTHYDR1O1` /
+> `DEXTLIDO2J3`. The other five were in the APK already, but **the order dialog searches drug names
+> only**, so nobody could find them. AS/pyronaridine was named just `AS`, so it is now
+> `AS / PYRONARIDINE (ARTESUNATE / PYRONARIDINE)`, and the granules unit changed from MG to SACHET. RUTF is now
+> `READY-TO-USE THERAPEUTIC FOOD (RUTF)`. Vitamin K1 10 mg/ml 1 ml amp. was filed under oral
+> (`DORAPHYT1A1`, PO only) and has moved to injectable as **provisional code `DINJPHYT1A1`**.
+> Beclometasone 0.05 mg/puff (`DORABECL5SF`) is removed. Totals: 195 formats / 144 drugs.
+> The rest of `mml-buendia-2026-alignment.csv` was re-checked for the same fault (a low score or a
+> differing first word). No other wrong-drug match was found; what remains is the already-flagged provisional codes.
+> Image `soldevelo/buendia-openmrs@sha256:c652a11cf79dcd93ef40d99f9a36553762023598c7c3739b7b358162a06d7626`
+> (pinned in `deploy/.env`). Tablets need the new APK. The printed chart needs the new image.
+
 > **Update 2026-09-21 — tablet drug list cut to MSF's own configuration.** MSF curated the drug
 > list in OpenMRS *Manage Concept Drugs* (197 drugs: 125 CIEL rows renamed in place, 72 appended;
 > nothing deleted or retired). The catalogue compiled into the APK and the omod now matches it
