@@ -475,18 +475,22 @@ whether these numbers come from an existing MSF register. Today we enforce **no 
 whatever is typed is accepted. Please also tell us whether the same patient number could legitimately
 appear twice.
 
-## A9. Timezone — and one specific question about printed records 🩺⚖️
+## A9. Timezone — and one specific question about the data export 🩺⚖️
 
 We tested this, so the question is now narrow.
 
 - **Confirm the site's timezone:** `Africa/Kinshasa` (UTC+1) or `Africa/Lubumbashi` (UTC+2) — DRC spans
-  both.
+  both. The printed record depends on this answer (see below).
 - **What we established by testing:** **clinicians at the bedside already see correct local time on the
   tablet.** Internally the system stores times in UTC, and the tablet converts. An admission recorded at
   16:59 local was shown as 16:59 on the tablet. **Nothing needs changing there.**
-- **The one open question:** **printed and exported records are not converted** — they read UTC, i.e.
-  1–2 hours off local wall-clock time. **Must a printed patient record show local time, or is UTC
-  acceptable there?** This matters if the printout goes into a physical patient file.
+- **Printed patient records already show local time — for a UTC+2 site.** *(Correction: an earlier
+  version of this request said printed records show UTC. They do not.)* We are setting the printout
+  to Kinshasa time (UTC+1). If the site is in eastern DRC on Lubumbashi time (UTC+2) — Ituri, the
+  Kivus, Katanga — it is one setting to change, with no software change; just tell us.
+- **The one open question:** **the data export (CSV) is not converted** — it gives times in UTC, clearly
+  marked as such, i.e. 1–2 hours off local wall-clock time. **Is UTC acceptable in the export, or must
+  it show local time?**
 - **Related tablet dependency:** as noted in B5 q8, the recorded time comes from the tablet's clock. A
   tablet with a wrong clock or timezone produces wrong data and the server cannot fix it. Both need
   checking per device at staging.
@@ -575,7 +579,7 @@ These shape which answers are practical, so they're better said once, up front.
 | **A6** | Interface language — French? | 🩺 | English | |
 | **A7** | Clinical forms/questions — confirm or replace | 🩺 | historical Ebola content | |
 | **A8** | Patient ID format | 🩺 | no format enforced | |
-| **A9** | Timezone; **must printed records show local time?** | 🩺⚖️ | UTC internally; tablet shows local | |
+| **A9** | Timezone; **is UTC acceptable in the data export?** | 🩺⚖️ | UTC internally; tablet and printout show local (UTC+2) | |
 | **A10** | Idle logout — confirm 10 min / 5 min charging | 🩺 | 10 min / 5 min | |
 | **A11** | Device encryption + screen-lock PIN enforced? | ⚖️📋 | staging checklist step | |
 | **B3** | Tablet count + device policy | 📋 | — | |

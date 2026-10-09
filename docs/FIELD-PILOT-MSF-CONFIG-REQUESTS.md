@@ -217,26 +217,39 @@
 - **Lands in:** no config file today — a validation/format decision; may need a client or profile change.
 - **Answer:** _(pending)_
 
-### A9. Timezone — 🟡 *(narrowed on 2026-07-29: only printed/exported output is affected)*
+### A9. Timezone — 🟡 *(narrowed on 2026-07-29; corrected on 2026-10-09: the printout is local time, configurable)*
 
 - **Need now:** confirmation of the site's timezone (`Africa/Kinshasa` UTC+1 or `Africa/Lubumbashi`
-  UTC+2 — DRC spans both), and a ruling on **one specific thing**: must the **printed patient record
-  and any data export** show *local* time, or is UTC acceptable there?
+  UTC+2 — DRC spans both). The printout already depends on the answer (see below). Also a ruling on
+  **one remaining thing**: is UTC acceptable in the **CSV data export**?
 - **What we established by testing (so this is no longer a broad question):** the stack runs **UTC**
   end-to-end and the **tablet displays device-local time**. An admission recorded at 16:59 local was
   stored as `14:59:27Z` and shown on the tablet as **~16:59**. So:
   - **clinicians at the bedside already see local time** — nothing to change, and we specifically do
     *not* want to change `TZ`, because UTC end-to-end was chosen to fix an earlier timezone bug;
-  - **server-rendered output is NOT converted** — the OpenMRS admin web UI, the printable record and
-    `DataExportServlet` CSV read UTC, i.e. 1–2 h off local wall-clock. This is the only remaining
-    exposure, and it matters for a printed record that goes in a physical file.
+  - **the printed patient record ("Print Patient Files") IS converted to local time.**
+    *(Corrected 2026-10-09; this entry previously said the printout read UTC.)* Every time on the
+    printout goes through `DataHelper.toLocalDateTime()`. The shipped image uses a fixed UTC+2
+    (`DateTimeZone.forOffsetHours(2)`): an admission stored as `08:15Z` prints "10h15".
+    **The zone is now a setting** (branch `print-history-only`, not yet shipped): the OpenMRS global
+    property **`projectbuendia.timezone`**, default **`Africa/Kinshasa`** (UTC+1), chosen
+    2026-10-09 pending MSF's answer. For an eastern site (UTC+2), set it to `Africa/Lubumbashi` in
+    *Administration → Settings*. It takes effect on the next print, with no restart and no rebuild
+    (verified: 09h15 ↔ 10h15). An invalid value logs a warning and falls back to `Africa/Kinshasa`.
+    The module creates the property only when it is missing, so a deployment that already has it
+    keeps its value.
+  - **the `DataExportServlet` CSV is NOT converted:** ISO 8601 UTC with an explicit `Z`, so it is
+    unambiguous but 1–2 h off local wall-clock. The OpenMRS admin web UI also reads UTC
+    (2026-07-29 testing).
 - **Dependencies on the tablets, worth stating to MSF (see B5 q8):** the stored instant comes from the
   **tablet's** clock (the sync payload carries a client-supplied time), so a tablet with a wrong clock
   writes wrong data, and a tablet with a wrong timezone displays wrong times. The server cannot
   compensate for either — both are per-device staging checks.
 - **Default shipped:** `TZ=UTC` (host + MySQL + JVM). **Recommend keeping it.**
-- **Lands in:** `deploy/.env` (`TZ=`). Changing it must be validated on a throwaway stack first.
-- **Answer:** _(pending — only the printed/exported-record question remains)_
+- **Lands in:** `deploy/.env` (`TZ=`) for the stack, which must stay UTC; changing it must be
+  validated on a throwaway stack first. The printout zone is the global property
+  `projectbuendia.timezone`.
+- **Answer:** _(pending — site timezone, and whether UTC is acceptable in the CSV export)_
 
 ---
 
