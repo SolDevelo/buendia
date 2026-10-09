@@ -1,7 +1,10 @@
 package org.projectbuendia.openmrs.web.controller;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.joda.time.DateTimeZone;
 import org.openmrs.Patient;
+import org.openmrs.api.context.Context;
 import org.openmrs.projectbuendia.Utils;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -23,17 +26,33 @@ import static org.springframework.web.bind.annotation.RequestMethod.GET;
 import static org.springframework.web.bind.annotation.RequestMethod.POST;
 
 @Controller public class Print {
-    private static final DateTimeZone DEFAULT_ZONE = DateTimeZone.forOffsetHours(2); // Central Africa Time
+    private static final Log log = LogFactory.getLog(Print.class);
+    public static final String GLOBAL_PROPERTY_TIMEZONE = "projectbuendia.timezone";
+    private static final DateTimeZone DEFAULT_ZONE = DateTimeZone.forID("Africa/Kinshasa"); // UTC+1, western DRC
     private static final Locale DEFAULT_LOCALE = new Locale("fr");
 
-    private DataHelper getDataHelper(HttpServletRequest request) {
-        DateTimeZone zone = DEFAULT_ZONE;
+    /** The zone from the request's "tz" parameter, else the global property, else the default. */
+    private DateTimeZone getZone(HttpServletRequest request) {
         String tz = request.getParameter("tz");
         if (tz != null) {
             try {
-                zone = DateTimeZone.forID(tz);
+                return DateTimeZone.forID(tz);
             } catch (IllegalArgumentException e) { }
         }
+        String property = Context.getAdministrationService().getGlobalProperty(GLOBAL_PROPERTY_TIMEZONE);
+        if (Utils.hasChars(property)) {
+            try {
+                return DateTimeZone.forID(property.trim());
+            } catch (IllegalArgumentException e) {
+                log.warn("Global property " + GLOBAL_PROPERTY_TIMEZONE + " is not a time zone: \""
+                    + property + "\"; printing in " + DEFAULT_ZONE.getID());
+            }
+        }
+        return DEFAULT_ZONE;
+    }
+
+    private DataHelper getDataHelper(HttpServletRequest request) {
+        DateTimeZone zone = getZone(request);
 
         Locale locale = DEFAULT_LOCALE;
         String tag = request.getParameter("lang");
@@ -83,7 +102,6 @@ import static org.springframework.web.bind.annotation.RequestMethod.POST;
                 for (String uuid : request.getParameterValues("patient")) {
                     if (!printedUuids.contains(uuid)) {
                         Patient patient = helper.getPatient(uuid);
-                        printer.printAdmissionForm(patient);
                         printer.printHistory(patient);
                         printedUuids.add(uuid);
                     }

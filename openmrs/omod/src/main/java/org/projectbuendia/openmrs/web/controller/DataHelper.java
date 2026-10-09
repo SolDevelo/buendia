@@ -61,7 +61,10 @@ public class DataHelper {
     protected final PatientService patientService;
     protected final ProviderService providerService;
 
-    private static final String DISCHARGED_LOCATION_UUID = "73010980-d3e7-404a-95bf-180966f04fb8";
+    private static final List<String> DISCHARGED_LOCATION_UUIDS = Arrays.asList(
+        "73010980-d3e7-404a-95bf-180966f04fb8",  // historical Buendia sites
+        "b990663d-b80b-41ba-9b55-de172a5db780"   // "[5] Discharged" in deploy/seed/initdb/20-buendia-site.sql
+    );
     private static final String ADMISSION_DATETIME_UUID = Utils.toUuid(8001640);
     private static final String DISCHARGE_DATETIME_UUID = toUuid(8001641);
     private static final String PREGNANCY_UUID = Utils.toUuid(2005272);
@@ -189,7 +192,7 @@ public class DataHelper {
             Obs obs = placements.get(patientUuid);
             String placement = obs.getValueText();
             String locationUuid = getLocationUuidFromPlacement(placement);
-            if (!eq(locationUuid, DISCHARGED_LOCATION_UUID)) {
+            if (!DISCHARGED_LOCATION_UUIDS.contains(locationUuid)) {
                 Patient patient = patientService.getPatientByUuid(patientUuid);
                 results.add(new PatientPlacement(patient, placement));
             }
@@ -258,6 +261,31 @@ public class DataHelper {
             }
         }
         return obsByQuestion;
+    }
+
+    /**
+     * The earlier values of each question in a group, oldest first, leaving out any value
+     * that is repeated by the one after it; the latest value is not included.
+     */
+    public Map<String, List<Obs>> getEarlierObsByQuestion(List<Obs> group) {
+        List<Obs> sorted = new ArrayList<>(group);
+        Collections.sort(sorted, OBS_TIME);
+        Map<String, List<Obs>> byQuestion = new HashMap<>();
+        for (Obs obs : sorted) {
+            String key = obs.getConcept().getUuid();
+            if (!byQuestion.containsKey(key)) byQuestion.put(key, new ArrayList<Obs>());
+            byQuestion.get(key).add(obs);
+        }
+        Map<String, List<Obs>> results = new HashMap<>();
+        for (String key : byQuestion.keySet()) {
+            List<Obs> values = byQuestion.get(key);
+            List<Obs> earlier = new ArrayList<>();
+            for (int i = 0; i < values.size() - 1; i++) {
+                if (!eq(getValue(values.get(i)), getValue(values.get(i + 1)))) earlier.add(values.get(i));
+            }
+            if (!earlier.isEmpty()) results.put(key, earlier);
+        }
+        return results;
     }
 
     public Patient getPatient(String uuid) {
@@ -361,8 +389,13 @@ public class DataHelper {
         return results;
     }
 
+    /** Orders of the patient, leaving out the ones deleted on the tablet (voided). */
     public List<Order> getOrders(Patient patient) {
-        return orderService.getAllOrdersByPatient(patient);
+        List<Order> orders = new ArrayList<>();
+        for (Order order : orderService.getAllOrdersByPatient(patient)) {
+            if (!order.isVoided()) orders.add(order);
+        }
+        return orders;
     }
 
     public List<Form> getForms() {
@@ -449,7 +482,7 @@ public class DataHelper {
                 lastValues.put(uuid, value);
             }
             Event newEvent = new Event(event.time, dedupedObs, event.orders, event.execs);
-            if (!newEvent.obs.isEmpty() || !newEvent.orders.isEmpty()) {
+            if (!newEvent.obs.isEmpty() || !newEvent.orders.isEmpty() || !newEvent.execs.isEmpty()) {
                 results.add(newEvent);
             }
         }
@@ -657,7 +690,8 @@ public class DataHelper {
             List<Obs> execs = new ArrayList<>();
             for (Obs o : obs) {
                 if (eq(DbUtils.getConceptUuid(o), ConceptUuids.ORDER_EXECUTED_UUID)) {
-                    execs.add(o);
+                    // Doses of an order deleted on the tablet are not shown there either.
+                    if (o.getOrder() == null || !o.getOrder().isVoided()) execs.add(o);
                 } else {
                     points.add(o);
                 }

@@ -48,6 +48,15 @@
       extension).
     </description>
   </globalProperty>
+  <globalProperty>
+    <property>projectbuendia.timezone</property>
+    <defaultValue>Africa/Kinshasa</defaultValue>
+    <description>
+      Time zone in which the printed patient record shows dates and times, as a tz database
+      name: Africa/Kinshasa (UTC+1, western DRC) or Africa/Lubumbashi (UTC+2, eastern DRC,
+      e.g. Ituri, the Kivus, Katanga). Stored times are UTC; this only affects the printout.
+    </description>
+  </globalProperty>
 
   <!-- Module Activator -->
   <activator>org.projectbuendia.openmrs.ProjectBuendiaActivator</activator>
