@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 #
 # buendia-openmrs image: OpenMRS Platform 1.10.6 on Tomcat 7 / Java 7, with the
-# Buendia omod + xforms + webservices.rest modules and python2 profile-apply.
+# Buendia omod + xforms + webservices.rest + reporting modules and python2 profile-apply.
 #
 # Build context = REPO ROOT (so it can see openmrs/, tools/, packages/, deploy/).
-# Driven by deploy/image/build-image.sh. Heavy deps (war + 2 omods) are vendored
+# Driven by deploy/image/build-image.sh. Heavy deps (war + omods) are vendored
 # into deploy/image/artifacts/ by `build-image.sh --fetch` (run once).
 #
 # Java 7 base: openjdk:7 is gone from Docker Hub, so we use Azul Zulu OpenJDK 7
@@ -93,6 +93,13 @@ RUN mkdir -p /opt/openmrs/modules /opt/openmrs/profiles /usr/share/buendia
 COPY deploy/image/artifacts/openmrs.war             /opt/tomcat/webapps/openmrs.war
 COPY deploy/image/artifacts/xforms.omod             /opt/openmrs/modules/xforms.omod
 COPY deploy/image/artifacts/webservices.rest.omod   /opt/openmrs/modules/webservices.rest.omod
+# Reporting (data exports) and the three modules it requires.
+COPY deploy/image/artifacts/reporting.omod             /opt/openmrs/modules/reporting.omod
+COPY deploy/image/artifacts/serialization.xstream.omod /opt/openmrs/modules/serialization.xstream.omod
+COPY deploy/image/artifacts/htmlwidgets.omod           /opt/openmrs/modules/htmlwidgets.omod
+COPY deploy/image/artifacts/calculation.omod           /opt/openmrs/modules/calculation.omod
+# Report definitions Reporting loads at startup (see reports/data-dump.yml).
+COPY deploy/image/reports/ /opt/openmrs/configuration/reports/reportdescriptors/
 # Freshly-built Buendia omod from the builder stage.
 COPY --from=builder /src/openmrs/omod/target/*.omod /opt/openmrs/modules/
 

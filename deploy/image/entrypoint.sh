@@ -34,8 +34,31 @@ SERVER_OPENMRS_USER=${SERVER_OPENMRS_USER:-buendia}
 SERVER_OPENMRS_PASSWORD=${SERVER_OPENMRS_PASSWORD:-buendia}
 EOF
 
-# OpenMRS finds its data dir + runtime props via this system property.
-export CATALINA_OPTS="${JAVA_OPTS:-} -DOPENMRS_APPLICATION_DATA_DIRECTORY=/opt/openmrs/"
+# OpenMRS skips any module whose <id>.started global property is 'false' at boot. The seed (and so
+# every installed site) carries 'false' for Reporting and its dependencies, left over from 2015, so
+# switch them on here; a database that predates this image would otherwise never get them.
+# Also make Reporting load the report descriptors baked into /opt/openmrs/configuration/reports.
+# Never fatal: the tablet API does not depend on Reporting.
+python2 - <<'EOF' || echo "WARNING: could not enable the Reporting modules"
+import os, pymysql
+db = pymysql.connect(host=os.environ['DB_HOST'], user=os.environ['DB_USERNAME'],
+                     passwd=os.environ['DB_PASSWORD'], db=os.environ['DB_DATABASE'],
+                     connect_timeout=20)
+with db.cursor() as c:
+    n = c.execute("UPDATE global_property SET property_value = 'true'"
+                  " WHERE property IN ('reporting.started', 'serialization.xstream.started',"
+                  " 'htmlwidgets.started', 'calculation.started') AND property_value <> 'true'")
+    c.execute("INSERT INTO global_property (property, property_value, uuid)"
+              " VALUES ('reporting.loadReportsFromConfigurationAtStartup', 'true', UUID())"
+              " ON DUPLICATE KEY UPDATE property_value = 'true'")
+db.commit()
+print("Marked %d Reporting module(s) as started; report descriptors load at startup" % n)
+EOF
+
+# Java 7's default PermGen (~82 MB) is too small once Reporting and its dependencies load: its pages
+# fail with 'OutOfMemoryError: PermGen space'. Set first, so JAVA_OPTS can still override it.
+# OpenMRS finds its data dir + runtime props via the system property.
+export CATALINA_OPTS="-XX:MaxPermSize=256m ${JAVA_OPTS:-} -DOPENMRS_APPLICATION_DATA_DIRECTORY=/opt/openmrs/"
 
 echo "Starting Tomcat (CATALINA_OPTS=$CATALINA_OPTS)"
 exec /opt/tomcat/bin/catalina.sh run

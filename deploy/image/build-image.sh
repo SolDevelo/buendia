@@ -56,14 +56,19 @@ if $DO_FETCH; then
   fetch "$WAR_URL"    "openmrs.war"
   fetch "$XFORMS_URL" "xforms.omod"
   fetch "$WSREST_URL" "webservices.rest.omod"
+  fetch "$REPORTING_URL"   "reporting.omod"
+  fetch "$XSTREAM_URL"     "serialization.xstream.omod"
+  fetch "$HTMLWIDGETS_URL" "htmlwidgets.omod"
+  fetch "$CALCULATION_URL" "calculation.omod"
   echo "    Fetched:"
-  ls -la "$IMAGE_DIR/artifacts/" | grep -E 'openmrs\.war|xforms\.omod|webservices\.rest\.omod'
+  ls -la "$IMAGE_DIR/artifacts/" | grep -E '\.war$|\.omod$'
 fi
 
 # ---------------------------------------------------------------------------
 # Preflight: artefacts must be vendored before an image build.
 # ---------------------------------------------------------------------------
-for f in openmrs.war xforms.omod webservices.rest.omod; do
+for f in openmrs.war xforms.omod webservices.rest.omod \
+         reporting.omod serialization.xstream.omod htmlwidgets.omod calculation.omod; do
   [[ -s "$IMAGE_DIR/artifacts/$f" ]] || {
     echo "ERROR: deploy/image/artifacts/$f missing. Run: $0 --fetch" >&2; exit 1; }
 done

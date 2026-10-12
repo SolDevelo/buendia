@@ -1,0 +1,28 @@
+# Loaded by the Reporting module at startup (reporting.loadReportsFromConfigurationAtStartup,
+# set by entrypoint.sh) from /opt/openmrs/configuration/reports/reportdescriptors/.
+# The SQL is read from data-dump.sql each time the report runs.
+key: "buendia-data-dump"
+uuid: "01199c8a-3f26-4ae1-81f0-9f1e519c560f"
+name: "Buendia data dump"
+description: "All observations and orders for all patients, one row each, times in UTC. Leave the dates empty for everything."
+parameters:
+  - key: "registeredFrom"
+    type: "date"
+    label: "Patients registered on or after"
+    required: false
+  - key: "registeredTo"
+    type: "date"
+    label: "Patients registered on or before"
+    required: false
+  - key: "changedSince"
+    type: "date"
+    label: "Only data recorded on or after"
+    required: false
+datasets:
+  - key: "dump"
+    type: "sql"
+    config: "data-dump.sql"
+designs:
+  - type: "csv"
+    properties:
+      filenameBase: "buendia-data-dump.{{ formatDate request.evaluateStartDatetime \"yyyyMMdd-HHmm\" }}"

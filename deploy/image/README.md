@@ -1,14 +1,14 @@
 # buendia-openmrs image (WS-3)
 
 Builds the deployable server image: **OpenMRS Platform 1.10.6 on Tomcat 7 / Java 7**,
-with the Buendia omod + `xforms` 4.3.5 + `webservices.rest` 2.6, plus python2
-profile-apply. Consumed by `deploy/compose/docker-compose.yml` (`OPENMRS_IMAGE`).
+with the Buendia omod + `xforms` 4.3.5 + `webservices.rest` 2.6 + `reporting` 1.27.0 (and the
+three modules it requires), plus python2 profile-apply. Consumed by `deploy/compose/docker-compose.yml` (`OPENMRS_IMAGE`).
 
 ## Two-step model (optimized for the fix-and-rebuild loop)
 
 1. **Once:** vendor the heavy deps (they rarely change):
    ```bash
-   ./build-image.sh --fetch      # downloads war + xforms + webservices.rest → artifacts/
+   ./build-image.sh --fetch      # downloads the war + every omod → artifacts/
    ```
 2. **Every code fix:** rebuild (fast — recompiles only the omod, reuses the warm Maven cache):
    ```bash
@@ -48,8 +48,43 @@ a private repo is a reasonable default.
 - `versions.env` — pinned versions + artifact URLs (single source of truth).
 - `entrypoint.sh` / `runtime.properties.tpl` — render `openmrs-runtime.properties` from
   env (DB host/creds) and start Tomcat; `-Duser.timezone=UTC` (bug 1).
-- `artifacts/` — vendored war + 2 omods (git-ignored; canonical names `openmrs.war`,
-  `xforms.omod`, `webservices.rest.omod`).
+- `artifacts/` — vendored war + omods (git-ignored; canonical names `openmrs.war`,
+  `xforms.omod`, `webservices.rest.omod`, `reporting.omod`, `serialization.xstream.omod`,
+  `htmlwidgets.omod`, `calculation.omod`).
+- `reports/` — report definitions baked into `/opt/openmrs/configuration/reports/reportdescriptors/`
+  (see below).
+
+## Reporting and the data dump report
+
+The image ships the standard OpenMRS **Reporting** module: **1.27.0**, the last release that
+accepts Platform 1.10 (1.28 needs 2.4), with `serialization.xstream` 0.2.16, `htmlwidgets`
+1.11.0 and `calculation` 1.3.0, the newest releases of each still built for Java 7. The Buendia
+module does not depend on it, so the tablet API keeps working if Reporting fails.
+
+One report is predefined: **Buendia data dump** (`reports/data-dump.yml` + `data-dump.sql`), a
+CSV with one row per non-voided observation or order for every patient: demographics, encounter
+time, provider, question (EN/FR), value, order details and who recorded it, all times UTC. Its
+three optional date filters are *patients registered on or after / on or before* and *only data
+recorded on or after*. Run it from **Reporting** in the top menu → **Run Reports** (web login, a
+user with the *Run Reports* privilege) and choose the `reporting.csv` output.
+
+- **Reporting reads the descriptor at every startup and the SQL each time the report runs**, so
+  an edited `data-dump.sql` reaches a site with the next image; nothing to do in the database.
+  The SQL file gets its parameters as MySQL variables (`@changedSince`), set as
+  `'yyyy-MM-dd'` or `null`; `:name` placeholders do not work there.
+- **The seed DB, and so every installed site, carries `reporting.started=false`** (and the same
+  for its three dependencies), left over from 2015, so OpenMRS would load Reporting but never
+  start it. `entrypoint.sh` sets them to `true` before Tomcat starts, along with
+  `reporting.loadReportsFromConfigurationAtStartup`.
+- **Reporting needs more PermGen than Java 7's default (~82 MB).** Without it its pages answer
+  HTTP 500 (`OutOfMemoryError: PermGen space` in Tomcat's `localhost.*.log`; the error page itself
+  then fails, so the 500 is empty). `entrypoint.sh` sets `-XX:MaxPermSize=256m` ahead of `JAVA_OPTS`.
+- **Do not make the Buendia module `aware_of` Reporting.** On 1.10.6, being aware of a module that
+  is loaded but not being started makes the startup ordering fail with
+  `Module.error.cyclicDependencies`, and then *no* module starts, including Buendia.
+- Order rows carry the tablet's encoded instructions (`DORAPARA5TPO2TABLET3PER_DAY`) as stored;
+  the catalogue that decodes them lives in Java. Voided data is left out, so a
+  "recorded on or after" export does not show deletions.
 
 ## Status: built + smoke-tested end-to-end (2026-07-17)
 
