@@ -553,6 +553,20 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-10-12 (later) — 13 drugs added at MSF's request (APK 1.5.0, omod 1.2.1, pack 1.6.0).**
+> Appended to `client/catalog-drc-pilot.csv` and regenerated both `MsfCatalog.java` copies (208 formats /
+> 153 drugs): injectable amoxicillin/clavulanic acid 1 g/200 mg, ampicillin 1 g + 500 mg, artesunate 60 mg
+> (NaHCO3 + NaCl kit `DINJARTS6V-`; arginine kit **provisional code `DINJARTS6VA`**, not in our MSL copy);
+> Ringer lactate 1 l + 500 ml; erythromycin 500 mg and multivitamin tabs; infant formula 1st age
+> (`NFOSINFO1AO80` — MSF wrote "800-900g", the MSL splits 800 g / 900 g) and hypoallergenic 1st age;
+> antihaemorrhoid ointment and antipruritic cream/gel (MSF's wording kept over the MSL's). Units chosen:
+> G for the two creams, ML for infant formula, MG for the artesunates. None has an OpenMRS drugId, so
+> `mml-buendia-2026-alignment.csv` is unchanged. Client `43b1b91f`, superproject `272c4d29`.
+> Image `soldevelo/buendia-openmrs@sha256:cde61e6b11cf69afb31faeef7510b8eaea7b27fcc692f663d184957cfcbc2d62`
+> (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the site env,
+> bundle `…-76-g272c4d29`, payload `pkgserver-www-drcp-1.5`; **every tablet needs the new APK**.
+> `buendia-usb-drcp-1.6.0.zip`, sha256 `72f615282c2eb066b2a6ca3c80a8ac81c198607a2141e552b2ac09f24973a39c`.
+
 > **Update 2026-10-12 — printout history-only + Reporting (omod 1.2.0, APK unchanged at 1.4.0).**
 > The printout drops the 2019 admission sheet and prints the full history (`819d9961`; detail in
 > `print-remap/PRINTOUT-NOTES.md`). The image adds OpenMRS **Reporting 1.27.0** with one report,
