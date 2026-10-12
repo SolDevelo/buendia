@@ -13,17 +13,21 @@ avoided.
 
 ## What is in this version
 
-- **A new version of the server software** (the Buendia application and the database container).
-- **A new version of the tablet app**, which must be installed onto each tablet by hand — see
-  *Tablets* below. Tablets do **not** update themselves.
+- **A new version of the server software.** The tablet app is unchanged: a tablet already on
+  version 1.4.0 needs nothing (see *Tablets* below).
+- **A simpler patient printout.** *Print Patient Files* no longer prints the two-page admission
+  sheet; it prints the patient's full history — admission, evolution, doses given, bed moves,
+  discharge, and anything recorded after discharge — with nothing left out.
+- **Reports.** The server's web page has a new **Reporting** menu. Its report **Buendia data dump**
+  gives every observation and treatment for every patient as one spreadsheet (CSV): open
+  **Reporting → Run Reports → Buendia data dump**, choose the `reporting.csv` output, and press
+  *Request Report*.
 - **Remote support stays as it is today: TeamViewer**, installed and run by MSF. Nothing in this
   upgrade changes it, switches it on, or replaces it. There is one thing to know about it after the
   upgrade — see *Reaching the server over TeamViewer* below.
-- **The server is no longer offered to other networks.** Previously, whenever the laptop was
-  connected to an office or site Wi-Fi, other people on that same Wi-Fi could open Buendia and
-  download the tablet app from it. After this upgrade the server answers **only on the Buendia
-  network**, where the tablets are. Nothing you do changes; this simply closes a door that should
-  not have been open.
+- **The server answers only on the Buendia network**, where the tablets are, and no longer on an
+  office or site Wi-Fi the laptop is also connected to. Already the case if the previous package was
+  installed; nothing you do changes.
 
 ---
 
@@ -94,9 +98,10 @@ laptop. To check a backup you took earlier, run `sudo ./backup.sh --verify-only 
 
 ## Tablets
 
-**Every tablet needs the new app installed by hand.** The app cannot update itself in this version.
-Until a tablet is updated it keeps working against the new server with the old app — so the tablets
-can be done one at a time, at a convenient moment, rather than all at once.
+**A tablet already on app version 1.4.0 needs nothing** — this package carries the same app. Any
+tablet on an older version needs it installed by hand, as below: the app cannot update itself. Until
+a tablet is updated it keeps working against the new server with the old app — so the tablets can be
+done one at a time, at a convenient moment, rather than all at once.
 
 On each tablet:
 
