@@ -26,7 +26,7 @@ step 1 uses whatever internet you have, step 2 uses the router.
 
 3. Run:
 
-       sudo ./prepare.sh
+       sudo bash prepare.sh
 
    It asks a few questions (press Enter to accept what is shown), then downloads about 800 MB.
 

@@ -35,7 +35,7 @@ avoided.
 
 Open a terminal inside the `Buendia` folder on the USB stick and run:
 
-    sudo ./backup.sh
+    sudo bash backup.sh
 
 It writes one file into your home folder and changes nothing else. It then reads that file back
 and checks it: that every table is there, that the patients and observations are really in it, and
@@ -48,7 +48,7 @@ can see the numbers are the ones you expect.
 start the upgrade — a backup that cannot be read back is not a backup.
 
 Copy the file onto a USB stick as well; a backup on the same laptop does not protect against the
-laptop. To check a backup you took earlier, run `sudo ./backup.sh --verify-only <the file>`.
+laptop. To check a backup you took earlier, run `sudo bash backup.sh --verify-only <the file>`.
 
 ---
 
@@ -58,7 +58,7 @@ laptop. To check a backup you took earlier, run `sudo ./backup.sh --verify-only 
 
 2. Open a terminal inside the new `Buendia` folder on the USB stick and run:
 
-       sudo ./prepare.sh
+       sudo bash prepare.sh
 
 3. **It asks the same questions as the first time. It has read this server's current settings, so
    the answer shown in brackets is already the one in use here — press Enter to accept every one

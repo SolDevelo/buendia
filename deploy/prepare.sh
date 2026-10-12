@@ -17,7 +17,7 @@ B=$'\033[1m'; C=$'\033[1;36m'; G=$'\033[1;32m'; Y=$'\033[1;33m'; R=$'\033[1;31m'
 log()  { printf '\n%s==> %s%s\n' "$C" "$*" "$N"; }
 die()  { printf '%sERROR: %s%s\n' "$R" "$*" "$N" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || die "run this with sudo:   sudo ./prepare.sh"
+[[ $EUID -eq 0 ]] || die "run this with sudo:   sudo bash prepare.sh"
 [[ -f "$HERE/buendia.env" ]] || die "buendia.env is missing from this folder — the USB pack is incomplete."
 
 printf '%sBuendia server — step 1 of 2 (needs the internet)%s\n' "$B" "$N"
@@ -112,4 +112,5 @@ fi
 echo "  ok"
 
 log "Copying the software onto this machine and downloading the containers"
-BUENDIA_ENV="$ENVF" "$HERE/bootstrap.sh" --prepare
+# Through bash, not executed: Ubuntu mounts a FAT32 stick 'showexec', so no .sh on it is executable.
+BUENDIA_ENV="$ENVF" bash "$HERE/bootstrap.sh" --prepare
