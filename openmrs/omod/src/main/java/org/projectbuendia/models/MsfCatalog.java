@@ -280,6 +280,16 @@ public interface MsfCatalog extends Catalog {
         ),
         new Drug("DORALEVE", "LEVETIRACETAM [fr:LEVETIRACETAM]").withFormats(
             new Format("DORALEVE2T", "250 mg, tab. [fr:250 mg, comp.]", Unit.TABLET)
+        ),
+        new Drug("DORAERYT", "ERYTHROMYCIN stearate [fr:ERYTHROMYCINE stéarate]").withFormats(
+            new Format("DORAERYT5T", "eq. 500 mg base, tab. [fr:éq. 500 mg base, comp.]", Unit.TABLET)
+        ),
+        new Drug("NFOSINFO", "INFANT FORMULA [fr:FORMULE INFANTILE]").withFormats(
+            new Format("NFOSINFO1AO80", "1st age, powder, 800-900 g [fr:1er âge, poudre, 800-900 g]", Unit.ML),
+            new Format("NFOSINFOH1", "HYPOALLERGENIC, 1st age, powder, 400 g [fr:HYPOALLERGENIQUE, 1er âge, poudre, 400 g]", Unit.ML)
+        ),
+        new Drug("DORAMULT", "MULTIVITAMINS [fr:MULTIVITAMINES]").withFormats(
+            new Format("DORAMULT1T", "tab. [fr:comp.]", Unit.TABLET)
         )
     );
 
@@ -439,6 +449,17 @@ public interface MsfCatalog extends Catalog {
         ),
         new Drug("DINJPOTC", "POTASSIUM chloride [fr:POTASSIUM chlorure]").withFormats(
             new Format("DINJPOTC2A", "2mmol / ml (15% ), 10 ml, amp. [fr:2mmol / ml (15% ), 10 ml, amp.]", Unit.ML)
+        ),
+        new Drug("DINJAMOC", "AMOXICILLIN / CLAVULANIC acid [fr:AMOXICILLINE / acide CLAVULANIQUE]").withFormats(
+            new Format("DINJAMOC1V2", "1 g / 200 mg, powder [fr:1 g / 200 mg, poudre]", Unit.MG)
+        ),
+        new Drug("DINJAMPI", "AMPICILLIN [fr:AMPICILLINE]").withFormats(
+            new Format("DINJAMPI1V", "1 g, powder, vial [fr:1 g, poudre, fl.]", Unit.MG),
+            new Format("DINJAMPI5V", "500 mg, powder, vial [fr:500 mg, poudre, fl.]", Unit.MG)
+        ),
+        new Drug("DINJARTS", "ARTESUNATE [fr:ARTESUNATE]").withFormats(
+            new Format("DINJARTS6V", "60 mg, powder, vial +NaHCO3 5% 1 ml +NaCl 0.9% 5 ml [fr:60 mg, poudre, fl +NaHCO3 5% 1 ml +NaCl 0.9% 5 ml]", Unit.MG),
+            new Format("DINJARTS6VA", "60 mg, pwd vial + ARGININE 2% / NaHCO3 0.84% 3 ml amp [fr:60 mg, pdre fl. + ARGININE 2% / NaHCO3 0.84% 3 ml amp.]", Unit.MG)
         )
     );
 
@@ -455,6 +476,10 @@ public interface MsfCatalog extends Catalog {
             new Format("DINFSODC9FBF0", "0.9%, 100 ml, flex. bag, PVC free [fr:0.9%, 100 ml, poche souple, sans PVC]", Unit.ML),
             new Format("DINFSODC9FBF1", "0.9%, 1 l, flex. bag, PVC free [fr:0.9%, 1 l, poche souple, sans PVC]", Unit.ML),
             new Format("DINFSODC9SRF5", "0.9%, 500 ml, semi-rigid bot., PVC free [fr:0.9%, 500 ml, fl. semi-rigide, sans PVC]", Unit.ML)
+        ),
+        new Drug("DINFRINL", "RINGER lactate [fr:RINGER lactate]").withFormats(
+            new Format("DINFRINL1FBF1", "1 l, flex. bag, PVC free [fr:1 l, poche souple, sans PVC]", Unit.ML),
+            new Format("DINFRINL1FBF5", "500 ml, flex. bag, PVC free [fr:500 ml, poche souple, sans PVC]", Unit.ML)
         )
     );
 
@@ -504,6 +529,12 @@ public interface MsfCatalog extends Catalog {
         ),
         new Drug("DEXOOTET", "OXYTETRACYCLINE hydrochloride [fr:OXYTETRACYCLINE chlorhydrate]").withFormats(
             new Format("DEXOOTET5O5", "0.5%, eye ointment, ster., 4-5 g, tube [fr:0.5%, pde opht., stér., 4-5 g, tube]", Unit.ML)
+        ),
+        new Drug("DEXTANTH", "ANTIHAEMORROID [fr:ANTI HEMORROIDAIRE]").withFormats(
+            new Format("DEXTANTH1O2", "ointment, 20-30 g, tube [fr:pommade, 20-30 g, tube]", Unit.G)
+        ),
+        new Drug("DEXTMOSQ", "ANTIPRURITIC CREAM / GEL [fr:CREME / GEL ANTIPRURIGINEUX]").withFormats(
+            new Format("DEXTMOSQ1C", "after mosquito bites, tube [fr:après piqûres de moustiques, tube]", Unit.G)
         )
     );
 

@@ -13,8 +13,14 @@ avoided.
 
 ## What is in this version
 
-- **A new version of the server software.** The tablet app is unchanged: a tablet already on
-  version 1.4.0 needs nothing (see *Tablets* below).
+- **A new version of the server software and of the tablet app (1.5.0).** Every tablet needs the
+  new app installed by hand (see *Tablets* below).
+- **Thirteen more items in the tablet's treatment list:** amoxicillin/clavulanic acid 1 g/200 mg and
+  ampicillin 1 g and 500 mg (injectable); artesunate 60 mg injection in both presentations
+  (with NaHCO3 + NaCl, and with arginine); Ringer lactate 1 l and 500 ml; erythromycin 500 mg and
+  multivitamin tablets; infant formula 1st age and hypoallergenic 1st age; antihaemorrhoid ointment;
+  anti-itch cream/gel for mosquito bites. A tablet still on the old app does not show them; the
+  printed patient file names them once the server is upgraded.
 - **A simpler patient printout.** *Print Patient Files* no longer prints the two-page admission
   sheet; it prints the patient's full history — admission, evolution, doses given, bed moves,
   discharge, and anything recorded after discharge — with nothing left out.
@@ -101,10 +107,10 @@ that changes between the two steps is the laptop's Wi-Fi: on for step 1, off for
 
 ## Tablets
 
-**A tablet already on app version 1.4.0 needs nothing** — this package carries the same app. Any
-tablet on an older version needs it installed by hand, as below: the app cannot update itself. Until
-a tablet is updated it keeps working against the new server with the old app — so the tablets can be
-done one at a time, at a convenient moment, rather than all at once.
+**Every tablet needs app version 1.5.0**, installed by hand as below: the app cannot update itself.
+Until a tablet is updated it keeps working against the new server with the old app, only without the
+new treatments — so the tablets can be done one at a time, at a convenient moment, rather than all at
+once.
 
 On each tablet:
 
