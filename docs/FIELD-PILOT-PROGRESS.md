@@ -560,13 +560,16 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > default its pages returned an empty HTTP 500 (`OutOfMemoryError: PermGen space`).
 > Image `soldevelo/buendia-openmrs@sha256:c5cb6d6cda4e83435adc29f03d46223da6efa4cf8b5e78ea2fd1cb783b1344ba`
 > (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the site env,
-> bundle `…-72-ga47ee316`. **The zip is still named `buendia-usb-drcp-1.4.0.zip`** because it is keyed on
-> the APK version; the previous 1.4.0 zip is archived as `buendia-usb-drcp-1.4.0-omod-1.1.1.zip`.
+> bundle `…-74-g7850be1a`. **Pack 1.5.0** (`buendia-usb-drcp-1.5.0.zip`, on Drive as `Buendia-1.5.0.zip`):
+> the zip is now named by `PACK_VERSION` in `deploy/.env` (falls back to `APK_VERSION`), because a
+> server-only release otherwise reused the previous pack's name. Bump it on every pack. The previous
+> 1.4.0 zip is archived as `buendia-usb-drcp-1.4.0-omod-1.1.1.zip`.
 > **A FAT32 stick mounts `showexec`, so no `.sh` on it is executable.** The guides now say `sudo bash …`
 > and `prepare.sh` calls `bootstrap.sh` through `bash`. The old Ventoy stick was exFAT, which hid this.
 > Verified: the published digest booted on an existing DB; Reporting pages load and the report runs
-> to CSV; the DRC-0046 completeness check prints everything (0 missing, 0 leaked). The upgrade on the
-> bench box is still to be run.
+> to CSV; the DRC-0046 completeness check prints everything (0 missing, 0 leaked). **Upgrade passed on
+> the bench box** (from the previous pack; cable to the router kept in, Wi-Fi on for `prepare.sh` and
+> off for `setup.sh` — which is now how `UPGRADE.md` describes it).
 
 > **Update 2026-09-24 — drug list corrected from MSF's review (APK 1.4.0, omod 1.1.1).** MSF asked
 > for one deletion and seven additions. Only two of the seven were truly missing, and **both came from
