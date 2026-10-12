@@ -52,9 +52,13 @@ laptop. To check a backup you took earlier, run `sudo bash backup.sh --verify-on
 
 ---
 
+**Leave the laptop's cable to the Buendia router plugged in for the whole upgrade.** The only thing
+that changes between the two steps is the laptop's Wi-Fi: on for step 1, off for step 2.
+
 ## Step 1 — with Internet  (~15 minutes)
 
-1. Connect the laptop to the Internet — office Wi-Fi, a phone hotspot, a cable. Anything.
+1. Plug in the USB stick. Turn the laptop's **Wi-Fi on** and join any network with Internet — office
+   Wi-Fi or a phone hotspot. The tablets keep working meanwhile, over the cable.
 
 2. Open a terminal inside the new `Buendia` folder on the USB stick and run:
 
@@ -74,8 +78,7 @@ laptop. To check a backup you took earlier, run `sudo bash backup.sh --verify-on
 
 ## Step 2 — on the Buendia router  (~10 minutes)
 
-4. Put the laptop back on the Buendia router exactly as it normally runs: Ethernet cable into a **LAN**
-   port, laptop Wi-Fi off.
+4. Turn the laptop's **Wi-Fi off**. The cable stays in the router's **LAN** port, as it normally runs.
 
 5. Run:
 

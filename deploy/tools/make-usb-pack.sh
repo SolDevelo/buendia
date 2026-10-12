@@ -115,7 +115,9 @@ fi
 log "Verifying checksums as MSF will see them"
 ( cd "$OUT" && sha256sum -c ./*.sha256 )
 
-ZIP="$D/buendia-usb-${SITE_ID}-${APK_VERSION}.zip"
+# The pack has its own version: a server-only release keeps the APK version, and two different
+# packs must never share a name.
+ZIP="$D/buendia-usb-${SITE_ID}-${PACK_VERSION:-$APK_VERSION}.zip"
 rm -f "$ZIP" "$ZIP.sha256"
 log "Packing"
 ( cd "$D" && zip -qr "$ZIP" Buendia )
