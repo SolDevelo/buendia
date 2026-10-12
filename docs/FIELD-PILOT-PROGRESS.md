@@ -553,6 +553,21 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-10-12 — printout history-only + Reporting (omod 1.2.0, APK unchanged at 1.4.0).**
+> The printout drops the 2019 admission sheet and prints the full history (`819d9961`; detail in
+> `print-remap/PRINTOUT-NOTES.md`). The image adds OpenMRS **Reporting 1.27.0** with one report,
+> *Buendia data dump* (`deploy/image/README.md`). Reporting needed `-XX:MaxPermSize=256m`: at Java 7's
+> default its pages returned an empty HTTP 500 (`OutOfMemoryError: PermGen space`).
+> Image `soldevelo/buendia-openmrs@sha256:c5cb6d6cda4e83435adc29f03d46223da6efa4cf8b5e78ea2fd1cb783b1344ba`
+> (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the site env,
+> bundle `…-72-ga47ee316`. **The zip is still named `buendia-usb-drcp-1.4.0.zip`** because it is keyed on
+> the APK version; the previous 1.4.0 zip is archived as `buendia-usb-drcp-1.4.0-omod-1.1.1.zip`.
+> **A FAT32 stick mounts `showexec`, so no `.sh` on it is executable.** The guides now say `sudo bash …`
+> and `prepare.sh` calls `bootstrap.sh` through `bash`. The old Ventoy stick was exFAT, which hid this.
+> Verified: the published digest booted on an existing DB; Reporting pages load and the report runs
+> to CSV; the DRC-0046 completeness check prints everything (0 missing, 0 leaked). The upgrade on the
+> bench box is still to be run.
+
 > **Update 2026-09-24 — drug list corrected from MSF's review (APK 1.4.0, omod 1.1.1).** MSF asked
 > for one deletion and seven additions. Only two of the seven were truly missing, and **both came from
 > the 09-21 fuzzy alignment**: hydrocortisone 1% ointment had matched chlorhexidine 7.1% gel and
