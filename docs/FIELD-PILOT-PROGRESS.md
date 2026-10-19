@@ -601,6 +601,16 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-10-19 — printout robustness and admission date (APK 1.7.0, omod 1.2.2, pack 1.7.0).**
+> Ships OML-43 (deleted-location placements, `94b4c59d`), OML-45 (Print Patient Files contains every
+> per-patient failure, `02c65b4c`) and OML-44 (the Admission form's date wins, `f61beabb` / client
+> `8770331c`). **From this pack on the APK carries the pack's version number** (1.5.0 → 1.7.0; 1.6 skipped).
+> Release commit `e9ac89ad`. Image `soldevelo/buendia-openmrs@sha256:2329c5cea56635fa17239d6ea5ffe1bad076bdfb865a98497804eac7a6595e16`
+> (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the site env
+> (APK password checked equal to the site's), bundle `…-81-ge9ac89ad`, payload `pkgserver-www-drcp-1.7`;
+> **every tablet needs the new APK**.
+> `buendia-usb-drcp-1.7.0.zip`, sha256 `dfe9870faae598eba1e02c00597c51e7ff22a60f17ece57bd4af0b1f7f316a41`.
+
 > **Update 2026-10-12 (later) — 13 drugs added at MSF's request (APK 1.5.0, omod 1.2.1, pack 1.6.0).**
 > Appended to `client/catalog-drc-pilot.csv` and regenerated both `MsfCatalog.java` copies (208 formats /
 > 153 drugs): injectable amoxicillin/clavulanic acid 1 g/200 mg, ampicillin 1 g + 500 mg, artesunate 60 mg
