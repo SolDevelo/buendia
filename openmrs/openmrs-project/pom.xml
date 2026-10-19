@@ -5,7 +5,7 @@
   <parent>
     <artifactId>projectbuendia.openmrs</artifactId>
     <groupId>org.projectbuendia</groupId>
-    <version>1.2.1</version>
+    <version>1.2.2</version>
   </parent>
   <groupId>org.openmrs</groupId>
   <artifactId>openmrs-project</artifactId>
@@ -70,9 +70,9 @@
                 <artifactItem>
                   <groupId>org.projectbuendia</groupId>
                   <artifactId>projectbuendia.openmrs-omod</artifactId>
-                  <version>1.2.1</version>
+                  <version>1.2.2</version>
                   <type>jar</type>
-                  <destFileName>projectbuendia.openmrs-1.2.1.omod</destFileName>
+                  <destFileName>projectbuendia.openmrs-1.2.2.omod</destFileName>
                 </artifactItem>
               </artifactItems>
               <outputDirectory>${project.basedir}/openmrs/${openMRSVersion}/modules</outputDirectory>
