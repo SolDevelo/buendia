@@ -28,7 +28,8 @@ deploy/
                         connected, and what that exposes), make-bundle.sh + bootstrap.sh (what
                         ships to a server), publish-images.sh, bundle-images.sh, bundle-debs.sh,
                         buendia-netcheck.sh, buendia-diagnostics.sh, buendia-export.sh,
-                        create-openmrs-user.sh
+                        buendia-fix-placements.sh (patients placed in a location deleted
+                        in OpenMRS), create-openmrs-user.sh
 ```
 
 ## What actually goes on a site server

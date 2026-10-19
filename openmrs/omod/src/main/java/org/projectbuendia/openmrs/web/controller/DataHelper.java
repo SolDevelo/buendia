@@ -101,11 +101,16 @@ public class DataHelper {
         }
     };
 
-    private final Comparator<PatientPlacement> PATIENT_PLACEMENT = new Comparator<PatientPlacement>() {
+    final Comparator<PatientPlacement> PATIENT_PLACEMENT = new Comparator<PatientPlacement>() {
         @Override public int compare(PatientPlacement p1, PatientPlacement p2) {
-            String ln1 = p1.placement.location.getName();
-            String ln2 = p2.placement.location.getName();
-            if (!eq(ln1, ln2)) return Utils.ALPHANUMERIC_COMPARATOR.compare(ln1, ln2);
+            Location l1 = p1.placement.location;
+            Location l2 = p2.placement.location;
+            // Patients whose location was deleted go last.
+            if ((l1 == null) != (l2 == null)) return l1 == null ? 1 : -1;
+            if (l1 != null) {
+                int c = Utils.ALPHANUMERIC_COMPARATOR.compare(l1.getName(), l2.getName());
+                if (c != 0) return c;
+            }
             return Utils.ALPHANUMERIC_COMPARATOR.compare(p1.placement.bed, p2.placement.bed);
         }
     };
@@ -633,7 +638,8 @@ public class DataHelper {
             this.placement = placement;
             locationUuid = getLocationUuidFromPlacement(placement);
             location = locationService.getLocationByUuid(locationUuid);
-            locationName = new Intl(location.getName());
+            // A placement is free text, so its location can be deleted while patients are placed there.
+            locationName = new Intl(location != null ? location.getName() : "Deleted location [fr:Lieu supprimé]");
             bed = Utils.splitFields(placement, "/", 2)[1].trim();
         }
 

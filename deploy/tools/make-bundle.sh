@@ -46,6 +46,7 @@ REQUIRED=(
 OPTIONAL=(
   tools/create-openmrs-user.sh
   tools/buendia-diagnostics.sh
+  tools/buendia-fix-placements.sh           # patients placed in a location deleted in OpenMRS
   tools/buendia-uninstall.sh                # revert an install, for repeat testing and clean reinstalls
   tools/buendia-netcheck.sh                 # pre-install network check; also the on-site "can't see the router" tool
   tools/buendia-uplink.sh                   # the server is dual-homed on site: what it is connected to, and what that exposes
@@ -127,6 +128,7 @@ docker compose -f compose/docker-compose.yml --env-file .env ps       # is it up
 docker compose -f compose/docker-compose.yml --env-file .env restart  # bounce it
 ./tools/create-openmrs-user.sh buendia <new-password>                 # rotate the login
 ./tools/buendia-diagnostics.sh                                        # bundle logs for support
+./tools/buendia-fix-placements.sh --dry-run                           # patients in a deleted location
 ```
 
 ⚠️ Changing the server password means each tablet also needs updating: in the app, cog → Settings →

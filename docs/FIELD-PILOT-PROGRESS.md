@@ -553,6 +553,21 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-10-19 — Print Patient Files survives a deleted location (OML-43; not yet in a pack).**
+> MSF reported HTTP 500 on Print Patient Files after 1.6.0. Cause: a placement is the text
+> `<location uuid>/<bed>`, so OpenMRS *Delete Location* succeeds while patients are placed there, and
+> `DataHelper.Placement` failed on the missing location: the list page when it is a patient's current
+> placement, and the printout of anyone ever placed there. Retired locations were never affected. The
+> server now prints **`Lieu supprimé`** / *Deleted location* (bed kept) and sorts those inpatients
+> last; the Reporting data dump writes `Deleted location` instead of the raw uuid.
+> `deploy/tools/buendia-fix-placements.sh` (now in the pack's tools) moves such placements into one
+> existing zone with an undo file. Since 2026-10-19 it **leaves patients placed in a deleted discharge
+> location where they are** (moving them would re-admit them); the copy sent to MSF on 2026-10-16
+> does not, and is replaced with our reply to their dry run.
+> `buendia-diagnostics.sh` now re-runs itself under bash and collects `/opt/tomcat/logs` (where the
+> trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
+> `--keep-passwords` pack still to do.
+
 > **Update 2026-10-12 (later) — 13 drugs added at MSF's request (APK 1.5.0, omod 1.2.1, pack 1.6.0).**
 > Appended to `client/catalog-drc-pilot.csv` and regenerated both `MsfCatalog.java` copies (208 formats /
 > 153 drugs): injectable amoxicillin/clavulanic acid 1 g/200 mg, ampicillin 1 g + 500 mg, artesunate 60 mg

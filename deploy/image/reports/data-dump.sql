@@ -2,7 +2,8 @@
 -- Run by Reporting's SqlFileDataSetDefinition (see data-dump.yml), which prepends
 -- "set @<parameter> = 'yyyy-MM-dd'" (or null) for each parameter. Times are UTC, as stored.
 -- Doses given are observations of buendia_concept_order_executed, linked by order_uuid;
--- bed placements (buendia_concept_placement) are shown as "<zone> / <bed>".
+-- bed placements (buendia_concept_placement) are shown as "<zone> / <bed>"; a zone deleted in
+-- OpenMRS shows as "Deleted location".
 select
   ps.uuid as patient_uuid,
   (select pi.identifier from patient_identifier pi
@@ -50,7 +51,7 @@ select
     when r.value_numeric is not null
       then trim(trailing '.' from trim(trailing '0' from cast(r.value_numeric as decimal(30, 6))))
     when c.uuid = 'buendia_concept_placement'
-      then concat_ws(' / ', coalesce(pl.name, substring_index(r.value_text, '/', 1)),
+      then concat_ws(' / ', coalesce(pl.name, 'Deleted location'),
                      nullif(substring(r.value_text, length(substring_index(r.value_text, '/', 1)) + 2), ''))
     else r.value_text
   end as value,
