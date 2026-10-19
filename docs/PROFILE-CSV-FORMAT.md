@@ -297,7 +297,9 @@ more `{...}` placeholders, so selects can nest.
 ```csv
 ,,,text,,1640,Admission,,,,,,"Jour {1,day_number,#}","{1,time,d MMM HH:mm}"
 ```
-Tile: main line `Jour 3`, caption `4 Aug 09:15`.
+Tile: main line `Jour 3`, caption `4 Aug 09:15`. Concept 1640 is recorded by registration and again
+by the Admission form; the tile and the chart's day numbers use the Admission form's date when there
+is one, and the registration time only when there is not.
 
 ```csv
 ,,,text,,buendia_concept_placement,Location,,,,,,"{1,location}","{2,select,=:;Lit {2,text}}"

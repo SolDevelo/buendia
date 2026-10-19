@@ -553,6 +553,22 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-10-19 (evening) — "Days since admission" counts from the Admission form's date (OML-44;
+> not yet in a pack, needs a new APK).** The admission time (concept 1640) is recorded twice: once by
+> registration, stamped with the registration time, and once by the Admission form, with the date the
+> clinician entered. The tablet and the printout used whichever was recorded *last* by the encounter
+> time, so a form whose time field was set back to the admission day — or a tablet clock behind the
+> server's — lost to the registration, and the chart counted from registration. Now the Admission form's
+> date wins whenever one exists; with several forms the latest-recorded one wins (same time: the later
+> date); the registration's counts only when no form has one. Same rule on the tablet (`AdmissionObs`:
+> "Jour N" headers and the Admission tile), the printout's Admission section and the list page's
+> admissions (`DataHelper.chooseAdmissionObs`); keep the two in step. Registration is recognised as the
+> encounter that holds both an admission time and a placement. Known limits: a correction form whose
+> time is set *earlier* than the wrong form's loses to it — delete the wrong value from the Admission
+> tile instead; a readmission form restarts the count. No re-sync needed: the new APK reads data the
+> tablet already holds. Tests: `print-remap/oml44_live.py` (server), emulator rows (tablet). The client
+> now has JVM unit tests (`client/app/src/test`, `./gradlew testDebugUnitTest`, no device needed).
+
 > **Update 2026-10-19 (later) — Print Patient Files: missing or damaged data no longer fails the page
 > (OML-45; not yet in a pack).** A sweep of every unchecked lookup on the list page and the printout,
 > each reproduced on a test stack by corrupting one row (`print-remap/oml45_live.py`): 14 cases gave an

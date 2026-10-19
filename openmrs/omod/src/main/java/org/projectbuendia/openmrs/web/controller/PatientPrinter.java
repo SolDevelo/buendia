@@ -210,6 +210,11 @@ class PatientPrinter {
 
     public Doc renderAdmission(List<Encounter> encounters) {
         Map<String, Obs> map = helper.getLastObsByConcept(encounters);
+        // The Admission form's date counts, not the one stamped at registration.
+        List<Obs> admissionTimes = new ArrayList<>();
+        for (Encounter encounter : encounters) admissionTimes.addAll(encounter.getAllObs());
+        Obs admission = DataHelper.chooseAdmissionObs(admissionTimes);
+        if (admission != null) map.put(ADMISSION_DATETIME_UUID, admission);
         DateTime admissionTime = getDateTimeValue(map.get(ADMISSION_DATETIME_UUID));
         return div("admission",
             div("heading", intl("Admission [fr:Admission]")),

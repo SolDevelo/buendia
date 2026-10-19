@@ -37,6 +37,7 @@ import org.projectbuendia.openmrs.api.ProjectBuendiaService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -180,9 +181,64 @@ public class DataHelper {
     }
 
     public List<ObsDisplay> getAdmissionTimes() {
-        List<Obs> admissionTimes = new ArrayList<>(getLatestObsByPatient(ADMISSION_DATETIME_UUID).values());
+        List<Obs> admissionTimes = new ArrayList<>();
+        Concept concept = conceptService.getConceptByUuid(ADMISSION_DATETIME_UUID);
+        if (concept != null) {
+            for (Patient patient : patientService.getAllPatients()) {
+                Obs obs = chooseAdmissionObs(obsService.getObservations(
+                    Arrays.asList((Person) patient), null,
+                    Arrays.asList(concept), null, null, null, null,
+                    null, null, null, null, false
+                ));
+                if (obs != null) admissionTimes.add(obs);
+            }
+        }
         Collections.sort(admissionTimes, OBS_VALUE_TIME);
         return wrapObs(admissionTimes);
+    }
+
+    /**
+     * Chooses which admission time (concept 1640) counts for a patient.  Registration
+     * records one, stamped with the registration time; the Admission form records the date
+     * the clinician entered.  The latest one recorded outside registration wins, even when
+     * its time is earlier than the registration's; the registration's counts only when there
+     * is no other.  Registration is the only writer that puts an admission time and a
+     * placement in one encounter.  "Latest" orders by observation time, then by the admission
+     * time entered (a missing one lowest), then by UUID.  The tablet applies the same rule
+     * (AdmissionObs in the client); keep the two in step.
+     */
+    public static Obs chooseAdmissionObs(Collection<Obs> observations) {
+        Obs registration = null;
+        Obs form = null;
+        for (Obs obs : observations) {
+            if (!eq(getConceptUuid(obs), ADMISSION_DATETIME_UUID)) continue;
+            if (hasPlacement(obs.getEncounter())) {
+                registration = laterAdmission(registration, obs);
+            } else {
+                form = laterAdmission(form, obs);
+            }
+        }
+        return form != null ? form : registration;
+    }
+
+    private static boolean hasPlacement(Encounter encounter) {
+        if (encounter == null) return false;
+        for (Obs obs : encounter.getAllObs()) {
+            if (eq(getConceptUuid(obs), DbUtils.CONCEPT_PLACEMENT_UUID)) return true;
+        }
+        return false;
+    }
+
+    private static Obs laterAdmission(Obs a, Obs b) {
+        if (a == null) return b;
+        int result = a.getObsDatetime().compareTo(b.getObsDatetime());
+        if (result == 0) result = Long.compare(valueMillis(a), valueMillis(b));
+        if (result == 0) result = a.getUuid().compareTo(b.getUuid());
+        return result < 0 ? b : a;
+    }
+
+    private static long valueMillis(Obs obs) {
+        return obs.getValueDatetime() != null ? obs.getValueDatetime().getTime() : Long.MIN_VALUE;
     }
 
     public List<ObsDisplay> getDischargeTimes() {

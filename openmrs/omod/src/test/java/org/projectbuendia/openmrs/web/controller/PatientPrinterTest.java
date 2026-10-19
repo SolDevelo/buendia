@@ -17,6 +17,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
 import org.openmrs.Concept;
+import org.openmrs.Encounter;
 import org.openmrs.Obs;
 import org.openmrs.Order;
 import org.openmrs.Patient;
@@ -30,7 +31,10 @@ import org.projectbuendia.openmrs.web.controller.HtmlOutput.Doc;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
@@ -142,5 +146,20 @@ import static org.projectbuendia.openmrs.web.controller.DataHelper.MISSING;
         String intro = render(printer.renderIntro(pat));
         assertFalse(intro, intro.contains("Pan"));
         assertFalse(intro, intro.contains("null"));
+    }
+
+    @Test public void admissionPrintsTheBackdatedFormDateNotRegistration() throws Exception {
+        List<Obs> all = new ArrayList<>();
+        Obs form = DataHelperTest.form(all, DataHelperTest.ADMITTED, new Date(DataHelperTest.ADMITTED));
+        Obs registration = DataHelperTest.registration(all);
+        for (Obs obs : Arrays.asList(form, registration)) {
+            obs.getConcept().setDatatype(Context.getConceptService().getConceptDatatypeByName("Datetime"));
+        }
+        // History lists the admission encounters in time order: the backdated form first.
+        String text = render(printer.renderAdmission(
+            Arrays.asList(form.getEncounter(), registration.getEncounter())));
+        // The build's JRE may print the month in English; the day and time are what matter.
+        assertTrue(text, text.matches("Admission 16 \\S+, 10h00 .*: 16 \\S+, 10h00"));
+        assertFalse(text, text.contains("19 "));
     }
 }

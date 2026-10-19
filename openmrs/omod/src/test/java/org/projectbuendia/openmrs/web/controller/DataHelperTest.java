@@ -16,7 +16,10 @@ package org.projectbuendia.openmrs.web.controller;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
+import org.openmrs.Concept;
+import org.openmrs.Encounter;
 import org.openmrs.Obs;
+import org.openmrs.projectbuendia.webservices.rest.DbUtils;
 import org.openmrs.test.SkipBaseSetup;
 import org.openmrs.web.test.BaseModuleWebContextSensitiveTest;
 
@@ -30,8 +33,12 @@ import java.util.Locale;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
-/** Placements whose location was deleted or is missing (a placement is free text), and missing times. */
+/**
+ * Placements whose location was deleted or is missing (a placement is free text), missing times,
+ * and which admission time counts.
+ */
 @SkipBaseSetup public class DataHelperTest extends BaseModuleWebContextSensitiveTest {
     // These should match the BASE_TEST_DATA file.
     static final String XANADU_UUID = "9356400c-a5a2-4532-8f2b-2361b3446eb8";
@@ -113,5 +120,100 @@ import static org.junit.Assert.assertNull;
         assertEquals("", p.getBed());
         assertEquals(DataHelper.MISSING, p.getLocationName().loc(Locale.FRENCH));
         assertEquals("", DataHelper.getLocationUuidFromPlacement(null));
+    }
+
+    /** An obs of the given concept in the given encounter (null for none), observed at obsTime. */
+    static Obs obs(String conceptUuid, Encounter encounter, long obsTime, Date value) {
+        Concept concept = new Concept();
+        concept.setUuid(conceptUuid);
+        Obs obs = new Obs();
+        obs.setConcept(concept);
+        obs.setObsDatetime(new Date(obsTime));
+        obs.setValueDatetime(value);
+        if (encounter != null) encounter.addObs(obs);
+        return obs;
+    }
+
+    static final long REGISTERED = 1760868000000L;  // 2025-10-19 10:00 UTC
+    static final long ADMITTED = REGISTERED - 3 * 24 * 3600 * 1000L;
+    static final long DAY = 24 * 3600 * 1000L;
+
+    /** Registration records an admission time and a placement in one encounter. */
+    static Obs registration(List<Obs> all) {
+        Encounter encounter = new Encounter();
+        Obs admission = obs(ConceptUuids.ADMISSION_DATETIME_UUID, encounter, REGISTERED, new Date(REGISTERED));
+        all.add(admission);
+        all.add(obs(DbUtils.CONCEPT_PLACEMENT_UUID, encounter, REGISTERED, null));
+        return admission;
+    }
+
+    static Obs form(List<Obs> all, long obsTime, Date value) {
+        Obs admission = obs(ConceptUuids.ADMISSION_DATETIME_UUID, new Encounter(), obsTime, value);
+        all.add(admission);
+        return admission;
+    }
+
+    @Test public void admissionFromRegistrationOnly() {
+        List<Obs> all = new ArrayList<>();
+        Obs registration = registration(all);
+        assertSame(registration, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void noAdmissionTimeChoosesNothing() {
+        assertNull(DataHelper.chooseAdmissionObs(new ArrayList<Obs>()));
+    }
+
+    @Test public void admissionFormAfterRegistrationWins() {
+        List<Obs> all = new ArrayList<>();
+        registration(all);
+        Obs form = form(all, REGISTERED + 60000, new Date(ADMITTED));
+        assertSame(form, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void admissionTimeWithNoEncounterCountsAsAForm() {
+        List<Obs> all = new ArrayList<>();
+        registration(all);
+        Obs orphan = obs(ConceptUuids.ADMISSION_DATETIME_UUID, null, ADMITTED, new Date(ADMITTED));
+        all.add(orphan);
+        assertSame(orphan, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void backdatedAdmissionFormBeatsRegistration() {
+        List<Obs> all = new ArrayList<>();
+        Obs form = form(all, ADMITTED, new Date(ADMITTED));
+        registration(all);
+        assertSame(form, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void laterAdmissionFormWins() {
+        List<Obs> all = new ArrayList<>();
+        form(all, ADMITTED, new Date(ADMITTED));
+        Obs correction = form(all, REGISTERED - 60000, new Date(ADMITTED + DAY));
+        registration(all);
+        assertSame(correction, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void tieOnTimeGoesToTheLaterAdmissionTimeThenUuid() {
+        List<Obs> all = new ArrayList<>();
+        Obs late = form(all, ADMITTED, new Date(ADMITTED + DAY));
+        Obs early = form(all, ADMITTED, new Date(ADMITTED));
+        assertSame(late, DataHelper.chooseAdmissionObs(all));
+        Collections.reverse(all);
+        assertSame(late, DataHelper.chooseAdmissionObs(all));
+
+        early.setValueDatetime(new Date(ADMITTED + DAY));
+        early.setUuid("b");
+        late.setUuid("a");
+        assertSame(early, DataHelper.chooseAdmissionObs(all));
+        Collections.reverse(all);
+        assertSame(early, DataHelper.chooseAdmissionObs(all));
+    }
+
+    @Test public void admissionFormWithNoValueRanksLowest() {
+        List<Obs> all = new ArrayList<>();
+        form(all, ADMITTED, null).setUuid("b");
+        Obs filled = form(all, ADMITTED, new Date(ADMITTED));
+        filled.setUuid("a");
+        assertSame(filled, DataHelper.chooseAdmissionObs(all));
     }
 }
