@@ -69,6 +69,9 @@ public class DataHelper {
     private static final String DISCHARGE_DATETIME_UUID = toUuid(8001641);
     private static final String PREGNANCY_UUID = Utils.toUuid(2005272);
 
+    /** Printed in place of a value that was recorded but is missing from the database. */
+    public static final String MISSING = "\u2014";
+
     private static final Intl TIME_PATTERN = new Intl("MMM d, HH:mm [fr:d MMM, HH'h'mm]");
     private static final Intl DATE_PATTERN = new Intl("MMM d [fr:d MMM]");
 
@@ -93,10 +96,12 @@ public class DataHelper {
         }
     };
 
-    private static final Comparator<Obs> OBS_VALUE_TIME = new Comparator<Obs>() {
+    static final Comparator<Obs> OBS_VALUE_TIME = new Comparator<Obs>() {
         @Override public int compare(Obs o1, Obs o2) {
             DateTime dt1 = toDateTime(o1.getValueDatetime());
             DateTime dt2 = toDateTime(o2.getValueDatetime());
+            // A missing time sorts as the newest, so the patient stays in the recent lists.
+            if (dt1 == null || dt2 == null) return dt1 == dt2 ? 0 : dt1 == null ? 1 : -1;
             return dt1.compareTo(dt2);
         }
     };
@@ -157,12 +162,13 @@ public class DataHelper {
         return locale;
     }
 
+    // Joda prints a null time as the current time, so a missing time is printed as MISSING.
     public String formatTime(DateTime dt) {
-        return timeFormatter.print(dt);
+        return dt != null ? timeFormatter.print(dt) : MISSING;
     }
 
     public String formatDate(DateTime dt) {
-        return dateFormatter.print(dt);
+        return dt != null ? dateFormatter.print(dt) : MISSING;
     }
 
     private List<ObsDisplay> wrapObs(List<Obs> list) {
@@ -186,7 +192,7 @@ public class DataHelper {
     }
 
     public static String getLocationUuidFromPlacement(String placement) {
-        return Utils.splitFields(placement, "/", 2)[0];
+        return Utils.splitFields(Utils.toNonnull(placement), "/", 2)[0].trim();
     }
 
     public List<PatientPlacement> getPresentPatients() {
@@ -482,7 +488,8 @@ public class DataHelper {
             for (Obs obs : event.obs) {
                 String uuid = DbUtils.getConceptUuid(obs);
                 Object value = getValue(obs);
-                if (conceptUuids.contains(uuid) && eq(value, lastValues.get(uuid))) continue;
+                if (conceptUuids.contains(uuid) && lastValues.containsKey(uuid)
+                    && eq(value, lastValues.get(uuid))) continue;
                 dedupedObs.add(obs);
                 lastValues.put(uuid, value);
             }
@@ -591,11 +598,11 @@ public class DataHelper {
         }
 
         public String getFormattedObsTime() {
-            return timeFormatter.print(obsTime);
+            return formatTime(obsTime);
         }
 
         public String getFormattedValueTime() {
-            return timeFormatter.print(valueTime);
+            return formatTime(valueTime);
         }
     }
 
@@ -639,8 +646,9 @@ public class DataHelper {
             locationUuid = getLocationUuidFromPlacement(placement);
             location = locationService.getLocationByUuid(locationUuid);
             // A placement is free text, so its location can be deleted while patients are placed there.
-            locationName = new Intl(location != null ? location.getName() : "Deleted location [fr:Lieu supprimé]");
-            bed = Utils.splitFields(placement, "/", 2)[1].trim();
+            locationName = new Intl(location != null ? location.getName() :
+                locationUuid.isEmpty() ? MISSING : "Deleted location [fr:Lieu supprimé]");
+            bed = Utils.splitFields(Utils.toNonnull(placement), "/", 2)[1].trim();
         }
 
         public Placement(Obs obs) {

@@ -20,6 +20,7 @@ compose() { docker compose --env-file "$HERE/.env" -f "$HERE/compose/docker-comp
 compose ps                                    > "$DEST/compose-ps.txt"     2>&1 || true
 compose logs --tail=2000                      > "$DEST/compose-logs.txt"   2>&1 || true
 # Tomcat writes request errors (the stack trace behind an HTTP 500) to its own files, not to stdout.
+# Print Patient Files logs a patient it could not print to openmrs.log.
 compose exec -T openmrs sh -c 'tar -czf - /opt/tomcat/logs /opt/openmrs/openmrs.log 2>/dev/null' \
                                               > "$DEST/openmrs-logs.tar.gz" 2>"$DEST/openmrs-logs.err" || true
 df -h                                         > "$DEST/disk.txt"           2>&1 || true

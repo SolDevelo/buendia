@@ -16,12 +16,14 @@ package org.projectbuendia.openmrs.web.controller;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.Test;
+import org.openmrs.Obs;
 import org.openmrs.test.SkipBaseSetup;
 import org.openmrs.web.test.BaseModuleWebContextSensitiveTest;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -29,7 +31,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-/** Placements whose location was deleted in OpenMRS (a placement is free text). */
+/** Placements whose location was deleted or is missing (a placement is free text), and missing times. */
 @SkipBaseSetup public class DataHelperTest extends BaseModuleWebContextSensitiveTest {
     // These should match the BASE_TEST_DATA file.
     static final String XANADU_UUID = "9356400c-a5a2-4532-8f2b-2361b3446eb8";
@@ -79,5 +81,37 @@ import static org.junit.Assert.assertNull;
         Collections.sort(list, helper.PATIENT_PLACEMENT);
         // By location name first ("Never Never Land" < "Xanadu"), then bed; deleted ones last.
         assertEquals(Arrays.asList(neverNever9, xanadu2, deleted0, deleted1), list);
+    }
+
+    @Test public void formatTimeOfNullIsDash() {
+        assertEquals(DataHelper.MISSING, helper.formatTime(null));
+        assertEquals(DataHelper.MISSING, helper.formatDate(null));
+    }
+
+    @Test public void nullValueTimeSortsNewest() {
+        Obs missing1 = new Obs();
+        Obs dated = new Obs();
+        dated.setValueDatetime(new Date(0));
+        Obs missing2 = new Obs();
+        List<Obs> list = new ArrayList<>(Arrays.asList(missing1, dated, missing2));
+        Collections.sort(list, DataHelper.OBS_VALUE_TIME);
+        assertEquals(dated, list.get(0));
+    }
+
+    @Test public void emptyPlacementPrintsDash() {
+        for (String text : Arrays.asList("/7", " /7")) {
+            DataHelper.Placement p = helper.new Placement(text);
+            assertNull(p.getLocation());
+            assertEquals("7", p.getBed());
+            assertEquals(DataHelper.MISSING, p.getLocationName().loc(Locale.FRENCH));
+        }
+    }
+
+    @Test public void nullPlacementPrintsDash() {
+        DataHelper.Placement p = helper.new Placement((String) null);
+        assertNull(p.getLocation());
+        assertEquals("", p.getBed());
+        assertEquals(DataHelper.MISSING, p.getLocationName().loc(Locale.FRENCH));
+        assertEquals("", DataHelper.getLocationUuidFromPlacement(null));
     }
 }

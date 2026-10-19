@@ -24,6 +24,7 @@ import org.projectbuendia.models.Catalog.Format;
 import org.projectbuendia.models.Catalog.Route;
 import org.projectbuendia.models.CatalogIndex;
 import org.projectbuendia.models.Instructions;
+import org.projectbuendia.models.Intl;
 import org.projectbuendia.models.MsfCatalog;
 import org.projectbuendia.models.Quantity;
 import org.projectbuendia.models.Unit;
@@ -37,6 +38,7 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +53,7 @@ import static org.openmrs.projectbuendia.Utils.toUuid;
 import static org.openmrs.projectbuendia.webservices.rest.DbUtils.CONCEPT_PLACEMENT_UUID;
 import static org.openmrs.projectbuendia.webservices.rest.DbUtils.isNo;
 import static org.openmrs.projectbuendia.webservices.rest.DbUtils.isYes;
+import static org.projectbuendia.openmrs.web.controller.DataHelper.MISSING;
 import static org.projectbuendia.openmrs.web.controller.HtmlOutput.el;
 import static org.projectbuendia.openmrs.web.controller.HtmlOutput.format;
 import static org.projectbuendia.openmrs.web.controller.HtmlOutput.intl;
@@ -127,18 +130,50 @@ class PatientPrinter {
         ).writeTo(writer, locale);
     }
 
+    // The French text holds a colon, which the packed "[fr:...]" form cannot carry.
+    private static final Intl ERROR_MESSAGE = new Intl(
+        "This patient's file could not be printed: some data is missing or damaged. "
+            + "The other files are complete. Details are in the server log.",
+        Collections.singletonMap("fr",
+            "Impossible d'imprimer le dossier de ce patient : des données sont manquantes ou endommagées. "
+                + "Les autres dossiers sont complets. Détail dans le journal du serveur."));
+
+    /** In place of a patient whose history could not be printed: their ID and name, as far as read. */
+    public void printError(String ident, String name) throws IOException {
+        printNotice(ident, div("intro", div("ident", ident), div("name", name)), ERROR_MESSAGE);
+    }
+
+    /** In place of a patient deleted in OpenMRS: nothing of their record is printed. */
+    public void printDeleted() throws IOException {
+        printNotice("", seq(), intl(
+            "This patient was deleted; their file is not printed. "
+                + "[fr:Ce patient a été supprimé ; son dossier n'est pas imprimé.]"));
+    }
+
+    private void printNotice(String ident, Doc intro, Doc message) throws IOException {
+        table("pages",
+            ident.isEmpty() ? seq() : el("thead", el("tr", el("td", div("ident", ident)))),
+            el("tbody", el("tr", el("td", div("notice", intro, div("message", message)))))
+        ).writeTo(writer, locale);
+    }
+
     public Doc renderIntro(Patient pat) {
         Doc age = renderAge(pat);
         Doc sex = renderSex(pat);
         return div("intro",
             div("ident", getIdentifier(pat)),
-            div("name", pat.getPersonName().getFullName()),
+            div("name", getName(pat)),
             div("agesex", sex, sex.isEmpty() ? "" : ", ", age)
         );
     }
 
+    /** The patient's name, or "" when every name was deleted. */
+    String getName(Patient pat) {
+        return pat.getPersonName() != null ? Utils.toNonnull(pat.getPersonName().getFullName()) : "";
+    }
+
     /** The MSF identifier, or the local one generated for a patient registered without it. */
-    private String getIdentifier(Patient pat) {
+    String getIdentifier(Patient pat) {
         PatientIdentifier ident = pat.getPatientIdentifier("MSF");
         if (ident == null) ident = pat.getPatientIdentifier();
         return ident != null ? ident.getIdentifier() : "";
@@ -228,8 +263,9 @@ class PatientPrinter {
         );
     }
 
-    private Doc renderProvider(Provider provider) {
-        return span("provider", provider != null ? provider.getName() : intl("unknown [fr:inconnu]"));
+    Doc renderProvider(Provider provider) {
+        return span("provider", provider != null && provider.getName() != null ?
+            provider.getName() : intl("unknown [fr:inconnu]"));
     }
 
     private Provider getPluralityProvider(Map<String, Obs> obsByQuestion) {
@@ -450,7 +486,7 @@ class PatientPrinter {
         return results;
     }
 
-    private Doc renderObsContent(Obs obs) {
+    Doc renderObsContent(Obs obs) {
         return renderObsContent(obs, new HashMap<String, List<Obs>>());
     }
 
@@ -471,6 +507,8 @@ class PatientPrinter {
                 );
 
             case DbUtils.CONCEPT_ORDER_EXECUTED_UUID:
+                // A dose whose order link is missing prints MISSING as its treatment.
+                if (obs.getOrder() == null) return div("execution", MISSING);
                 Order order = getRevisionAt(obs.getOrder(), obs.getObsDatetime());
                 return div("execution", renderOrderTreatment(order));
 
@@ -525,13 +563,13 @@ class PatientPrinter {
         return div("change", stopped ? intl("Stopped [fr:Arrêté]") : intl("Modified [fr:Modifié]"));
     }
 
-    private Doc renderOrderTreatment(Order order) {
+    Doc renderOrderTreatment(Order order) {
         Instructions instr = new Instructions(order.getInstructions());
         Drug drug = index.getDrug(instr.code);
         Format format = index.getFormat(instr.code);
         Doc dosage = instr.isContinuous() ?
             span("dosage", format("%s in %s [fr:%s dans %s]",
-                renderQuantity(instr.amount),
+                instr.amount != null ? renderQuantity(instr.amount) : text(MISSING),
                 renderQuantity(instr.duration)
             )) :
             instr.amount != null ?
@@ -540,7 +578,7 @@ class PatientPrinter {
         Route route = index.getRoute(instr.route);
         boolean inCatalog = drug != Drug.UNSPECIFIED;
         return div("treatment",
-            div("drug", inCatalog ? drug.name : text(instr.code)),
+            div("drug", inCatalog ? drug.name : text(instr.code.isEmpty() ? MISSING : instr.code)),
             format != Format.UNSPECIFIED ?
                 div("format", span("label", intl("Format"), ": "), format.description) : seq(),
             div("dosageroute",
@@ -563,14 +601,21 @@ class PatientPrinter {
         );
     }
 
-    private Doc renderOrderSchedule(Order order) {
+    Doc renderOrderSchedule(Order order) {
         DateTime start = helper.toLocalDateTime(order.getScheduledDate());
         DateTime stop = helper.toLocalDateTime(order.getAutoExpireDate());
         Instructions instr = new Instructions(order.getInstructions());
         int doses = 0;
-        if (stop != null && instr.isSeries() && eq(instr.frequency.unit, Unit.PER_DAY)) {
+        if (start != null && stop != null && instr.isSeries() && eq(instr.frequency.unit, Unit.PER_DAY)) {
             int days = Days.daysBetween(start.toLocalDate(), stop.toLocalDate()).getDays();
             doses = days * (int) instr.frequency.mag;
+        }
+        if (!Utils.hasChars(order.getInstructions())) {
+            // Nothing says how often it is given, so print only the dates: not "one dose only".
+            return div("schedule", span("label", intl("Schedule [fr:Horaire]"), ": "), stop != null ?
+                format("starting %s; stopping %s [fr:commencer %s; arrêter %s]",
+                    helper.formatTime(start), helper.formatTime(stop)) :
+                format("starting %s [fr:commencer %s]", helper.formatTime(start)));
         }
         return div("schedule", span("label", intl("Schedule [fr:Horaire]"), ": "), instr.isSeries() && instr.frequency.mag > 0 ?
             (stop != null ?
@@ -597,17 +642,21 @@ class PatientPrinter {
         );
     }
 
-    private Doc renderValue(Obs obs) {
+    Doc renderValue(Obs obs) {
         ConceptDatatype type = obs.getConcept().getDatatype();
+        // A value missing from the database prints MISSING; dates via formatDate/formatTime.
         switch (type.getHl7Abbreviation()) {
             case ConceptDatatype.BOOLEAN:
-                return text(Boolean.toString(obs.getValueBoolean()));
+                Boolean bool = obs.getValueBoolean();
+                return text(bool != null ? Boolean.toString(bool) : MISSING);
             case ConceptDatatype.CODED:
-                return coded(obs.getValueCoded());
+                return obs.getValueCoded() != null ? coded(obs.getValueCoded()) : text(MISSING);
             case ConceptDatatype.NUMERIC:
-                return text(Utils.format(obs.getValueNumeric(), 6));
+                Double num = obs.getValueNumeric();
+                return text(num != null ? Utils.format(num, 6) : MISSING);
             case ConceptDatatype.TEXT:
-                return text(obs.getValueText().replace("\n", "; "));
+                String str = obs.getValueText();
+                return text(str != null ? str.replace("\n", "; ") : MISSING);
             case ConceptDatatype.DATE:
                 return text(helper.formatDate(helper.toLocalDateTime(obs.getValueDate())));
             case ConceptDatatype.DATETIME:

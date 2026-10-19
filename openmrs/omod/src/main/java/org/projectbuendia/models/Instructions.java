@@ -41,7 +41,7 @@ public class Instructions implements Serializable {
         //   - Record 1: amount, amount unit, duration, duration unit
         //   - Record 2: frequency, frequency unit
         //   - Record 3: notes
-        String[] records = Utils.splitFields(instructionsText, RS, 4);
+        String[] records = Utils.splitFields(Utils.toNonnull(instructionsText), RS, 4);
 
         // Drug and route
         String[] fields = Utils.splitFields(records[0], US, 2);

@@ -553,6 +553,23 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 
 ### State of things RIGHT NOW (2026-08-10, end of session)
 
+> **Update 2026-10-19 (later) — Print Patient Files: missing or damaged data no longer fails the page
+> (OML-45; not yet in a pack).** A sweep of every unchecked lookup on the list page and the printout,
+> each reproduced on a test stack by corrupting one row (`print-remap/oml45_live.py`): 14 cases gave an
+> HTTP 500, and 9 printed wrong text without failing — a missing date or time printed as the current
+> time, a placement with no value vanished or read `Lieu supprimé`, a clinician with no name printed
+> `null`. Most now print
+> **`—`** in place of the missing value, and the rest of the line stays; a missing name prints empty, a
+> clinician with no name `inconnu`, and an order with no instructions only its dates (never "dose unique"). A patient deleted in OpenMRS, or a uuid that no longer
+> exists, prints one line: *Ce patient a été supprimé ; son dossier n'est pas imprimé.* Any other
+> failure is **contained to that patient**: the page prints the others and, in that patient's place,
+> *Impossible d'imprimer le dossier de ce patient : des données sont manquantes ou endommagées…*; the
+> stack trace goes to `/opt/openmrs/openmrs.log` (an uncontained HTTP 500 still lands in
+> `/opt/tomcat/logs/localhost.<date>.log`; `buendia-diagnostics.sh` collects both). The list page is
+> one page render, so it is fixed case by case, not contained. Known and left: a corrupt order chain (an
+> order that is its own earlier revision, possible only by editing the database) makes the printout hang
+> rather than fail. Ships with the next pack.
+
 > **Update 2026-10-19 — Print Patient Files survives a deleted location (OML-43; not yet in a pack).**
 > MSF reported HTTP 500 on Print Patient Files after 1.6.0. Cause: a placement is the text
 > `<location uuid>/<bed>`, so OpenMRS *Delete Location* succeeds while patients are placed there, and

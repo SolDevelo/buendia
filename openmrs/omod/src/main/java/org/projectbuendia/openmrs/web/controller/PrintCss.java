@@ -160,5 +160,17 @@ public class PrintCss {
         "  padding: 0.1rem 0.1rem 0;\n" +
         "  border: 0.05rem solid black;\n" +
         "}\n" +
+        "\n" +
+        ".notice {\n" +
+        "  font-family: helvetica, arial, sans-serif;\n" +
+        "  margin: 1rem;\n" +
+        "}\n" +
+        "\n" +
+        ".notice .message {\n" +
+        "  clear: both;\n" +
+        "  padding-top: 1rem;\n" +
+        "  font-size: 1rem;\n" +
+        "  font-weight: bold;\n" +
+        "}\n" +
         "";
 }
