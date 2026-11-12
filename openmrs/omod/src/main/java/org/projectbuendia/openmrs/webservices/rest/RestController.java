@@ -127,7 +127,8 @@ public class RestController extends MainResourceController {
         if (status == 401) {
             response.addHeader("WWW-Authenticate", "Basic realm=\"OpenMRS at " + RestConstants.URI_PREFIX + "\"");
         }
-        if (e instanceof APIException && e.getMessage().startsWith("Unknown resource:")) {
+        if (e instanceof APIException && e.getMessage() != null
+            && e.getMessage().startsWith("Unknown resource:")) {
             status = 404;
         }
         response.setStatus(status);
@@ -148,7 +149,6 @@ public class RestController extends MainResourceController {
         String description = ann != null ? ann.reason() : null;
         String message = t.getMessage();
 
-        StackTraceElement top = t.getStackTrace()[0];
         List<String> frames = new ArrayList<>();
         int maxLevels = 40;
         int level = 0;

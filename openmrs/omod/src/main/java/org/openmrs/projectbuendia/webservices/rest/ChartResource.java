@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -66,15 +67,19 @@ public class ChartResource extends BaseResource<Form> {
         SortedMap<Integer, TreeSet<FormField>> structure = FormUtil.getFormStructure(form);
         // Chart definitions are assumed to have a three-level structure: a single
         // root FormField, whose children are sections, whose children are chart rows.
-        for (FormField sectionFormField : structure.get(0)) {
+        // A form edited outside Buendia can have no fields, sections with no rows, fields with
+        // no description, and rows with no concept; skip what cannot be charted instead of
+        // failing the chart sync for every tablet.
+        for (FormField sectionFormField : childrenOf(structure, 0)) {
             Field sectionField = sectionFormField.getField();
             Map<String, Object> section = parseFieldDescription(sectionField);
             section.put("label", sectionField.getName());
             List<Map> items = new ArrayList<>();
             // The FormFields in the TreeSet are in display order; return them in that order.
-            for (FormField itemFormField : structure.get(sectionFormField.getId())) {
+            for (FormField itemFormField : childrenOf(structure, sectionFormField.getId())) {
                 Field itemField = itemFormField.getField();
                 Map<String, Object> item = parseFieldDescription(itemField);
+                if (item.get("concepts") == null && itemField.getConcept() == null) continue;
                 item.put("label", itemField.getName());
                 item.put("concepts", getConceptUuids(item.get("concepts"), itemField));
                 item.remove("concept");
@@ -86,7 +91,14 @@ public class ChartResource extends BaseResource<Form> {
         json.put("sections", sections);
     }
 
+    private static Set<FormField> childrenOf(
+        SortedMap<Integer, TreeSet<FormField>> structure, Integer parentId) {
+        TreeSet<FormField> children = structure.get(parentId);
+        return children != null ? children : Collections.<FormField>emptySet();
+    }
+
     private static Map<String, Object> parseFieldDescription(Field field) {
+        if (field.getDescription() == null) return new HashMap<String, Object>();
         String description = field.getDescription().trim();
         if (description.startsWith("{\"")) {
             try {
