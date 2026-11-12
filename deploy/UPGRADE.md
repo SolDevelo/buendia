@@ -13,9 +13,15 @@ avoided.
 
 ## What is in this version
 
-- **A new version of the server software and of the tablet app (1.7.0).** Every tablet needs the
-  new app installed by hand (see *Tablets* below). From this version the app carries the same
-  number as the package.
+- **A new version of the server software (1.7.1) and of the tablet app (1.7.0).** Version 1.7.1
+  changes only the server, so a tablet that already has app 1.7.0 needs nothing; any other tablet
+  needs app 1.7.0 installed by hand (see *Tablets* below).
+- **Tablets no longer stop synchronising on a patient marked as deceased outside the tablet.**
+  A cause of death recorded outside the tablet is saved without a visit, and every tablet that had
+  not yet synchronised it failed with *"status code 500"* and never caught up. Those
+  tablets now synchronise normally, and the death record itself is kept as entered.
+- **The tablet charts keep loading if a chart is edited on the server's web page** in a way the
+  tablet cannot show, such as a section with no rows; the part that cannot be shown is left out.
 - **The admission date entered on the Admission form is the one used everywhere.** Before, the
   tablet's day count and the printed patient file could take the date the patient was registered
   instead. The tablet needs the new app for its day count; the printout is corrected by the server.
