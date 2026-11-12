@@ -611,9 +611,11 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > rebuild the APK only when client code changes. Release commit `13730149`. Image
 > `soldevelo/buendia-openmrs@sha256:9d4937f1291095f00d3d548f108fc5c0549212366c9f50f6d601065e35d1f916`
 > (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the 1.7.0
-> site env (secrets checked equal to the 1.1 stick's), bundle `…-86-g13730149`, payload
-> `pkgserver-www-drcp-1.7` reused. `buendia-usb-drcp-1.7.1.zip`, sha256
-> `d8b96db5939ca3668b10beca7c600b995c086732fbadaf804c94c159f8c3b1e1`.
+> site env (secrets checked equal to the 1.1 stick's), bundle `…-88-g8833064e`, payload
+> `pkgserver-www-drcp-1.7` reused. From this pack the guides ship as PDF only (`8833064e`).
+> `buendia-usb-drcp-1.7.1.zip`, sha256
+> `5e96e5177eb985ba9459ba1847c3e5807d1412f6067c2ed5cb64a0721a7336f0`; on Drive as
+> `Buendia-1.7.1.zip` (+ `-UPGRADE.pdf`, `-INSTALL.pdf`), link-shared like the earlier packs.
 > Open from the same scan: unknown concept UUID on encounter save → 500 and a stray empty encounter;
 > `GET /xforms/{purged}` → 500; retiring the root location breaks patient/order create.
 
