@@ -1,7 +1,7 @@
 # Buendia — installing a new version over a working server
 
 This is for a laptop that **already runs Buendia and holds real patient data**. For a machine with
-nothing on it yet, use `INSTALL.md` instead.
+nothing on it yet, use `INSTALL.pdf` instead.
 
 Same shape as the first installation: **two commands, on the server laptop, everything with `sudo`.**
 The difference is that this time there is data on the machine, so there is a backup step first and a

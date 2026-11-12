@@ -58,14 +58,11 @@ install -m 0755 "$D/tools/buendia-netcheck.sh"  "$OUT/buendia-netcheck.sh"
 # Named backup.sh at the root, not buendia-backup.sh in a tools folder: it is the first thing
 # anyone runs on an upgrade, and it has to be typeable from the guide without hunting.
 install -m 0755 "$D/tools/buendia-backup.sh"    "$OUT/backup.sh"
-install -m 0644 "$D/INSTALL-TWO-STEP.md"        "$OUT/INSTALL.md"
-# A PDF as well as the Markdown: whoever installs this may have no way to render .md, and read
-# as plain text it loses the emphasis that tells them which line to type.
-if "$HERE/make-install-pdf.sh" --out "$OUT/INSTALL.pdf" >/dev/null 2>&1; then
-  echo "    + INSTALL.pdf"
-else
-  echo "    WARNING: could not build INSTALL.pdf (Chrome refuses to run as root — try as your own user)" >&2
-fi
+# The guides travel as PDF only: whoever installs this may have no way to render .md, and a
+# second copy of each guide only makes the folder harder to read.
+"$HERE/make-install-pdf.sh" --out "$OUT/INSTALL.pdf" >/dev/null 2>&1 \
+  || die "could not build INSTALL.pdf (Chrome refuses to run as root — try as your own user)"
+echo "    + INSTALL.pdf"
 
 # Both guides travel, because the same stick is used to install and later to upgrade, and the
 # upgrade has a backup step and a password answer the install guide does not mention.
@@ -77,13 +74,9 @@ awk '/^## Notes for SolDevelo/ { exit } { print }' "$D/UPGRADE.md" \
   | awk '{ l[n++] = $0 } END { while (n > 0 && (l[n-1] == "" || l[n-1] == "---")) n--;
            for (i = 0; i < n; i++) print l[i] }' > "$STAGE/UPGRADE.md"
 grep -q 'Notes for SolDevelo' "$STAGE/UPGRADE.md" && die "the internal section survived the cut in UPGRADE.md"
-install -m 0644 "$STAGE/UPGRADE.md" "$OUT/UPGRADE.md"
-if "$HERE/make-install-pdf.sh" --src "$STAGE/UPGRADE.md" --out "$OUT/UPGRADE.pdf" >/dev/null 2>&1; then
-  echo "    + UPGRADE.md + UPGRADE.pdf"
-else
-  echo "    + UPGRADE.md"
-  echo "    WARNING: could not build UPGRADE.pdf (Chrome refuses to run as root — try as your own user)" >&2
-fi
+"$HERE/make-install-pdf.sh" --src "$STAGE/UPGRADE.md" --out "$OUT/UPGRADE.pdf" >/dev/null 2>&1 \
+  || die "could not build UPGRADE.pdf (Chrome refuses to run as root — try as your own user)"
+echo "    + UPGRADE.pdf"
 install -m 0644 "${bundles[0]}"                 "$OUT/$(basename "${bundles[0]}")"
 install -m 0644 "${bundles[0]}.sha256"          "$OUT/$(basename "${bundles[0]}").sha256"
 install -m 0644 "${payloads[0]}"                "$OUT/$(basename "${payloads[0]}")"
@@ -127,4 +120,4 @@ echo "    sha256: $(awk '{print $1}' "$ZIP.sha256")"
 echo
 echo "Send it PRIVATELY — it contains the database passwords and an APK carrying the server password."
 echo "MSF unzips it onto a USB stick, giving a 'Buendia' folder. A machine with nothing on it yet"
-echo "follows INSTALL.md; a server already in use follows UPGRADE.md."
+echo "follows INSTALL.pdf; a server already in use follows UPGRADE.pdf."

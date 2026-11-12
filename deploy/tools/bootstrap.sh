@@ -230,7 +230,7 @@ if [[ $rc -eq 0 && $DRY -eq 0 && $PREPARE_ONLY -eq 1 ]]; then
   That configures the router, gives this server its fixed address, starts Buendia, checks it
   all, and finally shows the two QR codes for setting up a tablet.
 
-  Full instructions: INSTALL.md on the USB stick.
+  Full instructions: INSTALL.pdf on the USB stick.
 TXT
 elif [[ $rc -eq 0 && $DRY -eq 0 ]]; then
   ip="$(grep -E "^STATIC_IP=" "$DEPLOY/.env" | cut -d= -f2 | sed "s/#.*//" | tr -d "[:space:]")"
