@@ -601,6 +601,22 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-11-12 — observation sync 500 at Mongwalu (APK 1.7.0, omod 1.2.3, pack 1.7.1).**
+> Ships LIME2-1366: `ObsUtils.putObsAsJson` dereferenced `obs.getEncounter()` unguarded (upstream
+> code, 2019), so an encounter-less obs — a cause of death recorded outside the tablet — failed every
+> `/observations?since=` page holding it and tablets behind it never advanced (`66f49c98`). Same release:
+> `/charts` survives forms edited in the legacy designer and the REST error handler no longer fails on
+> a trace-less exception (`2c18d1ef`); `build-image.sh` builds again on buildx 0.38 (`d77c61fb`).
+> **Server-only: the APK stays 1.7.0** — the "APK carries the pack's number" rule below is dropped;
+> rebuild the APK only when client code changes. Release commit `13730149`. Image
+> `soldevelo/buendia-openmrs@sha256:9d4937f1291095f00d3d548f108fc5c0549212366c9f50f6d601065e35d1f916`
+> (pinned in `deploy/.env`); `DB_IMAGE` unchanged. Pack built with `--keep-passwords` from the 1.7.0
+> site env (secrets checked equal to the 1.1 stick's), bundle `…-86-g13730149`, payload
+> `pkgserver-www-drcp-1.7` reused. `buendia-usb-drcp-1.7.1.zip`, sha256
+> `d8b96db5939ca3668b10beca7c600b995c086732fbadaf804c94c159f8c3b1e1`.
+> Open from the same scan: unknown concept UUID on encounter save → 500 and a stray empty encounter;
+> `GET /xforms/{purged}` → 500; retiring the root location breaks patient/order create.
+
 > **Update 2026-10-19 — printout robustness and admission date (APK 1.7.0, omod 1.2.2, pack 1.7.0).**
 > Ships OML-43 (deleted-location placements, `94b4c59d`), OML-45 (Print Patient Files contains every
 > per-patient failure, `02c65b4c`) and OML-44 (the Admission form's date wins, `f61beabb` / client
