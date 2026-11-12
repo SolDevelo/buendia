@@ -147,17 +147,20 @@ public class ObsUtils {
 
     public static SimpleObject putObsAsJson(SimpleObject json, Obs obs) {
         json.put("uuid", obs.getUuid());
-        if (obs.getEncounter() != null) {
-            json.add("encounter_uuid", obs.getEncounter().getUuid());
+        // An obs may have no encounter, e.g. the cause of death OpenMRS saves when a
+        // patient is marked deceased outside Buendia.
+        Encounter encounter = obs.getEncounter();
+        if (encounter != null) {
+            json.add("encounter_uuid", encounter.getUuid());
+            for (EncounterProvider ep : encounter.getEncounterProviders()) {
+                if (ep.getProvider() != null) {
+                    json.add("provider_uuid", ep.getProvider().getUuid());
+                    break;
+                }
+            }
         }
         if (obs.getPerson() != null) {
             json.add("patient_uuid", obs.getPerson().getUuid());
-        }
-        for (EncounterProvider ep : obs.getEncounter().getEncounterProviders()) {
-            if (ep.getProvider() != null) {
-                json.add("provider_uuid", ep.getProvider().getUuid());
-                break;
-            }
         }
         if (obs.getConcept() != null) {
             json.add("concept_uuid", obs.getConcept().getUuid());
