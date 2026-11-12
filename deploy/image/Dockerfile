@@ -37,7 +37,11 @@ ENV PATH="/opt/maven/bin:${PATH}"
 
 WORKDIR /src
 # Optional Maven mirror settings (if OpenMRS/central repos are flaky — WS-3). Harmless if absent.
-COPY deploy/image/settings.xm[l] /root/.m2/settings.xml
+# BuildKit (buildx 0.38) fails a COPY whose only source is a glob matching nothing, so the
+# README anchors it; settings.xml is moved into place only when one was dropped here.
+COPY deploy/image/README.md deploy/image/settings.xm[l] /tmp/m2/
+RUN if [ -f /tmp/m2/settings.xml ]; then mkdir -p /root/.m2 && mv /tmp/m2/settings.xml /root/.m2/; fi \
+ && rm -rf /tmp/m2
 # The omod's git-commit-id-plugin searches upward for .git (to stamp git.properties, read
 # by VersionInfo/RestController). Provide it at the copied repo root so the search resolves.
 # Lives only in this discarded builder stage; cached across uncommitted edit→rebuild loops.
