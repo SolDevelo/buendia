@@ -52,9 +52,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
@@ -461,18 +463,45 @@ public class DbUtils {
         }
     };
 
-    /** Gets the default root location, where identifiers will be placed. */
+    /**
+     * Gets the default root location, where identifiers will be placed: the
+     * unretired root with the alphanumerically first (lowest) name.  If the root
+     * has been retired, it is still the root of the tree, so it is found by
+     * climbing from an unretired location rather than failing every caller.
+     * Retiring through LocationService can also retire the whole tree (core
+     * applies the retire handler to child collections, and our own location
+     * DELETE retires recursively); then the retired root that has children wins
+     * over a lone retired location.
+     */
     public static Location getDefaultRoot() {
         LocationService locationService = Context.getLocationService();
         List<Location> locations = locationService.getAllLocations(false);
-        // The default location is the root with the alphanumerically first (lowest) name.
         Collections.sort(locations, ALPHANUMERIC_NAME_COMPARATOR);
-        for (Location location : locationService.getAllLocations(false)) {
+        for (Location location : locations) {
             if (location.getParentLocation() == null) {
                 return location;
             }
         }
-        throw new IllegalStateException("Location tree contains a cycle");
+        if (!locations.isEmpty()) {
+            Set<Location> visited = new HashSet<>();
+            Location location = locations.get(0);
+            while (visited.add(location)) {
+                if (location.getParentLocation() == null) return location;
+                location = location.getParentLocation();
+            }
+            throw new IllegalStateException("Location tree contains a cycle");
+        }
+        List<Location> all = locationService.getAllLocations(true);
+        Collections.sort(all, ALPHANUMERIC_NAME_COMPARATOR);
+        Location loneRoot = null;
+        for (Location location : all) {
+            if (location.getParentLocation() == null) {
+                if (!location.getChildLocations().isEmpty()) return location;
+                if (loneRoot == null) loneRoot = location;
+            }
+        }
+        if (loneRoot != null) return loneRoot;
+        throw new IllegalStateException("No root location");
     }
 
     /** Gets a Location entity by its exact name. */

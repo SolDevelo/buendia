@@ -27,10 +27,15 @@ import org.openmrs.api.context.Context;
 import org.openmrs.hl7.HL7Constants;
 import org.openmrs.module.webservices.rest.SimpleObject;
 import org.openmrs.projectbuendia.Utils;
+import org.openmrs.validator.ValidateUtil;
+import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +82,10 @@ public class ObsUtils {
         // Ensure the placement concept exists, so we can receive observations of it.
         DbUtils.getPlacementConcept();
 
+        // Reject the whole encounter before anything is written: the saves below
+        // run in separate transactions, so a later failure would leave a partial one.
+        validateObservations(observations, patient, encounterTime);
+
         List<Obs> obsList = new ArrayList<>();
         if (observations != null) {
             for (Map observation : observations) {
@@ -111,6 +120,49 @@ public class ObsUtils {
             }
         }
         return encounter;
+    }
+
+    /**
+     * Checks every observation as core's ObsValidator would on save, without writing
+     * anything, and throws InvalidObjectDataException (HTTP 400) for the first one
+     * that would fail.  The message keeps core's "failed to validate with reason: "
+     * wording, which the tablet looks for.  The patient may be unsaved; its missing
+     * id is the one error ignored, since saving the patient first supplies it.
+     */
+    public static void validateObservations(List<Map> observations, Patient patient, Date time) {
+        if (observations == null) return;
+        for (Map observation : observations) {
+            Obs obs = new Obs(patient, null, time, null);
+            setObsValueFromJson(observation, obs);
+            if (obs.getConcept() == null) {
+                throw invalidObs(obs, "concept_uuid: unknown concept " + observation.get("concept_uuid"));
+            }
+            if (observation.containsKey("value_coded") && obs.getValueCoded() == null) {
+                throw invalidObs(obs, "value_coded: unknown concept " + observation.get("value_coded"));
+            }
+            BindException errors = new BindException(obs, "obs");
+            ValidateUtil.validate(obs, errors);
+            // Same format as ValidateUtil.validate(Object), minus the person error.
+            LinkedHashSet<String> reasons = new LinkedHashSet<>();
+            for (Object item : errors.getAllErrors()) {  // a raw List in this Spring version
+                ObjectError error = (ObjectError) item;
+                String text = Context.getMessageSourceService().getMessage(error.getCode());
+                if (error instanceof FieldError) {
+                    String field = ((FieldError) error).getField();
+                    if (field.equals("person") && patient.getPatientId() == null) continue;
+                    reasons.add(field + ": " + text);
+                } else {
+                    reasons.add(text);
+                }
+            }
+            if (!reasons.isEmpty()) {
+                throw invalidObs(obs, Utils.join(", ", reasons));
+            }
+        }
+    }
+
+    private static InvalidObjectDataException invalidObs(Obs obs, String reason) {
+        return new InvalidObjectDataException("'" + obs + "' failed to validate with reason: " + reason);
     }
 
     public static void setObsValueFromJson(Map json, Obs obs) {

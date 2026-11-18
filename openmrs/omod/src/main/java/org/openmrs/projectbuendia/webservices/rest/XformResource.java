@@ -62,7 +62,7 @@ public class XformResource extends BaseResource<Form> {
 
     @Override protected Form retrieveItem(String uuid) {
         Form form = formService.getFormByUuid(uuid);
-        return DbUtils.isPublishedXform(form) ? form : null;
+        return form != null && DbUtils.isPublishedXform(form) ? form : null;
     }
 
     /**

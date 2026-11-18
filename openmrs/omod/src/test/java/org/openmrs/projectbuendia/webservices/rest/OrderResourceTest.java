@@ -14,6 +14,7 @@
 package org.openmrs.projectbuendia.webservices.rest;
 
 import org.junit.Test;
+import org.openmrs.Location;
 import org.openmrs.Order;
 import org.openmrs.module.webservices.rest.SimpleObject;
 import org.openmrs.projectbuendia.Utils;
@@ -82,6 +83,23 @@ import static org.junit.Assert.assertTrue;
         assertEquals(SAMPLE_INSTRUCTIONS, stored.getInstructions());
         assertEquals(SAMPLE_START_DATE, stored.getScheduledDate().getTime());
         assertEquals(SAMPLE_END_DATE, stored.getAutoExpireDate().getTime());
+    }
+
+    @Test public void testOrderCreationWhenRootRetired() throws Exception {
+        // LIME2-1379: only the root retired (as a REST v1 retire leaves it, children untouched):
+        // the order's encounter goes to Xanadu, reached by climbing from Never Never Land.
+        String xanaduUuid = "9356400c-a5a2-4532-8f2b-2361b3446eb8";
+        Location xanadu = locationService.getLocationByUuid(xanaduUuid);
+        xanadu.setRetired(true);
+        xanadu.setRetireReason("LIME2-1379 test");
+        locationService.saveLocation(xanadu);
+        assertEquals(1, locationService.getAllLocations(false).size());
+        SimpleObject input = newOrderJson(
+            SAMPLE_PATIENT_UUID, SAMPLE_PROVIDER_UUID, SAMPLE_INSTRUCTIONS,
+            SAMPLE_START_DATE, SAMPLE_END_DATE);
+        SimpleObject response = deserialize(handle(newPostRequest(getURI(), input)));
+        Order stored = orderService.getOrderByUuid((String) response.get("uuid"));
+        assertEquals(xanaduUuid, stored.getEncounter().getLocation().getUuid());
     }
 
     @Test public void testOrderCreationWithoutPatientThrowsException() throws Exception {

@@ -114,6 +114,10 @@ public class PatientResource extends BaseResource<Patient> {
             ident.setIdentifier("temp-" + new Date().getTime());
         }
         patient.addIdentifier(ident);
+
+        // Check the initial observations before the patient is written, so a bad
+        // one leaves no patient behind.  The real time is set after saving.
+        ObsUtils.validateObservations((List<Map>) data.get("observations"), patient, new Date());
         patientService.savePatient(patient);
 
         // For LOCAL-type identifiers, we can only determine the identifier after
