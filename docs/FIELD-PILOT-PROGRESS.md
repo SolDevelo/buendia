@@ -601,6 +601,15 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-11-18 — pop-up messages readable on current tablets (LIME2-1376; client only, not yet in a pack).**
+> MSF reported the error messages as white on a white screen. `BigToast` (every pop-up message: server and
+> sync errors, sign-in, patient saved) forced white text onto Android's own toast box, which is dark grey up to
+> Android 8 and **light from Android 9** — so both the Core-T4 (9) and the Core-T5 (11) showed white on light
+> grey (contrast 1.2:1, measured on Android 9, 11 and 16 emulators). The app now draws its own box: black text
+> on light grey with a dark border, the same on every version and in the system's dark mode (contrast 18:1).
+> The app does not follow the system dark mode at all (`Theme.Holo.Light`, `targetSdk 24`). **Ships with the
+> next APK** (client change; the next pack needs an APK rebuild).
+
 > **Update 2026-11-12 — observation sync 500 at Mongwalu (APK 1.7.0, omod 1.2.3, pack 1.7.1).**
 > Ships LIME2-1366: `ObsUtils.putObsAsJson` dereferenced `obs.getEncounter()` unguarded (upstream
 > code, 2019), so an encounter-less obs — a cause of death recorded outside the tablet — failed every
