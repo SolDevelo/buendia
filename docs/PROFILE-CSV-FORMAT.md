@@ -20,19 +20,19 @@ The examples below are taken from it.
 
 ## 1. Big picture
 
-One CSV file describes **many** forms and **one** chart. Every row is one line of the file;
-its meaning comes from **which columns are filled in**, not from a row "type" column.
+One CSV file describes many forms and one chart. Each row is one line of the file. What a row
+means depends on which of its columns are filled in; no column states the row's kind.
 
-The file is conceptually split into two parts by the first column, `tab`:
+The first column, `tab`, splits the file into two parts:
 
 | `tab` value | What the following rows define |
 |-------------|--------------------------------|
 | `form`      | A data-entry form (repeat to define several forms) |
 | `chart`     | The patient chart/dashboard (tiles + grid) |
 
-The `tab` value **sticks downward**: you write `form` (or `chart`) once on the row that
-begins a section, and every row below it belongs to that tab until the next `tab` value
-appears. In practice each form starts on a row that has both `tab = form` **and** a `title`.
+A `tab` value carries down: write `form` or `chart` once on the row that begins a part, and
+every row below it belongs to that tab until the next `tab` value. In practice each form
+starts on a row that has both `tab = form` and a `title`.
 
 Forms are always processed before the chart, because the chart can only display concepts
 that a form has already defined.
@@ -41,68 +41,68 @@ that a form has already defined.
 
 ## 2. The columns
 
-The header row must contain at least `section`, `concept`, and `label` (the validator
-rejects the file otherwise). The full set of columns, in order, is:
+The upload check looks only for the `section`, `concept` and `label` columns; applying the
+file also needs `tab`. Columns are found by their header name, so their order does not matter. The usual
+order is:
 
 ```
 tab, title, section, type, required, concept, label,
 option concept, option label,
-normal, subcritical, absolute,
+normal, noncritical, absolute,
 format, caption format, css class, css style, script
 ```
 
 | Column | Used in | Meaning |
 |--------|---------|---------|
 | `tab` | both | `form` or `chart`; selects which part of the file the row belongs to (sticky). |
-| `title` | both | Starts a **new form** (form tab) or a **new chart panel** (chart tab). |
-| `section` | both | Starts a **new section** (a heading grouping the questions/rows below it). |
-| `type` | both | The **field type**. In a form it's the data type of the question; in the chart it's the rendering type. |
-| `required` | form | `yes`/`no` — whether the question must be answered. |
-| `concept` | both | The **OpenMRS concept ID** the field records (an integer). |
-| `label` | both | The text shown to the user for the question / chart row. Supports translations (see §6). |
+| `title` | both | Starts a new form (form tab) or a new chart panel (chart tab). |
+| `section` | both | Starts a new section: a heading over the questions or rows below it. |
+| `type` | both | The field type: in a form, the question's data type; in the chart, the rendering type. |
+| `required` | form | `yes`/`no`: whether the question must be answered. |
+| `concept` | both | The OpenMRS concept ID (an integer) that the field records. |
+| `label` | both | The text shown for the question or chart row. Can carry translations (see §6). |
 | `option concept` | form | For `select_one` / `select_multiple`: the concept ID of one answer choice. |
 | `option label` | form | The text shown for that answer choice. |
-| `normal` | form | Numeric field: the normal range (e.g. `36-37.5`). |
-| `subcritical` | form | Numeric field: the wider "concerning but not critical" range. |
-| `absolute` | form | Numeric field: the absolute plausible range; values outside are rejected as typos. |
-| `format` | chart | How to render the value (format mini-language, see §5). |
-| `caption format` | chart | Secondary text under a tile / in a grid popup. |
-| `css class` | chart | CSS class name(s) to attach (can be computed from the value). |
-| `css style` | chart | Inline CSS applied to the tile / grid row. |
+| `normal` | form | Numeric field: the normal range (e.g. `36-37.5`). See §4. |
+| `noncritical` | form | Numeric field: the wider "concerning but not critical" range. See §4. |
+| `absolute` | form | Numeric field: the plausible range; the tablet refuses a value outside it as a typo. |
+| `format` | chart | How to render the value (format mini-language, see §7). |
+| `caption format` | chart | Secondary text under a tile or in a grid pop-up. |
+| `css class` | chart | Class name(s) given to the tile or grid cell, usually computed from the value (§5). |
+| `css style` | chart | CSS rules added to the chart page as written (§5). |
 | `script` | chart | Optional JavaScript for advanced rendering. |
 
-> **Note:** the ranges columns are read by position/name as **normal / subcritical /
-> absolute**. (Internally the apply script calls the middle one `noncritical`; the header in
-> the sample files spells it `subcritical`. Use `subcritical` in your header to be safe.)
+> **Note:** the middle range column must be headed `noncritical`. Some old sample files call
+> it `subcritical`; with that heading the range is silently ignored.
 
-The three "empty" leading columns matter: because meaning comes from *which* cells are
-filled, a question row leaves `tab`, `title`, and `section` blank and starts filling from
-the `type` column; an answer-option row leaves everything blank up to `option concept`.
+Because a row's meaning depends on which cells are filled, leave the leading cells empty where
+they do not apply. A question row leaves `tab`, `title` and `section` blank and starts at the
+`type` column. An answer-option row leaves every column before `option concept` blank.
 
 ---
 
 ## 3. Row kinds
 
-Within either tab, a row plays one of four roles depending on which columns are filled:
+In both tabs, a row is one of four kinds, depending on which columns are filled:
 
-1. **Title row** — has a `title`. Starts a new form (form tab) or a new chart panel (chart
+1. **Title row**: has a `title`. Starts a new form (form tab) or a new chart panel (chart
    tab). Everything else on the row is usually blank.
    ```csv
    form,[1] Admission
    ```
 
-2. **Section row** — has a `section` but no `type`. Starts a new heading / group.
+2. **Section row**: has a `section` but no `type`. Starts a new heading (a group).
    ```csv
    ,,Vitals [fr:Signes vitaux]
    ```
 
-3. **Question / field row** — has a `type` (and usually a `concept` and `label`). Defines
+3. **Question (field) row**: has a `type` (and usually a `concept` and `label`). Defines
    one field.
    ```csv
    ,,,number,,5088,Temperature (°C) [fr:Température (C)],,,36-37.5,36-39,35-45
    ```
 
-4. **Option row** — has an `option concept` / `option label` but no `type`. Adds one answer
+4. **Option row**: has an `option concept` / `option label` but no `type`. Adds one answer
    choice to the `select_one` / `select_multiple` question immediately above it.
    ```csv
    ,,,,,,,142177,S. Suspect [fr:S. Suspect]
@@ -113,26 +113,26 @@ Within either tab, a row plays one of four roles depending on which columns are 
 ## 4. The `form` tab
 
 Each form begins with a title row (`tab = form`, `title = ...`). The bracketed numbers in
-the sample titles (`[1] Admission`, `[2] Accompanying person`, …) are just naming/ordering
-conventions that show up in the form list on the tablet.
+the sample titles (`[1] Admission`, `[2] Accompanying person`, …) are a naming convention
+for ordering; they appear in the form list on the tablet.
 
-Inside a form you write section rows to group questions, then question rows, then (for
-choice questions) option rows.
+Inside a form, write section rows to group the questions, then question rows, and after each
+choice question its option rows.
 
 ### Field types (`type` column)
 
 | `type` | What it produces |
 |--------|------------------|
 | `text` | Free text box. |
-| `number` | Numeric entry; honours the `normal` / `subcritical` / `absolute` ranges. |
+| `number` | Numeric entry; refuses values outside the `absolute` range. |
 | `date` | Date picker. |
-| `datetime` | Date + time picker. |
+| `datetime` | Date and time picker. |
 | `yes_no` | Yes / No toggle. |
 | `yes_no_unknown` | Yes / No / Unknown toggle. |
 | `select_one` | Single-choice list; the choices are the `option` rows that follow. |
 | `select_multiple` | Multi-choice list (a group of on/off toggles); choices follow as `option` rows. |
 
-Example — a single-choice question with three answers:
+A single-choice question with three answers:
 
 ```csv
 ,,,select_one,,900005,Status [fr:État]
@@ -141,8 +141,8 @@ Example — a single-choice question with three answers:
 ,,,,,,,119844,Con. Convalescent [fr:Con. Convalescence]
 ```
 
-Example — a multi-select. The question row leaves `concept` blank and just names the group
-via `label`; each following option row is one checkbox concept:
+A multi-select question. The question row leaves `concept` blank and names the group in
+`label`; each option row below it is one checkbox concept:
 
 ```csv
 ,,,select_multiple,,,Bleeding [fr:Saignement]
@@ -153,18 +153,26 @@ via `label`; each following option row is one checkbox concept:
 
 ### Numeric ranges
 
-For `number` questions, the three range columns drive validation and colour-coding:
+A `number` question can carry three ranges:
 
 ```csv
 ,,,number,,5088,Temperature (°C),,,36-37.5,36-39,35-45
 ```
 
-- `normal` = `36-37.5` — values in this range are treated as normal.
-- `subcritical` = `36-39` — the wider acceptable band.
-- `absolute` = `35-45` — hard bounds; a value outside this is assumed to be a typo and rejected.
+- `absolute` = `35-45`: the tablet refuses a value outside this range as a typo.
+- `normal` = `36-37.5` and `noncritical` = `36-39`: stored in OpenMRS as the concept's normal
+  and critical limits. They do not change what the tablet shows.
 
-A range is written `low-high` (a `..` separator also works, e.g. `36..37.5`). Leave a range
-blank to omit it.
+If the same concept is a `number` question in several forms, the last one in the file sets all
+three ranges, even where its cells are blank. A blank `absolute` there removes the typo check, so
+give the concept the same ranges in every form.
+
+The ranges do not colour anything on the patient chart. To show out-of-range values in colour,
+write a rule in the chart row's `css class` column (§5, "Colouring out-of-range values").
+The `noncritical` range should contain the `normal` one (here 36–39 around 36–37.5).
+
+A range is written `low-high` (a `..` separator also works, e.g. `36..37.5`). Leave the cell
+blank to omit a range.
 
 ### `required`
 
@@ -183,26 +191,25 @@ The chart tab defines the patient dashboard: the **tiles** across the top and th
 **grid** of observations underneath. There is only one chart; you can split it into several
 labelled panels with `title` rows.
 
-The key idea: **the `section` cell's brackets choose what kind of section it is.**
+The brackets in the `section` cell set the kind of section:
 
 | `section` value | Section kind | Renders as |
 |-----------------|--------------|------------|
-| `[[ ... ]]` (double brackets) | **Fixed row** | A fixed key/value row at the very top (e.g. admission date, location). |
-| `[ ... ]` (single brackets)   | **Tile row** | A row of dashboard **tiles** (big at-a-glance values). |
-| plain text (no brackets)      | **Grid section** | A titled block of **grid rows** — one row per observation, columns = time. |
+| `[[ ... ]]` (double brackets) | Fixed row | A fixed key/value row at the very top (e.g. admission date, location). |
+| `[ ... ]` (single brackets)   | Tile row | A row of dashboard tiles (large values read at a glance). |
+| plain text (no brackets)      | Grid section | A titled block of grid rows: one row per observation, time across the columns. |
 
-The bracketed text itself is just a label; `[tiles]`, `[[fixed]]`, `[tiles 1]` etc. are all
-fine. Grid sections use their plain text as the visible heading (`Vitals`, `Symptoms`, …).
+The text inside the brackets is only a label: `[tiles]`, `[[fixed]]` and `[tiles 1]` all work.
+A grid section's plain text is its visible heading (`Vitals`, `Symptoms`, …).
 
 ### Chart rows
 
-Under a chart section, each row with a `type` and a `concept` is one chart item — a tile (in
-a tile row) or a grid line (in a grid section). For the chart, `type` is a **rendering hint**
-(commonly `number`, `text`, `select_one`, `yes_no`); it does not redefine the concept's data
-type. The concept must already have been defined by a form (or exist in the dictionary).
+Under a chart section, each row with a `type` and a `concept` is one chart item: a tile in a
+tile row, or a grid row in a grid section. In the chart, `type` is a rendering hint (commonly
+`number`, `text`, `select_one`, `yes_no`); it does not redefine the concept's data type. The concept must already have been defined by a form (or exist in the dictionary).
 
-A grid row references **exactly one** concept. A tile / fixed row may combine **several**
-concepts, separated by `;`, so a single tile can summarise multiple observations:
+A grid row refers to exactly one concept. A tile or fixed row can combine several concepts,
+separated by `;`, to summarise several observations in one tile:
 
 ```csv
 ,,,text,,900023;900024,Ebola tests,,,,,,"{1,select,664:NEG;703:POS;·} / {2,select,664:NEG;703:POS;·}"
@@ -212,30 +219,87 @@ Here `{1,...}` is the first concept (`900023`) and `{2,...}` is the second (`900
 
 ### Styling columns
 
-`css class` and `css style` let you colour a tile or grid row based on the value; and both,
-like `format`, use the format mini-language, so the class can be computed from the
-observation. Example — a "Category" tile shown green/yellow/red:
+`css class` gives the tile or grid cell a class name. Like `format`, it uses the format
+mini-language (§7), so the class can depend on the observed value. `css style` is plain CSS:
+the tablet adds the text of every row's `css style` to one stylesheet for the whole chart page.
+A rule written on one row therefore applies to every row. A "Category" tile shown green,
+yellow or red:
 
 ```csv
 ,,,text,,900019,Category,,,,,,"{1,select,900041:Vert;900042:Jaune;900043:Rouge;–}",,"{1,select,900041:green;900042:yellow;900043:red}",".green { background: #7c7; } .yellow { background: #fc4; } .red { background: #f76; }"
 ```
 
-- `format` → the displayed text (`Vert` / `Jaune` / `Rouge`, or `–` if unobserved).
-- `css class` → `green` / `yellow` / `red` depending on the coded value.
-- `css style` → the CSS defining those classes.
+- `format` gives the displayed text: `Vert`, `Jaune` or `Rouge`, or `–` if unobserved.
+- `css class` gives `green`, `yellow` or `red`, depending on the coded value.
+- `css style` holds the CSS that defines those classes.
+
+### Colouring out-of-range values
+
+The chart already has two colours for values outside their range:
+
+| Class | Colour | Use it for |
+|-------|--------|------------|
+| `abnormal` | orange | outside the normal range |
+| `critical` | red | outside the non-critical range |
+
+From the next update of the tablet app, both colours are darker and bold.
+
+To use them, put a `select` rule in the row's `css class` column that compares the value with
+the row's range. Temperature, normal 36–37.5, with fever above 37.5 and high fever above 39:
+
+```csv
+,,,number,,5088,Temp. (°C),,,36-37.5,37.6-39,32-45,#.0°,,"{1,select,<36:abnormal;>39:critical;>37.5:abnormal}"
+```
+
+- 35.5 → orange, 37.0 → no colour, 38.2 → orange, 40.1 → red.
+
+Potassium, normal 3.8–5, non-critical 2.4–6.6:
+
+```
+{1,select,<2.4:critical;<3.8:abnormal;>6.6:critical;>5:abnormal}
+```
+
+A lab with only a normal range, haemoglobin 10.5–18.5:
+
+```
+{1,select,<10.5:abnormal;>18.5:abnormal}
+```
+
+How to write the rule:
+
+- The conditions are checked from left to right and the first one that matches wins, so put
+  the critical bound before the abnormal one on each side.
+- A value inside the normal range matches nothing and keeps the normal colour. The bounds
+  themselves count as normal: with `<36` and `>37.5`, both 36 and 37.5 are normal.
+- **Every branch needs a condition.** Do not end the rule with a branch that has none
+  (`…;critical`): that branch is also used for a tile with no observation, which would then
+  show as critical.
+- The rule copies the numbers from the range columns. When you change a range, change the rule
+  on the chart row too.
+- Do not use `[` or `]` in a rule: the tablet removes anything in square brackets, as it does
+  for translations.
+
+Things to know:
+
+- A grid cell shows the latest value recorded in that time slot, and its colour follows that
+  value. An earlier out-of-range reading in the same slot does not colour the cell.
+- A `number` row with no `format` shows whole numbers, so K+ 3.75 would show as "4" in orange.
+  Give such rows the format `0.##`, which shows up to two decimals (3.75, 9, 140).
+- The detail pop-up that opens when you tap a cell is not coloured.
+- After applying a changed profile, re-sync each tablet before checking the colours.
 
 ---
 
 ## 6. Labels and translations
 
-Any label (`label`, `option label`, section text) can carry translations inline, using
+Any label (`label`, `option label`, section text) can carry translations as
 `[<lang>:<text>]` suffixes:
 
 ```
 Temperature (°C) [fr:Température (C)]
 ```
 
-The base text is the default (English here); `[fr:...]` supplies the French rendering.
+The text before the brackets is the default (here English); `[fr:...]` gives the French text.
 
 Because the CSV is comma-separated, wrap any label that contains a comma in double quotes:
 
@@ -245,17 +309,16 @@ Because the CSV is comma-separated, wrap any label that contains a comma in doub
 
 ---
 
-## 7. The format mini-language (chart `format`, `caption format`, `css class`, `css style`)
+## 7. The format mini-language (chart `format`, `caption format`, `css class`)
 
-These four chart columns aren't plain text — they're rendered with a small template
-language (based on Java's `MessageFormat`, but **1-based**). This is the part worth
-understanding well, because it's what makes the dashboard concise.
+The text in these three chart columns is a template in a small format language. It is based
+on Java's `MessageFormat`, but it counts from 1.
 
 ### Referencing values
 
-`{1}` is the first concept of the row, `{2}` the second, and so on (matching the `;`-separated
-IDs in the `concept` column). A bare number like `#.0` is shorthand for "format the first
-value as a number".
+`{1}` is the first concept of the row, `{2}` the second, and so on, in the order of the
+`;`-separated IDs in the `concept` column. A bare number pattern such as `#.0` is short for
+formatting the first value as a number.
 
 ### Sub-formats: `{<n>,<format>,<args>}`
 
@@ -271,26 +334,29 @@ value as a number".
 | `location` | Resolve a location value to its name. | `{1,location}` |
 | `select` | Map a coded/numeric value to text, or choose a format by condition. | see below |
 
-### `select` — the workhorse
+### `select`
 
-`select` maps a value to different output. Two modes:
+`select` chooses the output according to the value. It works in two ways.
 
-**By coded value** — `id:text` pairs separated by `;`, with an optional final fallback:
+**By coded value**: `id:text` pairs separated by `;`, with an optional final fallback:
 
 ```
 {1,select,664:NEG;703:POS;·}
 ```
-→ `NEG` if the value is concept 664, `POS` if 703, otherwise `·`.
+This shows `NEG` if the value is concept 664, `POS` if 703, and `·` otherwise.
 
-**By condition** — with comparison operators (`<`, `<=`, `>`, `>=`, `=`):
+**By condition**: with comparison operators (`<`, `<=`, `>`, `>=`, `=`):
 
 ```
-{1,select,=:;=0:jour;jours}
+{1,select,>39:High fever;>37.5:Fever;Normal}
 ```
-→ empty if unobserved, `jour` if the value is 0, else `jours` (used to pluralise "day/days").
+This shows `High fever` above 39, `Fever` above 37.5, and `Normal` otherwise.
 
-An empty condition (`=:`) tests for "no value observed"; the branch text can itself contain
-more `{...}` placeholders, so selects can nest.
+A branch with no condition (like `Normal` above) is the fallback. It is also used when nothing
+has been observed, so this example shows `Normal` for a patient with no temperature recorded.
+`select` has no condition for "no value": `=:` does not test for it, and on a number it
+matches the value 0. A branch's text can contain further `{...}` placeholders, so one select
+can sit inside another.
 
 ### Worked examples from `bunia.csv`
 
@@ -304,16 +370,17 @@ is one, and the registration time only when there is not.
 ```csv
 ,,,text,,buendia_concept_placement,Location,,,,,,"{1,location}","{2,select,=:;Lit {2,text}}"
 ```
-Tile: patient's location name, with caption `Lit 12` when a bed is recorded (blank if not).
+Tile: the patient's location name, with the caption `Lit 12` when a bed is recorded and
+`Lit –` when none is.
 
 ```csv
 ,,,text,,900020;900021,Sample taken,,,,,,"{2,select,1065:Prélevé (2);:{1,select,1065:Prélevé (1);:Aucun}}"
 ```
-Combines two yes/no concepts: shows `Prélevé (2)` if the 2nd sample was taken, else
-`Prélevé (1)` if the 1st was, else `Aucun`.
+Combines two yes/no concepts. It shows `Prélevé (2)` if the second sample was taken,
+otherwise `Prélevé (1)` if the first was, otherwise `Aucun`.
 
-If a format string is invalid it is shown verbatim (prefixed with `??`) rather than crashing
-the app, which makes profiles easy to debug on-device.
+An invalid format string does not crash the app: it is shown as written, prefixed with `??`,
+so you can find the mistake on the tablet.
 
 ---
 
@@ -331,7 +398,7 @@ translations) as the concept name.
 ## 9. Minimal template
 
 ```csv
-tab,title,section,type,required,concept,label,option concept,option label,normal,subcritical,absolute,format,caption format,css class,css style,script
+tab,title,section,type,required,concept,label,option concept,option label,normal,noncritical,absolute,format,caption format,css class,css style,script
 form,My form
 ,,Vitals
 ,,,number,,5088,Temperature (°C),,,36-37.5,36-39,35-45
@@ -342,5 +409,5 @@ chart,Chart
 ,,[tiles]
 ,,,number,,5088,Temp,,,,,,#.0°
 ,,Vitals
-,,,number,,5088,Temperature,,,,,,#.0
+,,,number,,5088,Temperature,,,,,,#.0,,"{1,select,<36:critical;>39:critical;>37.5:abnormal}"
 ```

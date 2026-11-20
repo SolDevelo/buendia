@@ -601,6 +601,21 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-11-20 — out-of-range vitals and lab results in colour (LIME2-1357; profile test49 + client).**
+> MSF asked for out-of-range values to stand out. The chart could already colour a value through a row's
+> `css class`, but no profile row set one. `DRC_test49_FIXED.csv` (test48 + `buendia-profile-review/make_test49.py`)
+> gives 23 chart rows a `select` rule: orange (`abnormal`) outside normal, red (`critical`) outside non-critical;
+> labs with only a normal range go orange. 22 rows use their own range cells; O₂ sat. has none on the chart, so
+> its rule copies the form's 98–100 / 96–100. Temperature's non-critical range is the fever band only
+> (37.6–39), so low temperatures go orange, never red. All 22 lab rows also get the format `0.##`: a `number`
+> row without one shows whole numbers (K+ 3.75 read "4"). `chart.css` darkens both colours and makes them
+> bold (orange 2.1:1 → 4.7:1 on the grid's `#f8f8f8` rows). Measured on an Android 9 emulator over the
+> WebView's DevTools. **Colours appear once test49 is applied and the tablets re-sync, on the current APK too
+> (lighter orange/red); the darker bold shades ship with the next APK.** Open with MSF: Ca+ unit (chart says
+> mmol/L, range is mg/dL), Heart rate's two non-critical ranges (40–180 vs 20–200), a low critical bound for
+> Temperature, and a range for BP diastolic. `docs/PROFILE-CSV-FORMAT.md` has a new section on writing these
+> rules and corrects the `subcritical` header (it must be `noncritical`, or the range is silently dropped).
+
 > **Update 2026-11-18 — pop-up messages readable on current tablets (LIME2-1376; client only, not yet in a pack).**
 > MSF reported the error messages as white on a white screen. `BigToast` (every pop-up message: server and
 > sync errors, sign-in, patient saved) forced white text onto Android's own toast box, which is dark grey up to
@@ -1247,9 +1262,8 @@ assume them — in particular **we ship our own router** (§2 item 5).
    agree), and a **second node joining the same SSID** with a tablet roaming onto it. Ship both the script
    and the exported backup in the kit, and tape over the reset button.
 
-Also outstanding, unrelated to any workstream: the pre-existing strays in the tree
-(`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`, an `.idea/` change) still need review/removal —
-they predate this work. Both branches (superproject and client submodule) are now pushed to `soldevelo`.
+The pre-existing strays once listed here (`tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`) were
+committed in `207cf9ed`; the `.idea/` files are git-ignored. Both branches (superproject and client submodule) are now pushed to `soldevelo`.
 
 *(The old note here — that the local stack ran a hand-configured DB — no longer applies: it was
 rebuilt cold from the seed on 2026-07-29. See §3 for its current state.)*

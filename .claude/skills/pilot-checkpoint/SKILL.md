@@ -70,8 +70,8 @@ git commit
 ```
 
 - **Commit at every checkpoint.** Don't leave a working package only in the working tree.
-- **Don't sweep up the pre-existing strays.** `tools/profile_applyc`, `docs/PROFILE-CSV-FORMAT.md`
-  and an `.idea/` change predate this work and are pending review — they are not yours to commit.
+- **Commit only what your change touches.** Another session's uncommitted edits in the tree are not
+  yours to commit.
 - Heavy artefacts (the 80 MB base seed, `.war`/omods, `deploy/.env`, the keystore, `pkgserver/www/`,
   `cards/`) are git-ignored on purpose. `20-buendia-site.sql` is deliberately **not** ignored.
 - Pushing is the user's call. The superproject branch has been carried unpushed for a while; the
