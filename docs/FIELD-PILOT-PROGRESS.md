@@ -601,6 +601,15 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-11-23 — the signed-in user's full name on every screen (LIME2-1353; client only, not yet in a pack).**
+> MSF asked for the selected user to be visible at all times. The tablet showed it only as a small square with the
+> user's initials in the top-right corner, and not at all on form screens. That square is now a badge with the user's
+> full name, in the same colour, on the lists, the chart and every form (variant B of four mock-ups, picked by MSF).
+> A long name is cut short with "…" at just under a third of the screen width. Tapping the badge still opens the user menu,
+> except on a form, where it does nothing. The login screen and the provider chips in observation details keep
+> initials. Measured on an Android 9 emulator at the field tablet's size (`MSF/Buendia/lime2-1353/live_1353.py`).
+> **Ships with the next APK.**
+
 > **Update 2026-11-23 — the Admission form keeps the admission and symptom-onset dates (LIME2-1354; client only, not yet in a pack).**
 > MSF reported that filling the Admission form again for a patient (to complete or correct it) reset the admission
 > date and the date of onset of symptoms to today unless both were re-entered. The form's date pickers always hold a
