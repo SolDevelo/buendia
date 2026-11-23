@@ -601,6 +601,17 @@ Full detail, and the signing-key/encryption warnings, in `deploy/apk/README.md`.
 > trace behind an empty HTTP 500 lands). Ships with the next pack: omod bump, image push and
 > `--keep-passwords` pack still to do.
 
+> **Update 2026-11-23 — the Admission form keeps the admission and symptom-onset dates (LIME2-1354; client only, not yet in a pack).**
+> MSF reported that filling the Admission form again for a patient (to complete or correct it) reset the admission
+> date and the date of onset of symptoms to today unless both were re-entered. The form's date pickers always hold a
+> value, today when the form has none, so the untouched form recorded today — and since OML-44 the newest Admission
+> form's date counts, so "Jour N" restarted at 1 and Symptoms at 1 day. The form now opens with both pickers on the
+> dates the chart shows: the admission date the chart counts from (the registration time until an Admission form
+> exists) and the latest onset date. Only these two fields are pre-filled (MSF meeting 2026-11-20). An onset date
+> never recorded still opens on today, and a readmitted patient's form opens on the earlier admission date, to be
+> changed by hand. Values already overwritten before this change are corrected as in OML-44 (delete the wrong value).
+> Measured on Android 9 and 11 emulators (`MSF/Buendia/lime2-1354/rows.py`). **Ships with the next APK.**
+
 > **Update 2026-11-20 — out-of-range vitals and lab results in colour (LIME2-1357; profile test49 + client).**
 > MSF asked for out-of-range values to stand out. The chart could already colour a value through a row's
 > `css class`, but no profile row set one. `DRC_test49_FIXED.csv` (test48 + `buendia-profile-review/make_test49.py`)
